@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String        @id @default(cuid())
+  name       String
+  email      String        @unique
+  password   String
+  role       String        @default("MANAGER")
+  avatar     String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  projects   Project[]
+  notes      Note[]
+  activities ActivityLog[]
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String?
+  whatsapp  String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  projects  Project[]
+}
+
+model Project {
+  id               String          @id @default(cuid())
+  clientId         String
+  client           Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  room             String?
+  status           String          @default("APPROVED")
+  stage            String          @default("PENDING_START")
+  startDate        DateTime?
+  estimatedEndDate DateTime?
+  actualEndDate    DateTime?
+  value            Float?
+  managerId        String?
+  manager          User?           @relation(fields: [managerId], references: [id])
+  internalNotes    String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  notes            Note[]
+  files            ProjectFile[]
+  timeline         TimelineEvent[]
+  activities       ActivityLog[]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model ProjectFile {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  type      String
+  url       String
+  size      Int?
+  createdAt DateTime @default(now())
+}
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  event       String
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
