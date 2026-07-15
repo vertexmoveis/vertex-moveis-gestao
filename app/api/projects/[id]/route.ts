@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { projectPatchSchema, projectUpdateSchema } from '@/lib/schemas'
-import { PRODUCTION_STAGE_STATUS, type ProductionStage } from '@/types'
+import {
+  buildPaymentSchedule,
+  financialScheduleChanged,
+  PaymentScheduleConflictError,
+  reconcilePaymentSchedule,
+} from '@/lib/payments'
+import { calculateProjectProductionDates } from '@/lib/business-days'
+import { ensureProjectChecklist } from '@/lib/checklist'
+import {
+  ensureProjectEnvironmentsFromRoom,
+  serializeEnvironment,
+  summarizeEnvironments,
+  syncProjectEnvironments,
+} from '@/lib/project-environments'
+import { normalizeProductionStage, PRODUCTION_STAGE_STATUS, type ProductionStage } from '@/types'
 import {
   badRequest,
   canAccessProject,
@@ -13,6 +27,18 @@ import {
   serviceUnavailable,
 } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+
+function addCalendarDays(date: Date, days: number) {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
+function addCalendarYear(date: Date) {
+  const result = new Date(date)
+  result.setFullYear(result.getFullYear() + 1)
+  return result
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth()
@@ -38,10 +64,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       room: true,
       status: true,
       stage: true,
+      approvalDate: true,
+      deliveryBusinessDays: true,
+      deliveryDeadlineDate: true,
+      productionReminderBusinessDays: true,
+      productionStartReminderDate: true,
       startDate: true,
       estimatedEndDate: true,
       actualEndDate: true,
+      postSaleFollowUpAt: true,
+      postSaleContactedAt: true,
+      warrantyEndsAt: true,
       value: auth.user.role === 'ADMIN',
+      productionCost: auth.user.role === 'ADMIN',
+      downPayment: auth.user.role === 'ADMIN',
+      downPaymentDate: auth.user.role === 'ADMIN',
+      installmentCount: auth.user.role === 'ADMIN',
+      installmentValue: auth.user.role === 'ADMIN',
+      firstInstallmentDate: auth.user.role === 'ADMIN',
       internalNotes: auth.user.role === 'ADMIN',
       createdAt: true,
       updatedAt: true,
@@ -64,16 +104,63 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
       files: auth.user.role === 'ADMIN' ? { orderBy: { createdAt: 'desc' } } : false,
       timeline: { select: { id: true, event: true, description: true, date: true, createdAt: true }, orderBy: { date: 'asc' } },
+      payments: auth.user.role === 'ADMIN'
+        ? {
+            select: {
+              id: true,
+              installmentNumber: true,
+              type: true,
+              amount: true,
+              dueDate: true,
+              paidAt: true,
+              paymentMethod: true,
+              createdAt: true,
+              updatedAt: true,
+              history: {
+                select: {
+                  id: true,
+                  action: true,
+                  method: true,
+                  amount: true,
+                  createdAt: true,
+                  user: { select: { id: true, name: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+            orderBy: [{ installmentNumber: 'asc' }, { dueDate: 'asc' }],
+          }
+        : false,
+      checklist: {
+        select: { id: true, label: true, position: true, completedAt: true, createdAt: true, updatedAt: true },
+        orderBy: { position: 'asc' },
+      },
+      environments: {
+        select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true, createdAt: true, updatedAt: true },
+        orderBy: { position: 'asc' },
+      },
     },
   })
 
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  let checklist = project.checklist
+  const environments = await ensureProjectEnvironmentsFromRoom(id, project.room)
+  checklist = await ensureProjectChecklist(id, prisma, checklist)
+
   return NextResponse.json({
     ...project,
+    approvalDate: project.approvalDate?.toISOString() || null,
+    deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
+    productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
     startDate: project.startDate?.toISOString() || null,
     estimatedEndDate: project.estimatedEndDate?.toISOString() || null,
     actualEndDate: project.actualEndDate?.toISOString() || null,
+    postSaleFollowUpAt: project.postSaleFollowUpAt?.toISOString() || null,
+    postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
+    warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
+    downPaymentDate: 'downPaymentDate' in project && project.downPaymentDate ? project.downPaymentDate.toISOString() : null,
+    firstInstallmentDate: 'firstInstallmentDate' in project && project.firstInstallmentDate ? project.firstInstallmentDate.toISOString() : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
     client: {
@@ -83,6 +170,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     },
     notes: project.notes.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
     files: 'files' in project && Array.isArray(project.files) ? project.files.map((f) => ({ ...f, createdAt: f.createdAt.toISOString() })) : [],
+    payments: 'payments' in project && Array.isArray(project.payments)
+      ? project.payments.map((payment) => ({
+          ...payment,
+          dueDate: payment.dueDate.toISOString(),
+          paidAt: payment.paidAt?.toISOString() || null,
+          history: ('history' in payment && Array.isArray(payment.history) ? payment.history : []).map((history) => ({
+              ...history,
+              createdAt: history.createdAt.toISOString(),
+            })),
+          createdAt: payment.createdAt.toISOString(),
+          updatedAt: payment.updatedAt.toISOString(),
+        }))
+      : [],
+    checklist: checklist.map((item) => ({
+      ...item,
+      completedAt: item.completedAt?.toISOString() || null,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
+    environments: environments.map(serializeEnvironment),
+    environmentSummary: summarizeEnvironments(environments),
     timeline: project.timeline.map((t) => ({
       ...t,
       date: t.date.toISOString(),
@@ -114,50 +222,156 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!parsed.success) return badRequest()
 
   try {
-    const existing = await prisma.project.findUnique({ where: { id } })
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
     const input = parsed.data
-    const project = await prisma.project.update({
-      where: { id },
-      data: {
-        clientId: input.clientId,
-        name: input.name,
-        room: input.room,
-        status: input.status,
-        stage: input.stage,
-        startDate: input.startDate,
-        estimatedEndDate: input.estimatedEndDate,
-        value: input.value,
-        managerId: input.managerId,
-        internalNotes: input.internalNotes,
-      },
-      include: {
-        client: { select: { id: true, name: true, phone: true, whatsapp: true } },
-        manager: { select: { id: true, name: true } },
-      },
-    })
-
-    if (existing.status !== project.status || existing.stage !== project.stage) {
-      await prisma.activityLog.create({
-        data: {
-          userId: auth.user.id,
-          projectId: id,
-          action: 'Projeto atualizado',
-          details: `Status: ${project.status} | Etapa: ${project.stage}`,
+    const stage = normalizeProductionStage(input.stage as ProductionStage)
+    const project = await prisma.$transaction(async (tx) => {
+      const existing = await tx.project.findUnique({
+        where: { id },
+        include: {
+          payments: {
+            select: {
+              id: true,
+              installmentNumber: true,
+              type: true,
+              amount: true,
+              dueDate: true,
+              paidAt: true,
+            },
+          },
         },
       })
-    }
+      if (!existing) throw new PaymentScheduleConflictError('Projeto não encontrado.')
+
+      const productionDates = calculateProjectProductionDates({
+        approvalDate: input.approvalDate,
+        deliveryBusinessDays: input.deliveryBusinessDays,
+        reminderBusinessDays: input.productionReminderBusinessDays,
+      })
+      const estimatedEndDate = productionDates.deliveryDeadlineDate || input.estimatedEndDate
+      const completedAt = stage === 'COMPLETED' ? existing.actualEndDate || new Date() : existing.actualEndDate
+      const postSaleFollowUpAt = stage === 'COMPLETED'
+        ? existing.postSaleFollowUpAt || addCalendarDays(completedAt || new Date(), 30)
+        : existing.postSaleFollowUpAt
+      const warrantyEndsAt = stage === 'COMPLETED'
+        ? existing.warrantyEndsAt || addCalendarYear(completedAt || new Date())
+        : existing.warrantyEndsAt
+      const scheduleInput = {
+        value: input.value,
+        downPayment: input.downPayment,
+        downPaymentDate: input.downPaymentDate,
+        installmentCount: input.installmentCount,
+        firstInstallmentDate: input.firstInstallmentDate,
+        startDate: input.startDate,
+        baseDate: input.startDate || existing.startDate || existing.createdAt,
+      }
+      const schedule = buildPaymentSchedule(scheduleInput)
+      const shouldReconcilePayments = financialScheduleChanged(existing, scheduleInput)
+      const paymentChanges = shouldReconcilePayments
+        ? reconcilePaymentSchedule(schedule, existing.payments)
+        : null
+
+      const environments = await syncProjectEnvironments(id, input.environments, input.room, tx)
+      const room = environments.length > 0
+        ? environments.map((environment) => environment.name).join(', ')
+        : input.room
+
+      const updatedProject = await tx.project.update({
+        where: { id },
+        data: {
+          clientId: input.clientId,
+          name: input.name,
+          room,
+          status: input.status,
+          stage,
+          approvalDate: input.approvalDate,
+          deliveryBusinessDays: input.deliveryBusinessDays,
+          deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
+          productionReminderBusinessDays: input.productionReminderBusinessDays,
+          productionStartReminderDate: productionDates.productionStartReminderDate,
+          startDate: input.startDate,
+          estimatedEndDate,
+          actualEndDate: completedAt,
+          postSaleFollowUpAt,
+          warrantyEndsAt,
+          value: input.value,
+          productionCost: input.productionCost || 0,
+          downPayment: schedule.terms.downPayment,
+          downPaymentDate: input.downPaymentDate,
+          installmentCount: schedule.terms.installmentCount,
+          installmentValue: schedule.terms.installmentValue,
+          firstInstallmentDate: input.firstInstallmentDate,
+          managerId: input.managerId,
+          internalNotes: input.internalNotes,
+        },
+        include: {
+          client: { select: { id: true, name: true, phone: true, whatsapp: true } },
+          manager: { select: { id: true, name: true } },
+          environments: { orderBy: { position: 'asc' } },
+        },
+      })
+
+      if (paymentChanges) {
+        if (paymentChanges.deleteIds.length > 0) {
+          await tx.projectPayment.deleteMany({ where: { id: { in: paymentChanges.deleteIds } } })
+        }
+
+        for (const payment of paymentChanges.updates) {
+          await tx.projectPayment.update({
+            where: { id: payment.id },
+            data: {
+              amount: payment.amount,
+              dueDate: payment.dueDate,
+              paidAt: payment.paidAt,
+            },
+          })
+        }
+
+        if (paymentChanges.creates.length > 0) {
+          await tx.projectPayment.createMany({
+            data: paymentChanges.creates.map((payment) => ({ ...payment, projectId: id })),
+          })
+        }
+      }
+
+      await ensureProjectChecklist(id, tx)
+
+      if (existing.status !== updatedProject.status || existing.stage !== updatedProject.stage) {
+        await tx.activityLog.create({
+          data: {
+            userId: auth.user.id,
+            projectId: id,
+            action: 'Projeto atualizado',
+            details: `Status: ${updatedProject.status} | Etapa: ${updatedProject.stage}`,
+          },
+        })
+      }
+
+      return updatedProject
+    })
 
     return NextResponse.json({
       ...project,
+      approvalDate: project.approvalDate?.toISOString() || null,
+      deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
+      productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
       startDate: project.startDate?.toISOString() || null,
       estimatedEndDate: project.estimatedEndDate?.toISOString() || null,
       actualEndDate: project.actualEndDate?.toISOString() || null,
+      postSaleFollowUpAt: project.postSaleFollowUpAt?.toISOString() || null,
+      postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
+      warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
+      downPaymentDate: project.downPaymentDate?.toISOString() || null,
+      firstInstallmentDate: project.firstInstallmentDate?.toISOString() || null,
+      environments: project.environments.map(serializeEnvironment),
+      environmentSummary: summarizeEnvironments(project.environments),
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof PaymentScheduleConflictError) {
+      const status = error.message === 'Projeto não encontrado.' ? 404 : 409
+      return NextResponse.json({ error: error.message }, { status })
+    }
     return serverError()
   }
 }
@@ -185,23 +399,53 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) return badRequest()
 
   try {
-    const existing = await prisma.project.findUnique({ where: { id }, select: { managerId: true } })
+    const existing = await prisma.project.findUnique({
+      where: { id },
+      select: { managerId: true, stage: true, actualEndDate: true, postSaleFollowUpAt: true, warrantyEndsAt: true },
+    })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!canAccessProject(auth.user, existing.managerId)) return forbidden()
 
+    const nextStage = parsed.data.stage
+      ? normalizeProductionStage(parsed.data.stage as ProductionStage)
+      : undefined
+    const actualEndDate =
+      nextStage === 'COMPLETED'
+        ? parsed.data.actualEndDate ?? existing.actualEndDate ?? new Date()
+        : nextStage
+          ? parsed.data.actualEndDate ?? null
+          : parsed.data.actualEndDate
     const data = {
       ...parsed.data,
+      ...(nextStage ? { stage: nextStage } : {}),
       status:
-        parsed.data.stage && !parsed.data.status
-          ? PRODUCTION_STAGE_STATUS[parsed.data.stage as ProductionStage]
+        nextStage && !parsed.data.status
+          ? PRODUCTION_STAGE_STATUS[nextStage]
           : parsed.data.status,
+      actualEndDate,
+      ...(nextStage === 'COMPLETED'
+        ? {
+            postSaleFollowUpAt: existing.postSaleFollowUpAt || addCalendarDays(actualEndDate || new Date(), 30),
+            warrantyEndsAt: existing.warrantyEndsAt || addCalendarYear(actualEndDate || new Date()),
+          }
+        : {}),
     }
 
     const project = await prisma.project.update({
       where: { id },
       data,
-      select: { stage: true, status: true, actualEndDate: true },
+      select: { stage: true, status: true, actualEndDate: true, postSaleFollowUpAt: true, postSaleContactedAt: true, warrantyEndsAt: true },
     })
+
+    if (nextStage === 'COMPLETED' && existing.stage !== 'COMPLETED') {
+      await prisma.timelineEvent.create({
+        data: {
+          projectId: id,
+          event: 'Projeto concluído',
+          description: 'Pós-venda agendado automaticamente para 30 dias após a conclusão.',
+        },
+      })
+    }
 
     await prisma.activityLog.create({
       data: {
@@ -212,7 +456,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     })
 
-    return NextResponse.json({ success: true, stage: project.stage, status: project.status })
+    return NextResponse.json({
+      success: true,
+      stage: project.stage,
+      status: project.status,
+      actualEndDate: project.actualEndDate?.toISOString() || null,
+      postSaleFollowUpAt: project.postSaleFollowUpAt?.toISOString() || null,
+      postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
+      warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
+    })
   } catch {
     return serverError()
   }

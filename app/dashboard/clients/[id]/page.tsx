@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Modal } from '@/components/ui/modal'
 import { ClientForm } from '@/components/clients/client-form'
 import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatClientAddress } from '@/lib/address'
 import Link from 'next/link'
 import type { ClientData, ProjectStatus } from '@/types'
 
@@ -36,6 +37,12 @@ type ClientFormData = {
   whatsapp?: string
   email?: string
   address?: string
+  street?: string
+  number?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  zipCode?: string
   notes?: string
 }
 
@@ -85,6 +92,7 @@ export default function ClientDetailPage() {
 
   const totalValue = client.projects.reduce((sum, p) => sum + (p.value || 0), 0)
   const activeProjects = client.projects.filter((p) => p.stage !== 'COMPLETED').length
+  const clientAddress = formatClientAddress(client)
 
   return (
     <div className="flex flex-col h-full">
@@ -154,14 +162,14 @@ export default function ClientDetailPage() {
                       </div>
                     </div>
                   )}
-                  {client.address && (
+                  {clientAddress && (
                     <div className="flex items-start gap-3">
                       <div className="w-7 h-7 rounded-lg bg-[#F5F5F5] flex items-center justify-center flex-shrink-0 mt-0.5">
                         <MapPin size={13} className="text-[#9E9E9E]" />
                       </div>
                       <div>
                         <p className="text-[10px] text-[#9E9E9E] uppercase tracking-wide">Endereço</p>
-                        <p className="text-sm text-[#121212]">{client.address}</p>
+                        <p className="text-sm text-[#121212]">{clientAddress}</p>
                       </div>
                     </div>
                   )}

@@ -1,0 +1,1 @@
+ALTER TABLE "Quote" ADD COLUMN "cardDownPayment" REAL NOT NULL DEFAULT 0;

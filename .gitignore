@@ -42,6 +42,7 @@ logs/
 
 # local databases
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
 prisma/dev.db

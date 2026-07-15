@@ -32,7 +32,7 @@ export function StatsCard({ title, value, subtitle, icon: Icon, color, trend, de
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-xs font-medium text-[#9E9E9E] uppercase tracking-wide">{title}</p>
-          <p className="text-3xl font-bold text-[#121212] mt-1.5">{value}</p>
+          <p className="mt-1.5 break-words text-2xl font-bold leading-tight text-[#121212] xl:text-3xl">{value}</p>
           {subtitle && (
             <p className="text-xs text-[#9E9E9E] mt-1">{subtitle}</p>
           )}

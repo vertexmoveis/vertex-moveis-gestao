@@ -17,18 +17,44 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
+  const optionsOnly = searchParams.get('options') === '1'
+  const paged = searchParams.get('paged') === '1'
+  const page = Math.max(Number(searchParams.get('page') || 1), 1)
+  const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 24), 1), 100)
 
-  const clients = await prisma.client.findMany({
+  const where = q
+    ? {
+        OR: [
+          { name: { contains: q } },
+          { email: { contains: q } },
+          { phone: { contains: q } },
+          { street: { contains: q } },
+          { neighborhood: { contains: q } },
+          { city: { contains: q } },
+          { zipCode: { contains: q } },
+        ],
+      }
+    : undefined
+
+  if (optionsOnly) {
+    const clients = await prisma.client.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    })
+    return NextResponse.json(clients, {
+      headers: { 'Cache-Control': 'private, max-age=30' },
+    })
+  }
+
+  const [clients, total] = await Promise.all([
+    prisma.client.findMany({
     where: q
-      ? {
-          OR: [
-            { name: { contains: q } },
-            { email: { contains: q } },
-            { phone: { contains: q } },
-          ],
-        }
+      ? where
       : undefined,
     orderBy: { createdAt: 'desc' },
+    skip: paged ? (page - 1) * pageSize : undefined,
+    take: paged ? pageSize : undefined,
     select: {
       id: true,
       name: true,
@@ -36,20 +62,42 @@ export async function GET(req: NextRequest) {
       whatsapp: auth.user.role === 'ADMIN',
       email: auth.user.role === 'ADMIN',
       address: auth.user.role === 'ADMIN',
+      street: auth.user.role === 'ADMIN',
+      number: auth.user.role === 'ADMIN',
+      neighborhood: auth.user.role === 'ADMIN',
+      city: auth.user.role === 'ADMIN',
+      state: auth.user.role === 'ADMIN',
+      zipCode: auth.user.role === 'ADMIN',
+      latitude: auth.user.role === 'ADMIN',
+      longitude: auth.user.role === 'ADMIN',
+      geocodedAt: auth.user.role === 'ADMIN',
       notes: false,
       createdAt: true,
       updatedAt: true,
       _count: { select: { projects: true } },
     },
-  })
+    }),
+    paged ? prisma.client.count({ where }) : Promise.resolve(0),
+  ])
 
-  return NextResponse.json(
-    clients.map((c) => ({
+  const items = clients.map((c) => ({
       ...c,
+      geocodedAt: 'geocodedAt' in c && c.geocodedAt ? c.geocodedAt.toISOString() : null,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
     }))
-  )
+
+  if (paged) {
+    return NextResponse.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    })
+  }
+
+  return NextResponse.json(items)
 }
 
 export async function POST(req: NextRequest) {
@@ -83,6 +131,12 @@ export async function POST(req: NextRequest) {
         whatsapp: true,
         email: true,
         address: true,
+        street: true,
+        number: true,
+        neighborhood: true,
+        city: true,
+        state: true,
+        zipCode: true,
         notes: true,
         createdAt: true,
         updatedAt: true,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, Send, Clock, CheckCircle, Trash2, Phone, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Send, Clock, CheckCircle, Trash2, Phone, MessageCircle, CreditCard, CheckSquare, Square, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
@@ -10,8 +10,20 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Avatar } from '@/components/ui/avatar'
 import { ProjectForm } from '@/components/projects/project-form'
+import { ProjectMaterialsCard } from '@/components/projects/project-materials-card'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
-import { PROJECT_STATUS_LABELS, PRODUCTION_STAGE_LABELS, type ProductionStage, type ProjectStatus } from '@/types'
+import { formatDateOnly } from '@/lib/date-only'
+import { businessDaysBetween } from '@/lib/business-days'
+import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/payment-methods'
+import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
+import {
+  PROJECT_ENVIRONMENT_STATUS_BG,
+  PROJECT_ENVIRONMENT_STATUS_LABELS,
+  PRODUCTION_STAGE_LABELS,
+  type ProductionStage,
+  type ProjectEnvironmentStatus,
+  type ProjectStatus,
+} from '@/types'
 import Link from 'next/link'
 
 interface ProjectDetail {
@@ -20,11 +32,35 @@ interface ProjectDetail {
   room: string | null
   status: ProjectStatus
   stage: ProductionStage
+  approvalDate: string | null
+  deliveryBusinessDays: number
+  deliveryDeadlineDate: string | null
+  productionReminderBusinessDays: number
+  productionStartReminderDate: string | null
   startDate: string | null
   estimatedEndDate: string | null
   actualEndDate: string | null
+  postSaleFollowUpAt: string | null
+  postSaleContactedAt: string | null
+  warrantyEndsAt: string | null
   value: number | null
+  productionCost: number | null
+  downPayment: number | null
+  downPaymentDate: string | null
+  installmentCount: number
+  installmentValue: number | null
+  firstInstallmentDate: string | null
   internalNotes: string | null
+  environments: {
+    id: string
+    name: string
+    status: ProjectEnvironmentStatus
+    position: number
+    notes: string | null
+    startedAt: string | null
+    completedAt: string | null
+  }[]
+  environmentSummary: { total: number; completed: number }
   createdAt: string
   updatedAt: string
   client: {
@@ -34,6 +70,40 @@ interface ProjectDetail {
   manager: { id: string; name: string; email: string } | null
   notes: { id: string; content: string; createdAt: string; author: { id: string; name: string } }[]
   timeline: { id: string; event: string; description: string | null; date: string }[]
+  payments: {
+    id: string
+    installmentNumber: number
+    type: string
+    amount: number
+    dueDate: string
+    paidAt: string | null
+    paymentMethod: string | null
+    history: {
+      id: string
+      action: string
+      method: string | null
+      amount: number
+      createdAt: string
+      user: { id: string; name: string } | null
+    }[]
+  }[]
+  checklist: {
+    id: string
+    label: string
+    position: number
+    completedAt: string | null
+  }[]
+}
+
+const buildWhatsAppNumber = (value: string | null | undefined) => {
+  const digits = value?.replace(/\D/g, '') || ''
+  if (!digits) return null
+  return digits.startsWith('55') ? digits : `55${digits}`
+}
+
+const buildWhatsAppLink = (phone: string, message?: string) => {
+  const params = message ? `?text=${encodeURIComponent(message)}` : ''
+  return `https://wa.me/${phone}${params}`
 }
 
 export default function ProjectDetailPage() {
@@ -46,8 +116,8 @@ export default function ProjectDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [note, setNote] = useState('')
   const [sendingNote, setSendingNote] = useState(false)
-  const [updatingField, setUpdatingField] = useState<'status' | 'stage' | null>(null)
-  const [updateError, setUpdateError] = useState('')
+  const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, string>>({})
+  const [postSaleSaving, setPostSaleSaving] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -56,6 +126,11 @@ export default function ProjectDetailPage() {
       fetch('/api/users').then((r) => r.json()),
     ]).then(([p, c, u]) => {
       setProject(p)
+      if (Array.isArray(p?.payments)) {
+        setPaymentMethodsById(
+          Object.fromEntries(p.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
+        )
+      }
       setClients(c)
       setManagers(u)
       setLoading(false)
@@ -68,7 +143,10 @@ export default function ProjectDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
-    const updated = await res.json()
+    const updated = await res.json().catch(() => null)
+    if (!res.ok) {
+      throw new Error(updated?.error || 'Não foi possível salvar as alterações do projeto.')
+    }
     setProject((prev) => prev ? { ...prev, ...updated } : prev)
     setEditOpen(false)
   }
@@ -89,37 +167,93 @@ export default function ProjectDetailPage() {
     setSendingNote(false)
   }
 
-  const handleQuickUpdate = async (field: 'status' | 'stage', value: ProjectStatus | ProductionStage) => {
-    if (!project || project[field] === value) return
+  const handlePaymentToggle = async (paymentId: string, paid: boolean) => {
+    if (!project) return
 
-    const previousProject = project
-    setUpdatingField(field)
-    setUpdateError('')
-    setProject({ ...project, [field]: value })
+    const selectedMethod = paymentMethodsById[paymentId] || 'PIX'
+    const res = await fetch(`/api/projects/${id}/payments/${paymentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paid, paymentMethod: paid ? selectedMethod : null }),
+    })
+    if (!res.ok) return
 
-    try {
-      const res = await fetch(`/api/projects/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
-      })
+    const updatedPayment = await res.json()
+    setProject((prev) =>
+      prev
+        ? {
+            ...prev,
+            payments: prev.payments.map((payment) =>
+              payment.id === paymentId ? { ...payment, ...updatedPayment } : payment
+            ),
+          }
+        : prev
+    )
+  }
 
-      if (!res.ok) throw new Error('Update failed')
+  const handleChecklistToggle = async (itemId: string, completed: boolean) => {
+    const res = await fetch(`/api/projects/${id}/checklist/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed }),
+    })
+    if (!res.ok) return
 
-      const updated = await res.json()
-      setProject((prev) => prev ? { ...prev, ...updated } : prev)
-    } catch {
-      setProject(previousProject)
-      setUpdateError('Nao foi possivel atualizar. Tente novamente.')
-    } finally {
-      setUpdatingField(null)
-    }
+    const updatedItem = await res.json()
+    setProject((prev) =>
+      prev
+        ? {
+            ...prev,
+            checklist: prev.checklist.map((item) => (item.id === itemId ? { ...item, ...updatedItem } : item)),
+          }
+        : prev
+    )
+  }
+
+  const handleEnvironmentStatus = async (environmentId: string, status: ProjectEnvironmentStatus) => {
+    const res = await fetch(`/api/projects/${id}/environments/${environmentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) return
+
+    const updatedEnvironment = await res.json()
+    setProject((prev) => {
+      if (!prev) return prev
+      const environments = prev.environments.map((environment) =>
+        environment.id === environmentId ? { ...environment, ...updatedEnvironment } : environment
+      )
+      return {
+        ...prev,
+        room: environments.map((environment) => environment.name).join(', '),
+        environments,
+        environmentSummary: {
+          total: environments.length,
+          completed: environments.filter((environment) => isEnvironmentCompleted(environment.status)).length,
+        },
+      }
+    })
   }
 
   const handleDelete = async () => {
     if (!confirm('Excluir este projeto? Esta ação não pode ser desfeita.')) return
     await fetch(`/api/projects/${id}`, { method: 'DELETE' })
     router.push('/dashboard/projects')
+  }
+
+  const handlePostSale = async (contacted: boolean) => {
+    setPostSaleSaving(true)
+    const response = await fetch(`/api/projects/${id}/post-sale`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contacted }),
+    })
+    const data = await response.json().catch(() => null)
+    if (response.ok && data) {
+      setProject((current) => current ? { ...current, ...data } : current)
+    }
+    setPostSaleSaving(false)
   }
 
   if (loading) {
@@ -145,8 +279,57 @@ export default function ProjectDetailPage() {
   const daysLeft = project.estimatedEndDate
     ? Math.ceil((new Date(project.estimatedEndDate).getTime() - nowTime) / 86400000)
     : null
-  const statusOptions = Object.entries(PROJECT_STATUS_LABELS) as [ProjectStatus, string][]
-  const stageOptions = Object.entries(PRODUCTION_STAGE_LABELS) as [ProductionStage, string][]
+  const businessDaysLeft = project.deliveryDeadlineDate
+    ? businessDaysBetween(new Date(), project.deliveryDeadlineDate)
+    : null
+  const totalPaid = project.payments.reduce((sum, payment) => sum + (payment.paidAt ? payment.amount : 0), 0)
+  const totalOpen = project.payments.reduce((sum, payment) => sum + (!payment.paidAt ? payment.amount : 0), 0)
+  const profit = (project.value || 0) - (project.productionCost || 0)
+  const checklistDone = project.checklist.filter((item) => item.completedAt).length
+  const checklistProgress = project.checklist.length > 0 ? Math.round((checklistDone / project.checklist.length) * 100) : 0
+  const environments = project.environments || []
+  const environmentsDone = environments.filter((environment) => isEnvironmentCompleted(environment.status)).length
+  const environmentsProgress = environments.length > 0 ? Math.round((environmentsDone / environments.length) * 100) : 0
+  const environmentStatusOptions = PROJECT_ENVIRONMENT_WORKFLOW_STATUSES.map((status) => [
+    status,
+    PROJECT_ENVIRONMENT_STATUS_LABELS[status],
+  ] as [ProjectEnvironmentStatus, string])
+  const clientWhatsAppNumber = buildWhatsAppNumber(project.client.whatsapp || project.client.phone)
+  const projectRoomLabel = project.room?.trim()
+  const projectLabel =
+    projectRoomLabel && projectRoomLabel.toLowerCase() !== project.name.trim().toLowerCase()
+      ? `${project.name} (${projectRoomLabel})`
+      : project.name
+  const approvalMessage = [
+    `Olá, ${project.client.name}! Tudo bem?`,
+    '',
+    `Aqui é da Vertex Móveis. O projeto "${projectLabel}" já está pronto para sua aprovação.`,
+    'Pode conferir e me responder com "aprovado" para seguirmos para a próxima etapa?',
+  ].join('\n')
+  const approvalReminderMessage = [
+    `Olá, ${project.client.name}! Tudo bem?`,
+    '',
+    `Passando para lembrar da aprovação do projeto "${projectLabel}".`,
+    'Assim que você aprovar, conseguimos dar sequência na produção e manter o prazo combinado.',
+    'Pode me confirmar, por favor?',
+  ].join('\n')
+  const postSaleMessage = [
+    `Olá, ${project.client.name}! Tudo bem?`,
+    '',
+    `Aqui é da Vertex Móveis. Queríamos saber como ficaram os móveis do projeto "${projectLabel}".`,
+    'Está tudo certo? Caso precise de algum ajuste, estamos à disposição.',
+  ].join('\n')
+  const projectSections = [
+    { href: '#resumo', label: 'Resumo' },
+    { href: '#producao', label: 'Produção' },
+    { href: '#prazos', label: 'Prazos' },
+    { href: '#cliente', label: 'Cliente' },
+    ...(project.postSaleFollowUpAt || project.stage === 'COMPLETED' ? [{ href: '#pos-venda', label: 'Pós-venda' }] : []),
+    { href: '#financeiro', label: 'Financeiro' },
+    { href: '#materiais', label: 'Materiais' },
+    { href: '#historico', label: 'Histórico' },
+    { href: '#comentarios', label: 'Comentários' },
+  ]
 
   return (
     <div className="flex flex-col h-full">
@@ -172,11 +355,23 @@ export default function ProjectDetailPage() {
           </button>
         </div>
 
+        <div className="flex gap-2 overflow-x-auto rounded-xl border border-[#E8E8E8] bg-white p-1 shadow-sm">
+          {projectSections.map((section) => (
+            <a
+              key={section.href}
+              href={section.href}
+              className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-[#6B7280] transition-colors hover:bg-[#FFF3EA] hover:text-[#FF6B00]"
+            >
+              {section.label}
+            </a>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel */}
           <div className="space-y-4">
             {/* Status */}
-            <Card>
+            <Card id="resumo" className="scroll-mt-28">
               <CardBody>
                 <div className="space-y-4">
                   <div>
@@ -201,15 +396,161 @@ export default function ProjectDetailPage() {
                       <p className="text-base font-bold text-[#121212]">{formatCurrency(project.value)}</p>
                     </div>
                   )}
+                  {project.value && (
+                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#FAFAFA] p-3">
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Custo</p>
+                        <p className="text-sm font-semibold text-[#121212]">{formatCurrency(project.productionCost || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Lucro previsto</p>
+                        <p className={`text-sm font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(profit)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {project.value && (
+                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#FAFAFA] p-3">
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Entrada</p>
+                        <p className="text-sm font-semibold text-[#121212]">{formatCurrency(project.downPayment || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Parcelas</p>
+                        <p className="text-sm font-semibold text-[#121212]">
+                          {project.installmentCount || 0}x {formatCurrency(project.installmentValue || 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Data da entrada</p>
+                        <p className="text-sm font-semibold text-[#121212]">
+                          {project.downPaymentDate ? formatDateOnly(project.downPaymentDate) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">1a parcela</p>
+                        <p className="text-sm font-semibold text-[#121212]">
+                          {project.firstInstallmentDate ? formatDateOnly(project.firstInstallmentDate) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Recebido</p>
+                        <p className="text-sm font-semibold text-green-600">{formatCurrency(totalPaid)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Aberto</p>
+                        <p className="text-sm font-semibold text-orange-600">{formatCurrency(totalOpen)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardBody>
             </Card>
 
+            {/* Environments */}
+            <Card id="producao" className="scroll-mt-28">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Ambientes do projeto</p>
+                    {environments.length > 0 && (
+                      <p className="mt-1 text-[11px] text-[#9E9E9E]">
+                        {environmentsDone}/{environments.length} concluídos
+                      </p>
+                    )}
+                  </div>
+                  {environments.length > 0 && (
+                    <span className="text-xs font-semibold text-[#121212]">{environmentsProgress}%</span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardBody>
+                {environments.length === 0 ? (
+                  <p className="text-sm text-[#9E9E9E]">Edite o projeto para cadastrar ambientes separados.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
+                      <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${environmentsProgress}%` }} />
+                    </div>
+                    <div className="space-y-2">
+                      {environments.map((environment) => (
+                        <div key={environment.id} className="rounded-lg border border-[#E8E8E8] bg-white p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#121212]">{environment.name}</p>
+                              {environment.completedAt && (
+                                <p className="mt-0.5 text-[10px] text-green-600">
+                                  Concluído em {formatDate(environment.completedAt)}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${PROJECT_ENVIRONMENT_STATUS_BG[environment.status]}`}>
+                              {PROJECT_ENVIRONMENT_STATUS_LABELS[environment.status]}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-[#F7F7F7] p-1 xl:grid-cols-4">
+                            {environmentStatusOptions.map(([status, label]) => (
+                              <button
+                                key={status}
+                                type="button"
+                                aria-pressed={environment.status === status}
+                                onClick={() => handleEnvironmentStatus(environment.id, status)}
+                                className={`min-h-9 rounded-md px-2 py-1 text-[10px] font-semibold leading-tight transition-colors ${
+                                  environment.status === status
+                                    ? 'bg-white text-[#FF6B00] shadow-sm ring-1 ring-[#FF6B00]/30'
+                                    : 'text-[#6B7280] hover:bg-white hover:text-[#121212]'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
             {/* Dates */}
-            <Card>
+            <Card id="prazos" className="scroll-mt-28">
               <CardHeader><p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Datas</p></CardHeader>
               <CardBody>
                 <div className="space-y-3">
+                  {project.approvalDate && (
+                    <div className="flex items-center gap-3">
+                      <CreditCard size={14} className="text-[#9E9E9E] flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Aprovação do cartão</p>
+                        <p className="text-sm text-[#121212]">{formatDate(project.approvalDate)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {project.productionStartReminderDate && project.stage === 'PENDING_START' && (
+                    <div className="flex items-center gap-3">
+                      <Clock size={14} className="text-orange-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Cobrar início</p>
+                        <p className="text-sm font-medium text-orange-600">{formatDate(project.productionStartReminderDate)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {project.deliveryDeadlineDate && (
+                    <div className="flex items-center gap-3">
+                      <Calendar size={14} className="text-[#9E9E9E] flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Entrega em {project.deliveryBusinessDays} dias úteis</p>
+                        <p className={`text-sm font-medium ${businessDaysLeft !== null && businessDaysLeft < 0 ? 'text-red-500' : 'text-[#121212]'}`}>
+                          {formatDate(project.deliveryDeadlineDate)}
+                          {businessDaysLeft !== null && (
+                            <span className="text-[#9E9E9E] font-normal ml-1 text-xs">
+                              ({businessDaysLeft < 0 ? `${Math.abs(businessDaysLeft)} úteis atrasado` : `${businessDaysLeft} úteis`})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {project.startDate && (
                     <div className="flex items-center gap-3">
                       <Calendar size={14} className="text-[#9E9E9E] flex-shrink-0" />
@@ -247,8 +588,57 @@ export default function ProjectDetailPage() {
               </CardBody>
             </Card>
 
-            {/* Client */}
+            {/* Production checklist */}
             <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Checklist</p>
+                    {project.checklist.length > 0 && (
+                      <p className="mt-1 text-[11px] text-[#9E9E9E]">
+                        {checklistDone}/{project.checklist.length} etapas
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs font-semibold text-[#121212]">{checklistProgress}%</span>
+                </div>
+              </CardHeader>
+              <CardBody>
+                {project.checklist.length === 0 ? (
+                  <p className="text-sm text-[#9E9E9E]">O checklist será criado ao salvar o projeto.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
+                      <div className="h-full rounded-full bg-[#FF6B00] transition-all" style={{ width: `${checklistProgress}%` }} />
+                    </div>
+                    <div className="space-y-1">
+                      {project.checklist.map((item) => {
+                        const completed = !!item.completedAt
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleChecklistToggle(item.id, !completed)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-[#FAFAFA]"
+                          >
+                            {completed ? <CheckSquare size={15} className="text-green-600" /> : <Square size={15} className="text-[#9E9E9E]" />}
+                            <span className={completed ? 'text-[#6B7280] line-through' : 'text-[#121212]'}>
+                              {item.label}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
+            <ProjectMaterialsCard projectId={project.id} projectValue={project.value} canManage={project.value !== null} />
+
+            {/* Client */}
+            <Card id="cliente" className="scroll-mt-28">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Cliente</p>
@@ -270,9 +660,9 @@ export default function ProjectDetailPage() {
                       <Phone size={12} />{project.client.phone}
                     </div>
                   )}
-                  {project.client.whatsapp && (
+                  {clientWhatsAppNumber && (
                     <a
-                      href={`https://wa.me/55${project.client.whatsapp.replace(/\D/g, '')}`}
+                      href={buildWhatsAppLink(clientWhatsAppNumber)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-xs text-green-600 hover:underline"
@@ -280,9 +670,96 @@ export default function ProjectDetailPage() {
                       <MessageCircle size={12} />WhatsApp
                     </a>
                   )}
+                  {clientWhatsAppNumber && (
+                    <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
+                      <a
+                        href={buildWhatsAppLink(clientWhatsAppNumber, approvalMessage)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF6B00] px-3 text-xs font-semibold text-[#FF6B00] transition-colors hover:bg-[#FFF3EA]"
+                      >
+                        <Send size={13} />
+                        Pedir aprovação
+                      </a>
+                      <a
+                        href={buildWhatsAppLink(clientWhatsAppNumber, approvalReminderMessage)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] px-3 text-xs font-semibold text-[#121212] transition-colors hover:border-[#FF6B00] hover:text-[#FF6B00]"
+                      >
+                        <MessageCircle size={13} />
+                        Cobrar aprovação
+                      </a>
+                    </div>
+                  )}
                 </div>
               </CardBody>
             </Card>
+
+            {(project.postSaleFollowUpAt || project.stage === 'COMPLETED') && (
+              <Card id="pos-venda" className="scroll-mt-28">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Pós-venda e garantia</p>
+                    {project.postSaleContactedAt ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600"><CheckCircle size={13} /> Realizado</span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-orange-600">Pendente</span>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <MessageCircle size={15} className="mt-0.5 shrink-0 text-[#FF6B00]" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Contato de pós-venda</p>
+                        <p className="text-sm font-medium text-[#121212]">
+                          {project.postSaleContactedAt
+                            ? `Realizado em ${formatDate(project.postSaleContactedAt)}`
+                            : project.postSaleFollowUpAt
+                              ? `Previsto para ${formatDate(project.postSaleFollowUpAt)}`
+                              : 'Será agendado ao concluir o projeto.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck size={15} className="mt-0.5 shrink-0 text-green-600" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Garantia</p>
+                        <p className="text-sm font-medium text-[#121212]">
+                          {project.warrantyEndsAt ? `Até ${formatDate(project.warrantyEndsAt)}` : 'Será registrada na conclusão.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+                      {clientWhatsAppNumber && (
+                        <a
+                          href={buildWhatsAppLink(clientWhatsAppNumber, postSaleMessage)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-green-200 px-3 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50"
+                        >
+                          <MessageCircle size={13} />
+                          Enviar WhatsApp
+                        </a>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={project.postSaleContactedAt ? 'outline' : 'primary'}
+                        loading={postSaleSaving}
+                        onClick={() => void handlePostSale(!project.postSaleContactedAt)}
+                        className="h-9"
+                      >
+                        {project.postSaleContactedAt ? <RefreshCw size={13} /> : <CheckCircle size={13} />}
+                        {project.postSaleContactedAt ? 'Reabrir pós-venda' : 'Marcar como realizado'}
+                      </Button>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
 
             {/* Manager */}
             {project.manager && (
@@ -303,8 +780,85 @@ export default function ProjectDetailPage() {
 
           {/* Center / Right */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Payments */}
+            <Card id="financeiro" className="scroll-mt-28">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[#121212]">Pagamentos</h3>
+                  <span className="text-xs text-[#9E9E9E]">{project.payments.length} lançamento{project.payments.length !== 1 ? 's' : ''}</span>
+                </div>
+              </CardHeader>
+              <CardBody>
+                {project.payments.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-[#9E9E9E]">
+                    <CreditCard size={28} className="mb-2 opacity-40" />
+                    <p className="text-sm">Nenhuma parcela cadastrada</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#F0F0F0] rounded-lg border border-[#E8E8E8]">
+                    {project.payments.map((payment) => {
+                      const paid = !!payment.paidAt
+                      return (
+                        <div key={payment.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[#121212]">
+                              {payment.type === 'DOWN_PAYMENT' ? 'Entrada' : `Parcela ${payment.installmentNumber}`}
+                            </p>
+                            <p className="text-xs text-[#9E9E9E]">
+                              Vencimento: {formatDateOnly(payment.dueDate)}
+                              {paid ? ` | Pago em ${formatDate(payment.paidAt)}` : ''}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-[#9E9E9E]">
+                              Método: {paymentMethodLabel(payment.paymentMethod)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className={`text-sm font-bold ${paid ? 'text-green-600' : 'text-[#121212]'}`}>
+                              {formatCurrency(payment.amount)}
+                            </p>
+                            {!paid && (
+                              <select
+                                value={paymentMethodsById[payment.id] || 'PIX'}
+                                onChange={(event) => setPaymentMethodsById((prev) => ({ ...prev, [payment.id]: event.target.value }))}
+                                className="h-8 rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                              >
+                                {PAYMENT_METHODS.map((method) => (
+                                  <option key={method.value} value={method.value}>
+                                    {method.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {paid && (
+                              <a
+                                href={`/api/projects/${project.id}/payments/${payment.id}/receipt`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#D9D9D9] px-2 text-xs font-medium text-[#121212] hover:bg-[#F5F5F5]"
+                              >
+                                <ReceiptText size={13} />
+                                Recibo
+                              </a>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={paid ? 'outline' : 'primary'}
+                              onClick={() => handlePaymentToggle(payment.id, !paid)}
+                            >
+                              {paid ? 'Reabrir' : 'Pago'}
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
             {/* Timeline */}
-            <Card>
+            <Card id="historico" className="scroll-mt-28">
               <CardHeader>
                 <h3 className="text-sm font-semibold text-[#121212]">Histórico do Projeto</h3>
               </CardHeader>
@@ -346,7 +900,7 @@ export default function ProjectDetailPage() {
             )}
 
             {/* Comments */}
-            <Card>
+            <Card id="comentarios" className="scroll-mt-28">
               <CardHeader>
                 <h3 className="text-sm font-semibold text-[#121212]">
                   Comentários ({project.notes.length})
@@ -405,7 +959,16 @@ export default function ProjectDetailPage() {
             ...project,
             clientId: project.client.id,
             managerId: project.manager?.id || '',
+            environments: environments.map((environment) => environment.name).join('\n'),
             value: project.value?.toString() || '',
+            productionCost: project.productionCost?.toString() || '',
+            downPayment: project.downPayment?.toString() || '',
+            downPaymentDate: project.downPaymentDate?.split('T')[0] || '',
+            installmentCount: project.installmentCount?.toString() || '',
+            firstInstallmentDate: project.firstInstallmentDate?.split('T')[0] || '',
+            approvalDate: project.approvalDate?.split('T')[0] || '',
+            deliveryBusinessDays: project.deliveryBusinessDays?.toString() || '',
+            productionReminderBusinessDays: project.productionReminderBusinessDays?.toString() || '',
             startDate: project.startDate?.split('T')[0] || '',
             estimatedEndDate: project.estimatedEndDate?.split('T')[0] || '',
           }}

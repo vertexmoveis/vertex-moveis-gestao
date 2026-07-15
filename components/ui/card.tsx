@@ -1,13 +1,13 @@
+import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
   className?: string
   hover?: boolean
-  onClick?: () => void
 }
 
-export function Card({ children, className, hover, onClick }: CardProps) {
+export function Card({ children, className, hover, onClick, ...props }: CardProps) {
   return (
     <div
       onClick={onClick}
@@ -17,6 +17,7 @@ export function Card({ children, className, hover, onClick }: CardProps) {
         onClick && 'cursor-pointer',
         className
       )}
+      {...props}
     >
       {children}
     </div>

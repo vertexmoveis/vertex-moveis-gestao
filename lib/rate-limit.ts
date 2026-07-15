@@ -102,10 +102,3 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
 
   return memoryRateLimit(key, limit, windowMs)
 }
-
-export function clearExpiredRateLimits() {
-  const now = Date.now()
-  for (const [key, entry] of buckets) {
-    if (entry.resetAt <= now) buckets.delete(key)
-  }
-}

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Building2, Lock, Mail, AlertCircle } from 'lucide-react'
+import { Lock, Mail, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
@@ -49,8 +50,15 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#FF6B00] rounded-2xl mb-4 shadow-lg shadow-orange-500/30">
-            <Building2 size={28} className="text-white" />
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="/vertex-symbol.png"
+              alt="Vertex Móveis"
+              width={96}
+              height={64}
+              priority
+              className="h-auto w-20 drop-shadow-lg"
+            />
           </div>
           <h1 className="text-2xl font-bold text-white">Vertex Móveis</h1>
           <p className="text-white/50 text-sm mt-1">Sistema de Gestão</p>

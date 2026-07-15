@@ -1,0 +1,9 @@
+UPDATE "Project"
+SET "stage" = 'PRODUCTION'
+WHERE "stage" IN (
+  'CUTTING',
+  'MANUFACTURING',
+  'FINISHING',
+  'QUALITY_CONTROL',
+  'PACKAGING'
+);

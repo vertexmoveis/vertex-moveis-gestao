@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
       <div
         className={cn(
-          'relative w-full bg-white rounded-2xl shadow-2xl animate-fade-in',
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden bg-white rounded-2xl shadow-2xl animate-fade-in',
           sizes[size],
           className
         )}
@@ -67,7 +67,7 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   )

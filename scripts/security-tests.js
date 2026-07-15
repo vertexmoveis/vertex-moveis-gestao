@@ -2,34 +2,43 @@
 const { spawn, execFileSync } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
+const { backup, DatabaseSync } = require('node:sqlite')
 const bcrypt = require('bcryptjs')
 const { PrismaClient } = require('@prisma/client')
 
 const root = path.resolve(__dirname, '..')
 const port = Number(process.env.SECURITY_TEST_PORT || 3217)
 const baseUrl = `http://127.0.0.1:${port}`
-const dbPath = path.join(os.tmpdir(), `vertex-security-${process.pid}.db`)
-const databaseUrl = `file:${dbPath.replace(/\\/g, '/')}`
+const dbPath = path.join(root, 'prisma', `.vertex-security-${process.pid}.db`)
+const databaseUrl = `file:./${path.basename(dbPath)}`
 const password = `Security-${randomBytes(12).toString('hex')}!Aa1`
 
 function command(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name
 }
 
-function runPrismaPush() {
-  const executable = process.platform === 'win32' ? 'cmd.exe' : command('npm')
-  const args =
-    process.platform === 'win32'
-      ? ['/c', 'npm.cmd exec prisma db push -- --skip-generate']
-      : ['exec', 'prisma', 'db', 'push', '--', '--skip-generate']
+function removeTestDatabase() {
+  for (const suffix of ['', '-journal', '-shm', '-wal']) {
+    try {
+      fs.unlinkSync(`${dbPath}${suffix}`)
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+  }
+}
 
-  execFileSync(executable, args, {
-    cwd: root,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
-    stdio: 'pipe',
-  })
+async function prepareTestDatabase() {
+  const sourcePath = path.join(root, 'prisma', 'dev.db')
+  if (!fs.existsSync(sourcePath)) throw new Error('Banco local nÃ£o encontrado para os testes de seguranÃ§a.')
+
+  removeTestDatabase()
+  const source = new DatabaseSync(sourcePath, { readOnly: true })
+  try {
+    await backup(source, dbPath)
+  } finally {
+    source.close()
+  }
 }
 
 async function seedDatabase() {
@@ -51,8 +60,35 @@ async function seedDatabase() {
   const otherProject = await prisma.project.create({
     data: { clientId: clientTwo.id, managerId: managerTwo.id, name: 'Project Two', status: 'APPROVED', stage: 'PENDING_START' },
   })
+  const team = await prisma.operationalResource.create({ data: { name: 'Security Team', type: 'TEAM' } })
+  const quote = await prisma.quote.create({
+    data: {
+      clientId: clientOne.id,
+      createdById: managerOne.id,
+      title: 'Security Quote',
+      status: 'DRAFT',
+      validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      subtotal: 1000,
+      total: 1000,
+      costTotal: 500,
+      items: {
+        create: {
+          environment: 'Cozinha',
+          description: 'Armário de teste',
+          width: 100,
+          height: 100,
+          quantity: 1,
+          areaM2: 1,
+          unitPrice: 1000,
+          cost: 500,
+          total: 1000,
+          position: 1,
+        },
+      },
+    },
+  })
   await prisma.$disconnect()
-  return { admin, managerOne, clientOne, ownProject, otherProject }
+  return { admin, managerOne, clientOne, ownProject, otherProject, team, quote }
 }
 
 function startServer() {
@@ -147,6 +183,49 @@ async function runTests(ids) {
   const managerJar = await login(ids.managerOne.email)
   const cookie = cookieHeader(managerJar)
   const jsonHeaders = { 'Content-Type': 'application/json', Cookie: cookie }
+  const schedulePayload = {
+    projectId: ids.ownProject.id,
+    scheduledStart: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    scheduledEnd: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    teamId: ids.team.id,
+    vehicleId: null,
+    notes: 'Teste de reserva',
+    status: 'SCHEDULED',
+  }
+  const scheduledStatus = await status('/api/operations/schedules', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify(schedulePayload),
+  })
+  const conflictingScheduleStatus = await status('/api/operations/schedules', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify(schedulePayload),
+  })
+  const completionStatus = await status(`/api/projects/${ids.ownProject.id}`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify({ stage: 'COMPLETED' }),
+  })
+  const postSaleStatus = await status(`/api/projects/${ids.ownProject.id}/post-sale`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify({ contacted: true }),
+  })
+  const approvalRequest = await fetch(`${baseUrl}/api/quotes/${ids.quote.id}/approval-request`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({}),
+  })
+  const approvalPayload = await approvalRequest.json().catch(() => ({}))
+  const approvalToken = approvalPayload.approvalUrl ? new URL(approvalPayload.approvalUrl).pathname.split('/').pop() : ''
+  const publicApprovalStatus = approvalToken
+    ? await status(`/api/public/quote-approvals/${approvalToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'APPROVE' }),
+      })
+    : 0
 
   const tests = [
     ['unauthenticated API returns 401', await status('/api/clients'), 401],
@@ -160,6 +239,12 @@ async function runTests(ids) {
     ['invalid payload returns 400', await status('/api/clients', { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ email: 'invalid' }) }), 400],
     ['huge note returns 400', await status(`/api/projects/${ids.ownProject.id}/notes`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ content: 'A'.repeat(3000) }) }), 400],
     ['seed without token returns 404', await status('/api/seed', { method: 'POST' }), 404],
+    ['manager can reserve an installation', scheduledStatus, 201],
+    ['same team cannot be double-booked', conflictingScheduleStatus, 409],
+    ['manager can complete own project', completionStatus, 200],
+    ['manager can register post-sale after completion', postSaleStatus, 200],
+    ['manager can create an approval link', approvalRequest.status, 200],
+    ['public approval link records approval', publicApprovalStatus, 200],
   ]
 
   const failed = tests.filter(([, actual, expected]) => actual !== expected)
@@ -173,8 +258,7 @@ async function runTests(ids) {
 }
 
 async function main() {
-  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
-  runPrismaPush()
+  await prepareTestDatabase()
   const ids = await seedDatabase()
   const server = startServer()
   try {
@@ -194,7 +278,7 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 500))
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
-        if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
+        removeTestDatabase()
         break
       } catch {
         await new Promise((resolve) => setTimeout(resolve, 500))

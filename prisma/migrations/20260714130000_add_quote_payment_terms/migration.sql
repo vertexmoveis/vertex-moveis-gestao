@@ -1,0 +1,6 @@
+ALTER TABLE "Quote" ADD COLUMN "manualDiscount" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "Quote" ADD COLUMN "paymentDiscount" REAL NOT NULL DEFAULT 0;
+ALTER TABLE "Quote" ADD COLUMN "paymentMethod" TEXT NOT NULL DEFAULT 'TO_DEFINE';
+ALTER TABLE "Quote" ADD COLUMN "cardInstallments" INTEGER NOT NULL DEFAULT 1;
+
+UPDATE "Quote" SET "manualDiscount" = "discount";

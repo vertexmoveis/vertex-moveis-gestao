@@ -8,53 +8,374 @@ datasource db {
 }
 
 model User {
-  id         String        @id @default(cuid())
-  name       String
-  email      String        @unique
-  password   String
-  role       String        @default("MANAGER")
-  avatar     String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  projects   Project[]
-  notes      Note[]
-  activities ActivityLog[]
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  password       String
+  role           String           @default("MANAGER")
+  avatar         String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  projects       Project[]
+  quotes         Quote[]
+  notes          Note[]
+  activities     ActivityLog[]
+  paymentHistory PaymentHistory[]
 }
 
 model Client {
-  id        String    @id @default(cuid())
-  name      String
-  phone     String?
-  whatsapp  String?
-  email     String?
-  address   String?
-  notes     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id           String    @id @default(cuid())
+  name         String
+  phone        String?
+  whatsapp     String?
+  email        String?
+  address      String?
+  street       String?
+  number       String?
+  neighborhood String?
+  city         String?
+  state        String?
+  zipCode      String?
+  latitude     Float?
+  longitude    Float?
+  geocodedAt   DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
+  quotes       Quote[]
+
+  @@index([name])
+  @@index([city])
+  @@index([zipCode])
 }
 
 model Project {
-  id               String          @id @default(cuid())
-  clientId         String
-  client           Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id                             String                 @id @default(cuid())
+  clientId                       String
+  client                         Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name                           String
+  room                           String?
+  status                         String                 @default("APPROVED")
+  stage                          String                 @default("PENDING_START")
+  approvalDate                   DateTime?
+  deliveryBusinessDays           Int                    @default(30)
+  deliveryDeadlineDate           DateTime?
+  productionReminderBusinessDays Int                    @default(7)
+  productionStartReminderDate    DateTime?
+  startDate                      DateTime?
+  estimatedEndDate               DateTime?
+  actualEndDate                  DateTime?
+  value                          Float?
+  productionCost                 Float?                 @default(0)
+  downPayment                    Float?                 @default(0)
+  downPaymentDate                DateTime?
+  installmentCount               Int                    @default(0)
+  installmentValue               Float?                 @default(0)
+  firstInstallmentDate           DateTime?
+  managerId                      String?
+  manager                        User?                  @relation(fields: [managerId], references: [id])
+  internalNotes                  String?
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
+  notes                          Note[]
+  files                          ProjectFile[]
+  timeline                       TimelineEvent[]
+  activities                     ActivityLog[]
+  payments                       ProjectPayment[]
+  checklist                      ProjectChecklistItem[]
+  environments                   ProjectEnvironment[]
+  sourceQuote                    Quote?                 @relation("QuoteConvertedProject")
+  materials                      ProjectMaterial[]
+  installationSchedules          InstallationSchedule[]
+  postSaleFollowUpAt             DateTime?
+  postSaleContactedAt            DateTime?
+  warrantyEndsAt                 DateTime?
+
+  @@index([status])
+  @@index([stage])
+  @@index([managerId])
+  @@index([estimatedEndDate])
+  @@index([approvalDate])
+  @@index([deliveryDeadlineDate])
+  @@index([productionStartReminderDate])
+  @@index([stage, postSaleFollowUpAt])
+  @@index([createdAt])
+}
+
+model Quote {
+  id                 String          @id @default(cuid())
+  clientId           String
+  client             Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById        String?
+  createdBy          User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  convertedProjectId String?         @unique
+  convertedProject   Project?        @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  title              String
+  status             String          @default("DRAFT")
+  validUntil         DateTime?
+  pricePerM2         Float           @default(1250)
+  materialCostPerM2  Float           @default(650)
+  installationFee    Float           @default(0)
+  marginPercent      Float           @default(35)
+  discount           Float           @default(0)
+  manualDiscount     Float           @default(0)
+  paymentDiscount    Float           @default(0)
+  paymentMethod      String          @default("TO_DEFINE")
+  cardInstallments   Int             @default(1)
+  cardDownPayment    Float           @default(0)
+  subtotal           Float           @default(0)
+  costTotal          Float           @default(0)
+  total              Float           @default(0)
+  notes              String?
+  customerNotes      String?
+  lossReason         String?
+  sentAt             DateTime?
+  approvedAt         DateTime?
+  soldAt             DateTime?
+  lostAt             DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  items              QuoteItem[]
+  revisions          QuoteRevision[]
+  approvalRequests   QuoteApprovalRequest[]
+
+  @@index([clientId])
+  @@index([createdById])
+  @@index([status])
+  @@index([validUntil])
+  @@index([createdAt])
+}
+
+model QuoteItem {
+  id              String   @id @default(cuid())
+  quoteId         String
+  quote           Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  environment     String
+  description     String
+  furnitureType   String?
+  furnitureModel  String?
+  material        String?
+  finish          String?
+  width           Float
+  height          Float
+  depth           Float?
+  difficulty      String   @default("NORMAL")
+  calculationMode String   @default("AREA_M2")
+  priceProfile    String   @default("STANDARD")
+  manualPrice     Float?
+  accessories     String?
+  quantity        Int      @default(1)
+  areaM2          Float    @default(0)
+  unitPrice       Float    @default(0)
+  cost            Float    @default(0)
+  total           Float    @default(0)
+  notes           String?
+  position        Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([quoteId])
+  @@index([environment])
+}
+
+model QuoteRevision {
+  id        String   @id @default(cuid())
+  quoteId   String
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  version   Int
+  snapshot  String
+  createdAt DateTime @default(now())
+
+  @@unique([quoteId, version])
+  @@index([quoteId])
+}
+
+model QuotePriceRule {
+  id                String   @id @default(cuid())
+  name              String
+  environment       String?
+  furnitureType     String?
+  furnitureModel    String?
+  priceProfile      String?
+  calculationMode   String   @default("AREA_M2")
+  pricePerM2        Float
+  materialCostPerM2 Float?
+  validFrom         DateTime @default(now())
+  validUntil        DateTime?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([active, validFrom, validUntil])
+  @@index([environment, furnitureType, furnitureModel])
+}
+
+model MaterialCatalogItem {
+  id              String            @id @default(cuid())
+  name            String            @unique
+  category        String?
+  defaultFinish   String?
+  unit            String            @default("m2")
+  unitCost        Float             @default(0)
+  supplier        String?
+  active          Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  projectMaterials ProjectMaterial[]
+
+  @@index([active])
+  @@index([category])
+}
+
+model ProjectMaterial {
+  id                String               @id @default(cuid())
+  projectId         String
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId        String?
+  material          MaterialCatalogItem? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  materialName      String
+  finish            String?
+  unit              String               @default("m2")
+  estimatedQuantity Float                @default(0)
+  purchasedQuantity Float                @default(0)
+  estimatedCost     Float                @default(0)
+  actualCost        Float?
+  supplier          String?
+  status            String               @default("PENDING")
+  notes             String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([materialId])
+}
+
+model OperationalResource {
+  id               String                 @id @default(cuid())
   name             String
-  room             String?
-  status           String          @default("APPROVED")
-  stage            String          @default("PENDING_START")
-  startDate        DateTime?
-  estimatedEndDate DateTime?
-  actualEndDate    DateTime?
-  value            Float?
-  managerId        String?
-  manager          User?           @relation(fields: [managerId], references: [id])
-  internalNotes    String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  notes            Note[]
-  files            ProjectFile[]
-  timeline         TimelineEvent[]
-  activities       ActivityLog[]
+  type             String
+  active           Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  teamSchedules    InstallationSchedule[] @relation("ScheduleTeam")
+  vehicleSchedules InstallationSchedule[] @relation("ScheduleVehicle")
+
+  @@unique([type, name])
+  @@index([active, type])
+}
+
+model InstallationSchedule {
+  id             String               @id @default(cuid())
+  projectId      String
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  teamId         String?
+  team           OperationalResource? @relation("ScheduleTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  vehicleId      String?
+  vehicle        OperationalResource? @relation("ScheduleVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  status         String               @default("SCHEDULED")
+  notes          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([projectId])
+  @@index([scheduledStart, scheduledEnd])
+  @@index([teamId, scheduledStart])
+  @@index([vehicleId, scheduledStart])
+}
+
+model QuoteApprovalRequest {
+  id             String   @id @default(cuid())
+  quoteId        String
+  quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  token          String   @unique
+  sentAt         DateTime @default(now())
+  reminderCount  Int      @default(0)
+  lastReminderAt DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  expiresAt      DateTime?
+  message        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([quoteId])
+  @@index([expiresAt])
+  @@index([sentAt])
+}
+
+model ProjectEnvironment {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  status      String    @default("PENDING")
+  position    Int
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([projectId, position])
+  @@index([projectId])
+  @@index([status])
+  @@index([completedAt])
+}
+
+model ProjectPayment {
+  id                String           @id @default(cuid())
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  type              String
+  amount            Float
+  dueDate           DateTime
+  paidAt            DateTime?
+  paymentMethod     String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  history           PaymentHistory[]
+
+  @@unique([projectId, type, installmentNumber])
+  @@index([projectId])
+  @@index([dueDate])
+  @@index([paidAt])
+  @@index([paymentMethod])
+}
+
+model PaymentHistory {
+  id        String         @id @default(cuid())
+  paymentId String
+  payment   ProjectPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  method    String?
+  amount    Float
+  createdAt DateTime       @default(now())
+
+  @@index([paymentId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ProjectChecklistItem {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label       String
+  position    Int
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([projectId, position])
+  @@index([projectId])
+  @@index([completedAt])
 }
 
 model Note {

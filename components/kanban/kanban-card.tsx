@@ -7,6 +7,7 @@ import { Calendar, DollarSign } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
+import { isEnvironmentCompleted } from '@/lib/project-environments'
 import { type ProjectData } from '@/types'
 
 interface KanbanCardProps {
@@ -33,6 +34,14 @@ export function KanbanCard({ project, isDragging }: KanbanCardProps) {
     project.estimatedEndDate &&
     new Date(project.estimatedEndDate) < new Date() &&
     project.stage !== 'COMPLETED'
+  const environmentSummary = project.environmentSummary || (
+    project.environments
+      ? {
+          total: project.environments.length,
+          completed: project.environments.filter((environment) => isEnvironmentCompleted(environment.status)).length,
+        }
+      : null
+  )
 
   return (
     <div
@@ -71,6 +80,22 @@ export function KanbanCard({ project, isDragging }: KanbanCardProps) {
         <p className="text-xs text-[#9E9E9E] mt-0.5 truncate">{project.client.name}</p>
         {project.room && (
           <p className="text-xs text-[#BDBDBD] truncate">{project.room}</p>
+        )}
+        {environmentSummary && environmentSummary.total > 0 && (
+          <div className="mt-2 rounded-md bg-[#FAFAFA] px-2 py-1.5">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="font-medium text-[#6B7280]">Ambientes</span>
+              <span className="font-semibold text-[#121212]">
+                {environmentSummary.completed}/{environmentSummary.total}
+              </span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#E8E8E8]">
+              <div
+                className="h-full rounded-full bg-green-500"
+                style={{ width: `${Math.round((environmentSummary.completed / environmentSummary.total) * 100)}%` }}
+              />
+            </div>
+          </div>
         )}
 
         {/* Footer info */}

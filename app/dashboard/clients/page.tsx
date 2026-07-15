@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { ClientForm } from '@/components/clients/client-form'
 import { formatDate } from '@/lib/utils'
+import { formatClientAddress } from '@/lib/address'
 import Link from 'next/link'
 import type { ClientData } from '@/types'
 
@@ -17,6 +18,12 @@ type ClientFormData = {
   whatsapp?: string
   email?: string
   address?: string
+  street?: string
+  number?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  zipCode?: string
   notes?: string
 }
 
@@ -24,17 +31,24 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalClients, setTotalClients] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientData | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/clients${search ? `?q=${encodeURIComponent(search)}` : ''}`)
+    const params = new URLSearchParams({ paged: '1', page: String(page), pageSize: '24' })
+    if (search) params.set('q', search)
+    const res = await fetch(`/api/clients?${params.toString()}`)
     const data = await res.json()
-    setClients(data)
+    setClients(Array.isArray(data) ? data : data.items || [])
+    setTotalClients(Array.isArray(data) ? data.length : data.total || 0)
+    setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1)
     setLoading(false)
-  }, [search])
+  }, [page, search])
 
   useEffect(() => {
     const timer = setTimeout(fetchClients, 300)
@@ -74,7 +88,7 @@ export default function ClientsPage() {
     <div className="flex flex-col h-full">
       <Header
         title="Clientes"
-        subtitle={`${clients.length} clientes cadastrados`}
+        subtitle={`${totalClients} clientes cadastrados`}
         action={{ label: 'Novo Cliente', onClick: () => setModalOpen(true) }}
       />
 
@@ -86,7 +100,10 @@ export default function ClientsPage() {
             type="text"
             placeholder="Buscar por nome, email, telefone..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-[#D9D9D9] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B00] focus:border-transparent transition-all shadow-sm"
           />
         </div>
@@ -120,12 +137,15 @@ export default function ClientsPage() {
         {/* Client grid */}
         {!loading && filtered.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((client, i) => (
-              <div
-                key={client.id}
-                className="bg-white rounded-xl border border-[#E8E8E8] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-in overflow-hidden group"
-                style={{ animationDelay: `${i * 30}ms` }}
-              >
+            {filtered.map((client, i) => {
+              const clientAddress = formatClientAddress(client)
+
+              return (
+                <div
+                  key={client.id}
+                  className="bg-white rounded-xl border border-[#E8E8E8] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-in overflow-hidden group"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -164,10 +184,10 @@ export default function ClientsPage() {
                         <span className="truncate">{client.email}</span>
                       </div>
                     )}
-                    {client.address && (
+                    {clientAddress && (
                       <div className="flex items-center gap-2 text-xs text-[#9E9E9E]">
                         <MapPin size={12} className="flex-shrink-0" />
-                        <span className="truncate">{client.address}</span>
+                        <span className="truncate">{clientAddress}</span>
                       </div>
                     )}
                   </div>
@@ -185,8 +205,25 @@ export default function ClientsPage() {
                     Ver detalhes →
                   </Link>
                 </div>
-              </div>
-            ))}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between rounded-xl border border-[#E8E8E8] bg-white px-4 py-3 text-sm">
+            <span className="text-[#6B7280]">
+              Página {page} de {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => Math.max(value - 1, 1))}>
+                Anterior
+              </Button>
+              <Button type="button" variant="outline" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(value + 1, totalPages))}>
+                Próxima
+              </Button>
+            </div>
           </div>
         )}
       </div>

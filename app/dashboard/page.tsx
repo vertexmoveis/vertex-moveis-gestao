@@ -2,8 +2,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { StatsCard } from '@/components/dashboard/stats-card'
-import { StatusChart } from '@/components/dashboard/status-chart'
+import { LazyStatusChart } from '@/components/dashboard/lazy-status-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { ClientMapPanel } from '@/components/dashboard/client-map-panel'
 import { StatusBadge } from '@/components/ui/badge'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Header } from '@/components/layout/header'
@@ -17,9 +18,13 @@ import {
   Calendar,
   ArrowRight,
   Clock,
+  Wallet,
+  Calculator,
 } from 'lucide-react'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types'
 import { formatDate } from '@/lib/utils'
+import { businessDaysBetween } from '@/lib/business-days'
+import { getAppAlerts, type AlertTone } from '@/lib/alerts'
 import Link from 'next/link'
 
 type DashboardUser = { id?: string; role?: string }
@@ -28,11 +33,25 @@ async function getDashboardData(user: DashboardUser) {
   const isAdmin = user.role === 'ADMIN'
   const projectScope = isAdmin ? {} : { managerId: user.id }
   const clientScope = isAdmin ? {} : { projects: { some: { managerId: user.id } } }
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
 
-  const [totalClients, allProjects, todayDeliveries, recentActivities, upcomingDeliveries] =
+  const [
+    totalClients,
+    projectGroups,
+    todayDeliveries,
+    recentActivities,
+    upcomingDeliveries,
+    startReminderProjects,
+    attentionItems,
+  ] =
     await Promise.all([
       prisma.client.count({ where: clientScope }),
-      prisma.project.findMany({ where: projectScope, select: { status: true, stage: true } }),
+      prisma.project.groupBy({
+        by: ['status', 'stage'],
+        where: projectScope,
+        _count: { _all: true },
+      }),
       prisma.project.count({
         where: {
           ...projectScope,
@@ -65,17 +84,30 @@ async function getDashboardData(user: DashboardUser) {
           manager: { select: { id: true, name: true } },
         },
       }),
+      prisma.project.findMany({
+        where: {
+          ...projectScope,
+          stage: 'PENDING_START',
+          approvalDate: { not: null },
+          productionStartReminderDate: { lte: today },
+        },
+        take: 6,
+        orderBy: { productionStartReminderDate: 'asc' },
+        include: {
+          client: { select: { id: true, name: true } },
+          manager: { select: { id: true, name: true } },
+        },
+      }),
+      getAppAlerts(user),
     ])
 
-  const activeProjects = allProjects.filter((p) => p.stage !== 'COMPLETED').length
-  const inProduction = allProjects.filter((p) =>
-    ['CUTTING', 'MANUFACTURING', 'FINISHING', 'QUALITY_CONTROL'].includes(p.stage)
-  ).length
-  const completed = allProjects.filter((p) => p.stage === 'COMPLETED').length
-  const delayed = allProjects.filter((p) => p.status === 'DELAYED').length
+  const activeProjects = projectGroups.reduce((total, group) => total + (group.stage !== 'COMPLETED' ? group._count._all : 0), 0)
+  const inProduction = projectGroups.reduce((total, group) => total + (group.stage === 'PRODUCTION' ? group._count._all : 0), 0)
+  const completed = projectGroups.reduce((total, group) => total + (group.stage === 'COMPLETED' ? group._count._all : 0), 0)
+  const delayed = projectGroups.reduce((total, group) => total + (group.status === 'DELAYED' ? group._count._all : 0), 0)
 
-  const statusCounts = allProjects.reduce<Record<string, number>>((acc, p) => {
-    acc[p.status] = (acc[p.status] || 0) + 1
+  const statusCounts = projectGroups.reduce<Record<string, number>>((acc, group) => {
+    acc[group.status] = (acc[group.status] || 0) + group._count._all
     return acc
   }, {})
 
@@ -94,12 +126,27 @@ async function getDashboardData(user: DashboardUser) {
     delayed,
     todayDeliveries,
     statusDistribution,
+    attentionItems,
     recentActivities: recentActivities.map((a) => ({
       ...a,
       createdAt: a.createdAt.toISOString(),
     })),
     upcomingDeliveries: upcomingDeliveries.map((p) => ({
       ...p,
+      approvalDate: p.approvalDate?.toISOString() || null,
+      deliveryDeadlineDate: p.deliveryDeadlineDate?.toISOString() || null,
+      productionStartReminderDate: p.productionStartReminderDate?.toISOString() || null,
+      startDate: p.startDate?.toISOString() || null,
+      estimatedEndDate: p.estimatedEndDate?.toISOString() || null,
+      actualEndDate: p.actualEndDate?.toISOString() || null,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    })),
+    startReminderProjects: startReminderProjects.map((p) => ({
+      ...p,
+      approvalDate: p.approvalDate?.toISOString() || null,
+      deliveryDeadlineDate: p.deliveryDeadlineDate?.toISOString() || null,
+      productionStartReminderDate: p.productionStartReminderDate?.toISOString() || null,
       startDate: p.startDate?.toISOString() || null,
       estimatedEndDate: p.estimatedEndDate?.toISOString() || null,
       actualEndDate: p.actualEndDate?.toISOString() || null,
@@ -112,8 +159,18 @@ async function getDashboardData(user: DashboardUser) {
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   const user = session?.user as DashboardUser | undefined
+  const isAdmin = user?.role === 'ADMIN'
   const data = await getDashboardData(user || {})
   const nowTime = new Date().getTime()
+  const quickAccessItems = [
+    { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} cadastrados`, color: 'bg-blue-50 text-blue-600' },
+    { href: '/dashboard/projects', icon: FolderOpen, label: 'Projetos', sub: `${data.activeProjects} ativos`, color: 'bg-orange-50 text-orange-600' },
+    { href: '/dashboard/production', icon: Package, label: 'Produção', sub: 'Kanban board', color: 'bg-purple-50 text-purple-600' },
+    { href: '/dashboard/calendar', icon: Calendar, label: 'Calendário', sub: 'Agenda e prazos', color: 'bg-green-50 text-green-600' },
+    ...(isAdmin
+      ? [{ href: '/dashboard/financeiro', icon: Wallet, label: 'Financeiro', sub: 'Recebimentos', color: 'bg-emerald-50 text-emerald-600' }]
+      : []),
+  ]
 
   const hour = new Date().getHours()
   const greeting =
@@ -139,6 +196,55 @@ export default async function DashboardPage() {
           <StatsCard title="Entregas Hoje" value={data.todayDeliveries} icon={Truck} color="cyan" delay={250} />
         </div>
 
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[#121212]">Precisa de atenção</h2>
+                <p className="text-xs text-[#9E9E9E]">Pendências principais para resolver primeiro</p>
+              </div>
+              <span className="rounded-full bg-[#F5F5F5] px-3 py-1 text-xs font-semibold text-[#6B7280]">
+                {data.attentionItems.length} alerta{data.attentionItems.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </CardHeader>
+          <CardBody>
+            {data.attentionItems.length === 0 ? (
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+                <CheckCircle size={18} className="text-emerald-600" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">Tudo em dia</p>
+                  <p className="text-xs text-emerald-700">Nenhuma pendência crítica encontrada agora.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {data.attentionItems.map((item) => {
+                  const config = attentionToneConfig(item.tone)
+                  const Icon = item.id.includes('quote') ? Calculator : item.id.includes('payment') ? Wallet : item.id.includes('delivery') ? Truck : AlertTriangle
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className={`group rounded-lg border p-4 transition-all hover:-translate-y-0.5 hover:shadow-sm ${config.card}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${config.icon}`}>
+                          <Icon size={17} />
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${config.badge}`}>{item.count}</span>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-[#121212] group-hover:text-[#FF6B00]">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-[#6B7280]">{item.body}</p>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
         {/* Middle Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Status Chart */}
@@ -150,7 +256,7 @@ export default async function DashboardPage() {
               </div>
             </CardHeader>
             <CardBody>
-              <StatusChart data={data.statusDistribution} />
+              <LazyStatusChart data={data.statusDistribution} />
             </CardBody>
           </Card>
 
@@ -213,6 +319,66 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
+        {data.startReminderProjects.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#121212]">Projetos para começar</h2>
+                  <p className="text-xs text-[#9E9E9E]">Aprovação passou de 7 dias úteis e ainda está aguardando início</p>
+                </div>
+                <Link href="/dashboard/production" className="text-xs text-[#FF6B00] hover:underline flex items-center gap-1">
+                  Produção <ArrowRight size={12} />
+                </Link>
+              </div>
+            </CardHeader>
+            <CardBody className="p-0">
+              <div className="divide-y divide-[#F5F5F5]">
+                {data.startReminderProjects.map((project) => {
+                  const approvedBusinessDays = businessDaysBetween(project.approvalDate, new Date())
+                  const overdueBusinessDays = businessDaysBetween(project.productionStartReminderDate, new Date())
+
+                  return (
+                    <Link
+                      key={project.id}
+                      href={`/dashboard/projects/${project.id}`}
+                      className="flex items-center justify-between px-5 py-3.5 hover:bg-[#FAFAFA] transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#121212] truncate">{project.name}</p>
+                        <p className="mt-0.5 text-xs text-[#9E9E9E] truncate">{project.client.name}</p>
+                      </div>
+                      <div className="ml-4 text-right">
+                        <p className="text-xs font-semibold text-orange-600">
+                          {approvedBusinessDays ?? 0} dias úteis aprovado
+                        </p>
+                        <p className="text-[10px] text-[#9E9E9E]">
+                          {overdueBusinessDays && overdueBusinessDays > 0 ? `${overdueBusinessDays} úteis após cobrança` : 'Começar agora'}
+                        </p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[#121212]">Mapa de Clientes</h2>
+                <p className="text-xs text-[#9E9E9E]">Abra quando precisar ver ruas, distâncias e rotas</p>
+              </div>
+              <span className="hidden text-xs text-[#9E9E9E] sm:inline">Carregado quando abrir</span>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <ClientMapPanel />
+          </CardBody>
+        </Card>
+
         {/* Bottom Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Activity Feed */}
@@ -234,12 +400,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardBody>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} cadastrados`, color: 'bg-blue-50 text-blue-600' },
-                  { href: '/dashboard/projects', icon: FolderOpen, label: 'Projetos', sub: `${data.activeProjects} ativos`, color: 'bg-orange-50 text-orange-600' },
-                  { href: '/dashboard/production', icon: Package, label: 'Produção', sub: 'Kanban board', color: 'bg-purple-50 text-purple-600' },
-                  { href: '/dashboard/calendar', icon: Calendar, label: 'Calendário', sub: 'Agenda e prazos', color: 'bg-green-50 text-green-600' },
-                ].map((item) => (
+                {quickAccessItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -265,4 +426,26 @@ export default async function DashboardPage() {
 
 function allProjectsCount(distribution: { count: number }[]) {
   return distribution.reduce((sum, d) => sum + d.count, 0)
+}
+
+function attentionToneConfig(tone: AlertTone) {
+  const tones = {
+    danger: {
+      card: 'border-red-100 bg-red-50/60 hover:border-red-200',
+      icon: 'bg-white text-red-600',
+      badge: 'bg-red-600 text-white',
+    },
+    warning: {
+      card: 'border-orange-100 bg-orange-50/60 hover:border-orange-200',
+      icon: 'bg-white text-[#FF6B00]',
+      badge: 'bg-[#FF6B00] text-white',
+    },
+    info: {
+      card: 'border-blue-100 bg-blue-50/60 hover:border-blue-200',
+      icon: 'bg-white text-blue-600',
+      badge: 'bg-blue-600 text-white',
+    },
+  }
+
+  return tones[tone]
 }

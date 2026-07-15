@@ -72,16 +72,16 @@ export async function POST(req: NextRequest) {
     const days = (n: number) => new Date(now.getTime() + n * 86400000)
 
     const projectsData = [
-      { clientId: clients[0].id, managerId: manager1.id, name: 'Cozinha Completa', room: 'Cozinha', status: 'IN_PRODUCTION', stage: 'MANUFACTURING', startDate: days(-30), estimatedEndDate: days(15), value: 28500, internalNotes: 'Madeira Freijo com puxadores dourados' },
+      { clientId: clients[0].id, managerId: manager1.id, name: 'Cozinha Completa', room: 'Cozinha', status: 'IN_PRODUCTION', stage: 'PRODUCTION', startDate: days(-30), estimatedEndDate: days(15), value: 28500, internalNotes: 'Madeira Freijo com puxadores dourados' },
       { clientId: clients[0].id, managerId: manager1.id, name: 'Home Office', room: 'Escritorio', status: 'DESIGN_ENGINEERING', stage: 'DESIGN', startDate: days(-10), estimatedEndDate: days(30), value: 12000 },
       { clientId: clients[1].id, managerId: manager2.id, name: 'Closet Master', room: 'Quarto Master', status: 'APPROVED', stage: 'PENDING_START', startDate: days(5), estimatedEndDate: days(45), value: 35000, internalNotes: 'Closet com ilha central e espelho' },
       { clientId: clients[2].id, managerId: manager1.id, name: 'Escritorio Corporativo', room: 'Escritorio', status: 'INSTALLATION_SCHEDULED', stage: 'INSTALLATION', startDate: days(-60), estimatedEndDate: days(3), value: 85000, internalNotes: '15 estacoes de trabalho' },
       { clientId: clients[3].id, managerId: manager2.id, name: 'Sala de Estar', room: 'Sala', status: 'COMPLETED', stage: 'COMPLETED', startDate: days(-90), estimatedEndDate: days(-15), actualEndDate: days(-14), value: 22000 },
-      { clientId: clients[4].id, managerId: manager1.id, name: 'Dormitorio Casal', room: 'Quarto', status: 'DELAYED', stage: 'FINISHING', startDate: days(-45), estimatedEndDate: days(-5), value: 18500, internalNotes: 'Atraso - reordenar material' },
+      { clientId: clients[4].id, managerId: manager1.id, name: 'Dormitorio Casal', room: 'Quarto', status: 'DELAYED', stage: 'PRODUCTION', startDate: days(-45), estimatedEndDate: days(-5), value: 18500, internalNotes: 'Atraso - reordenar material' },
       { clientId: clients[5].id, managerId: manager2.id, name: 'Lavanderia Planejada', room: 'Lavanderia', status: 'MEASUREMENT_SCHEDULED', stage: 'MEASUREMENT', startDate: days(2), estimatedEndDate: days(35), value: 8500 },
-      { clientId: clients[6].id, managerId: manager1.id, name: 'Cozinha Americana', room: 'Cozinha', status: 'IN_PRODUCTION', stage: 'CUTTING', startDate: days(-15), estimatedEndDate: days(20), value: 31000, internalNotes: 'Estilo contemporaneo, sem puxadores' },
+      { clientId: clients[6].id, managerId: manager1.id, name: 'Cozinha Americana', room: 'Cozinha', status: 'IN_PRODUCTION', stage: 'PRODUCTION', startDate: days(-15), estimatedEndDate: days(20), value: 31000, internalNotes: 'Estilo contemporaneo, sem puxadores' },
       { clientId: clients[1].id, managerId: manager2.id, name: 'Banheiro Casal', room: 'Banheiro', status: 'DESIGN_ENGINEERING', stage: 'DESIGN', startDate: days(-5), estimatedEndDate: days(40), value: 9500 },
-      { clientId: clients[3].id, managerId: manager1.id, name: 'Varanda Gourmet', room: 'Varanda', status: 'IN_PRODUCTION', stage: 'QUALITY_CONTROL', startDate: days(-20), estimatedEndDate: days(8), value: 16000 },
+      { clientId: clients[3].id, managerId: manager1.id, name: 'Varanda Gourmet', room: 'Varanda', status: 'IN_PRODUCTION', stage: 'PRODUCTION', startDate: days(-20), estimatedEndDate: days(8), value: 16000 },
     ]
 
     const projects = await Promise.all(
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     await prisma.activityLog.createMany({
       data: [
         { action: 'Novo cliente cadastrado', details: 'Eduardo Martins adicionado', userId: admin.id },
-        { action: 'Projeto atualizado', details: 'Cozinha Completa avancou para Fabricacao', userId: manager1.id, projectId: projects[0].id },
+        { action: 'Projeto atualizado', details: 'Cozinha Completa avancou para Producao', userId: manager1.id, projectId: projects[0].id },
         { action: 'Status alterado', details: 'Dormitorio Casal marcado como Atrasado', userId: admin.id, projectId: projects[5].id },
         { action: 'Instalacao agendada', details: 'Escritorio Corporativo - instalacao amanha', userId: manager1.id, projectId: projects[3].id },
         { action: 'Projeto concluido', details: 'Sala de Estar finalizada com sucesso', userId: manager2.id, projectId: projects[4].id },

@@ -1,0 +1,83 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/db'
+import { badRequest, requireRole } from '@/lib/security'
+
+const optionalText = (max: number) => z.preprocess(
+  (value) => value === '' ? null : value,
+  z.string().trim().max(max).nullable().optional()
+).transform((value) => value || null)
+
+const projectMaterialSchema = z.object({
+  materialId: optionalText(80),
+  materialName: z.string().trim().min(2, 'Informe o material').max(120),
+  finish: optionalText(120),
+  unit: z.enum(['m2', 'metro', 'unidade']).default('m2'),
+  estimatedQuantity: z.coerce.number().min(0).default(0),
+  purchasedQuantity: z.coerce.number().min(0).default(0),
+  estimatedCost: z.coerce.number().min(0).default(0),
+  actualCost: z.coerce.number().min(0).nullable().optional(),
+  supplier: optionalText(120),
+  status: z.enum(['PENDING', 'ORDERED', 'RECEIVED']).default('PENDING'),
+  notes: optionalText(800),
+}).strict()
+
+function serializeMaterial(material: {
+  id: string
+  materialId: string | null
+  materialName: string
+  finish: string | null
+  unit: string
+  estimatedQuantity: number
+  purchasedQuantity: number
+  estimatedCost: number
+  actualCost: number | null
+  supplier: string | null
+  status: string
+  notes: string | null
+  updatedAt: Date
+}) {
+  return { ...material, updatedAt: material.updatedAt.toISOString() }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; materialId: string }> }) {
+  const auth = await requireRole(['ADMIN'])
+  if (!auth.ok) return auth.response
+
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return badRequest('Dados inválidos')
+  }
+  const parsed = projectMaterialSchema.safeParse(body)
+  if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
+
+  const { id, materialId } = await params
+  try {
+    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id }, select: { id: true } })
+    if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
+    const material = await prisma.projectMaterial.update({
+      where: { id: materialId },
+      data: parsed.data,
+    })
+    return NextResponse.json(serializeMaterial(material))
+  } catch {
+    return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; materialId: string }> }) {
+  const auth = await requireRole(['ADMIN'])
+  if (!auth.ok) return auth.response
+
+  const { id, materialId } = await params
+  try {
+    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id }, select: { id: true } })
+    if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
+    await prisma.projectMaterial.delete({ where: { id: materialId } })
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
+  }
+}

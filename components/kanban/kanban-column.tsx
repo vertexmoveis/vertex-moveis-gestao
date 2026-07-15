@@ -17,7 +17,7 @@ export function KanbanColumn({ stage, label, color, projects }: KanbanColumnProp
   const { setNodeRef, isOver } = useDroppable({ id: stage })
 
   return (
-    <div className="flex flex-col flex-shrink-0 w-64">
+    <div className="flex min-w-[260px] flex-1 flex-col">
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2.5 rounded-t-xl"

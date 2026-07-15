@@ -4,25 +4,60 @@ import { prisma } from '@/lib/db'
 import { Header } from '@/components/layout/header'
 import { KanbanBoard } from '@/components/kanban/kanban-board'
 import type { ProjectData } from '@/types'
+import { serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
 
 type DashboardUser = { id?: string; role?: string }
 
-async function getProjects(user: DashboardUser): Promise<ProjectData[]> {
+const COMPLETED_VISIBLE_DAYS = 7
+const PRODUCTION_PROJECT_LIMIT = 250
+
+async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData[]; limited: boolean }> {
   const isAdmin = user.role === 'ADMIN'
+  const completedVisibleSince = new Date()
+  completedVisibleSince.setDate(completedVisibleSince.getDate() - COMPLETED_VISIBLE_DAYS)
+
   const projects = await prisma.project.findMany({
-    where: isAdmin ? undefined : { managerId: user.id },
+    where: {
+      ...(isAdmin ? {} : { managerId: user.id }),
+      OR: [
+        { stage: { not: 'COMPLETED' } },
+        {
+          stage: 'COMPLETED',
+          OR: [
+            { actualEndDate: { gte: completedVisibleSince } },
+            { actualEndDate: null, updatedAt: { gte: completedVisibleSince } },
+          ],
+        },
+      ],
+    },
     orderBy: { updatedAt: 'desc' },
+    take: PRODUCTION_PROJECT_LIMIT + 1,
     select: {
       id: true,
       name: true,
       room: true,
       status: true,
       stage: true,
+      approvalDate: true,
+      deliveryBusinessDays: true,
+      deliveryDeadlineDate: true,
+      productionReminderBusinessDays: true,
+      productionStartReminderDate: true,
       startDate: true,
       estimatedEndDate: true,
       actualEndDate: true,
       value: isAdmin,
+      productionCost: isAdmin,
+      downPayment: isAdmin,
+      downPaymentDate: isAdmin,
+      installmentCount: isAdmin,
+      installmentValue: isAdmin,
+      firstInstallmentDate: isAdmin,
       internalNotes: false,
+      environments: {
+        select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true },
+        orderBy: { position: 'asc' },
+      },
       createdAt: true,
       updatedAt: true,
       client: { select: { id: true, name: true, phone: true, whatsapp: true } },
@@ -30,10 +65,20 @@ async function getProjects(user: DashboardUser): Promise<ProjectData[]> {
     },
   })
 
-  return projects.map((p) => ({
+  return {
+    limited: projects.length > PRODUCTION_PROJECT_LIMIT,
+    projects: projects.slice(0, PRODUCTION_PROJECT_LIMIT).map((p) => ({
     ...p,
     internalNotes: null,
     value: isAdmin ? p.value : null,
+    productionCost: isAdmin ? p.productionCost : null,
+    downPayment: isAdmin ? p.downPayment : null,
+    downPaymentDate: isAdmin ? p.downPaymentDate?.toISOString() || null : null,
+    installmentCount: isAdmin ? p.installmentCount : 0,
+    installmentValue: isAdmin ? p.installmentValue : null,
+    firstInstallmentDate: isAdmin ? p.firstInstallmentDate?.toISOString() || null : null,
+    environments: p.environments.map(serializeEnvironment),
+    environmentSummary: summarizeEnvironments(p.environments),
     client: {
       ...p.client,
       phone: isAdmin ? p.client.phone : null,
@@ -41,17 +86,24 @@ async function getProjects(user: DashboardUser): Promise<ProjectData[]> {
     },
     status: p.status as ProjectData['status'],
     stage: p.stage as ProjectData['stage'],
+    approvalDate: p.approvalDate?.toISOString() || null,
+    deliveryBusinessDays: p.deliveryBusinessDays,
+    deliveryDeadlineDate: p.deliveryDeadlineDate?.toISOString() || null,
+    productionReminderBusinessDays: p.productionReminderBusinessDays,
+    productionStartReminderDate: p.productionStartReminderDate?.toISOString() || null,
     startDate: p.startDate?.toISOString() || null,
     estimatedEndDate: p.estimatedEndDate?.toISOString() || null,
     actualEndDate: p.actualEndDate?.toISOString() || null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
-  }))
+    })),
+  }
 }
 
 export default async function ProductionPage() {
   const session = await getServerSession(authOptions)
-  const projects = await getProjects((session?.user as DashboardUser | undefined) || {})
+  const production = await getProjects((session?.user as DashboardUser | undefined) || {})
+  const projects = production.projects
 
   const totalActive = projects.filter((p) => p.stage !== 'COMPLETED').length
   const totalCompleted = projects.filter((p) => p.stage === 'COMPLETED').length
@@ -61,7 +113,7 @@ export default async function ProductionPage() {
     <div className="flex flex-col h-full">
       <Header
         title="Produção"
-        subtitle={`${totalActive} projetos em andamento · ${totalCompleted} concluídos · ${totalDelayed > 0 ? `${totalDelayed} atrasados ⚠` : ''}`}
+        subtitle={`${totalActive} projetos em andamento · ${totalCompleted} concluídos recentes · ${totalDelayed > 0 ? `${totalDelayed} atrasados ⚠` : `concluídos somem após ${COMPLETED_VISIBLE_DAYS} dias`}`}
         userName={session?.user?.name || ''}
       />
 
@@ -76,6 +128,11 @@ export default async function ProductionPage() {
             <span>{projects.length} projeto{projects.length !== 1 ? 's' : ''} total</span>
           </div>
         </div>
+        {production.limited ? (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Mostrando os {PRODUCTION_PROJECT_LIMIT} projetos mais atualizados. Use Projetos para localizar os demais.
+          </div>
+        ) : null}
         <div className="h-full overflow-hidden">
           <KanbanBoard
             key={projects.map((p) => `${p.id}:${p.stage}:${p.status}:${p.updatedAt}`).join('|')}
