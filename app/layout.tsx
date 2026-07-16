@@ -5,7 +5,6 @@ import { Providers } from '@/components/layout/providers'
 export const metadata: Metadata = {
   title: 'Vertex Móveis — Gestão',
   description: 'Sistema de gestão de clientes e produção para Vertex Móveis',
-  icons: { icon: '/favicon.ico' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
