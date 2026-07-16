@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
   const auth = await requireRole(['ADMIN'])
   if (!auth.ok) return auth.response
 
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'A copia local do banco deve ser executada no computador da Vertex.' },
+      { status: 503 },
+    )
+  }
+
   const limited = await rateLimit(`api:backup:${auth.user.id}:${getClientIp(req)}`, 10, 60 * 1000).catch((error) => {
     if (error instanceof RateLimitUnavailableError) return null
     throw error

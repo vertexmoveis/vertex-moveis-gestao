@@ -47,9 +47,19 @@ logs/
 *.sqlite3
 prisma/dev.db
 
+# local database snapshots
+/backups/
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+.env*
+
+# Marketplace metadata generated locally by Vercel integrations
+.agents/
+skills-lock.json

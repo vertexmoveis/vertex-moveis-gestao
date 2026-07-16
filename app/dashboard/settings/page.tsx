@@ -14,6 +14,7 @@ export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   const user = session?.user as { name?: string; email?: string; role?: string }
   const isAdmin = user?.role === 'ADMIN'
+  const canCreateLocalBackup = process.env.VERCEL !== '1'
   if (isAdmin) await ensureDefaultQuoteSettings(prisma)
   const [priceRules, materials, resources] = isAdmin
     ? await Promise.all([
@@ -54,12 +55,18 @@ export default async function SettingsPage() {
 
         {isAdmin && (
           <Card>
-            <CardHeader>
-              <h2 className="text-sm font-semibold text-[#121212]">Backup</h2>
-            </CardHeader>
-            <CardBody>
-              <BackupButton />
-            </CardBody>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-[#121212]">Backup</h2>
+          </CardHeader>
+          <CardBody>
+              {canCreateLocalBackup ? (
+                <BackupButton />
+              ) : (
+                <p className="text-sm text-[#6B7280]">
+                  A copia local e criada pelo computador da Vertex. O botao manual fica disponivel somente na instalacao local.
+                </p>
+              )}
+          </CardBody>
           </Card>
         )}
 

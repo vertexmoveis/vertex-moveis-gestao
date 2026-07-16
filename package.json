@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "npm run prisma:generate && next dev",
+    "build": "npm run prisma:generate && next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "local:url": "powershell -ExecutionPolicy Bypass -File scripts/show-local-url.ps1",
@@ -13,6 +13,9 @@
     "backup:db": "powershell -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
     "backup:daily": "powershell -ExecutionPolicy Bypass -File scripts/register-daily-backup-task.ps1",
     "admin:provision": "node scripts/provision-admin.js",
+    "prisma:generate": "node scripts/prisma-command.mjs generate",
+    "db:deploy": "node scripts/prisma-command.mjs migrate",
+    "db:migrate-data": "node scripts/migrate-sqlite-to-postgres.mjs",
     "security:audit-data": "node scripts/audit-test-data.js",
     "security:demo-users": "node scripts/manage-demo-users.js",
     "test:security": "node scripts/security-tests.js"
@@ -31,6 +34,7 @@
     "lucide-react": "^1.17.0",
     "next": "16.2.10",
     "next-auth": "^4.24.14",
+    "pg": "^8.16.3",
     "prisma": "^5.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

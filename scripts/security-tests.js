@@ -1,43 +1,75 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { spawn, execFileSync } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
-const fs = require('node:fs')
 const path = require('node:path')
-const { backup, DatabaseSync } = require('node:sqlite')
+const { Client } = require('pg')
 const bcrypt = require('bcryptjs')
 const { PrismaClient } = require('@prisma/client')
 
 const root = path.resolve(__dirname, '..')
 const port = Number(process.env.SECURITY_TEST_PORT || 3217)
 const baseUrl = `http://127.0.0.1:${port}`
-const dbPath = path.join(root, 'prisma', `.vertex-security-${process.pid}.db`)
-const databaseUrl = `file:./${path.basename(dbPath)}`
 const password = `Security-${randomBytes(12).toString('hex')}!Aa1`
+let databaseUrl = ''
+let directDatabaseUrl = ''
+let testSchema = ''
 
 function command(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name
 }
 
-function removeTestDatabase() {
-  for (const suffix of ['', '-journal', '-shm', '-wal']) {
-    try {
-      fs.unlinkSync(`${dbPath}${suffix}`)
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error
-    }
-  }
+function quoteIdentifier(identifier) {
+  return `"${identifier.replaceAll('"', '""')}"`
+}
+
+function withSchema(connectionString, schema) {
+  const url = new URL(connectionString)
+  url.searchParams.set('schema', schema)
+  return url.toString()
+}
+
+function pushTestSchema() {
+  execFileSync(
+    process.execPath,
+    [path.join('node_modules', 'prisma', 'build', 'index.js'), 'db', 'push', '--schema', 'prisma/schema.prisma', '--skip-generate'],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        DATABASE_URL: databaseUrl,
+        DATABASE_URL_UNPOOLED: databaseUrl,
+      },
+      stdio: 'inherit',
+    },
+  )
 }
 
 async function prepareTestDatabase() {
-  const sourcePath = path.join(root, 'prisma', 'dev.db')
-  if (!fs.existsSync(sourcePath)) throw new Error('Banco local nÃ£o encontrado para os testes de seguranÃ§a.')
+  const { loadDatabaseEnv } = await import('./database-env.mjs')
+  const { directUrl } = loadDatabaseEnv()
+  testSchema = `vertex_security_${process.pid}_${randomBytes(4).toString('hex')}`
+  directDatabaseUrl = directUrl
+  databaseUrl = withSchema(directUrl, testSchema)
+  const client = new Client({ connectionString: directUrl })
 
-  removeTestDatabase()
-  const source = new DatabaseSync(sourcePath, { readOnly: true })
   try {
-    await backup(source, dbPath)
+    await client.connect()
+    await client.query(`CREATE SCHEMA ${quoteIdentifier(testSchema)}`)
   } finally {
-    source.close()
+    await client.end().catch(() => {})
+  }
+
+  pushTestSchema()
+}
+
+async function removeTestDatabase() {
+  if (!directDatabaseUrl || !testSchema) return
+  const client = new Client({ connectionString: directDatabaseUrl })
+  try {
+    await client.connect()
+    await client.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(testSchema)} CASCADE`)
+  } finally {
+    await client.end().catch(() => {})
   }
 }
 
@@ -74,7 +106,7 @@ async function seedDatabase() {
       items: {
         create: {
           environment: 'Cozinha',
-          description: 'Armário de teste',
+          description: 'Armario de teste',
           width: 100,
           height: 100,
           quantity: 1,
@@ -103,6 +135,7 @@ function startServer() {
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
+      DATABASE_URL_UNPOOLED: databaseUrl,
       NEXTAUTH_SECRET: `security-test-${randomBytes(16).toString('hex')}`,
       NEXTAUTH_URL: baseUrl,
       SECURITY_TEST_MODE: 'true',
@@ -252,43 +285,36 @@ async function runTests(ids) {
     console.log(`${actual === expected ? 'PASS' : 'FAIL'} ${name}: expected ${expected}, got ${actual}`)
   }
 
-  if (failed.length) {
-    process.exitCode = 1
-  }
+  if (failed.length) process.exitCode = 1
 }
 
 async function main() {
-  await prepareTestDatabase()
-  const ids = await seedDatabase()
-  const server = startServer()
+  let server
   try {
+    await prepareTestDatabase()
+    const ids = await seedDatabase()
+    server = startServer()
     await waitForServer()
     await runTests(ids)
   } finally {
-    if (process.platform === 'win32') {
-      try {
-        execFileSync('taskkill.exe', ['/PID', String(server.pid), '/T', '/F'], { stdio: 'ignore' })
-      } catch {
+    if (server) {
+      if (process.platform === 'win32') {
+        try {
+          execFileSync('taskkill.exe', ['/PID', String(server.pid), '/T', '/F'], { stdio: 'ignore' })
+        } catch {
+          server.kill()
+        }
+      } else {
         server.kill()
       }
-    } else {
-      server.kill()
+      await new Promise((resolve) => setTimeout(resolve, 500))
     }
-
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        removeTestDatabase()
-        break
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
-    }
+    await removeTestDatabase()
   }
 }
 
 main().catch((error) => {
-  console.error(error.message)
+  console.error(error instanceof Error ? error.stack || error.message : error)
   process.exitCode = 1
 }).finally(() => {
   process.exit(process.exitCode || 0)
