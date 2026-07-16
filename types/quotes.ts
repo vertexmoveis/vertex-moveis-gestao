@@ -52,6 +52,7 @@ export type QuoteData = {
     id: string
     name: string
     phone?: string | null
+    whatsapp?: string | null
     email?: string | null
     address?: string | null
   } | null

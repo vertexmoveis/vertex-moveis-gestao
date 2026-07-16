@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { buildQuoteApprovalMessage, buildQuoteFollowUpMessage } from '@/lib/quotes'
 import { badRequest, forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 
@@ -76,11 +77,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const approvalUrl = new URL(`/proposta/${request.token}`, req.url).toString()
   const message = reminder
-    ? `Olá, ${quote.client.name}! Passando para lembrar da aprovação do orçamento "${quote.title}". Você pode conferir e aprovar por aqui: ${approvalUrl}`
-    : `Olá, ${quote.client.name}! Seu orçamento "${quote.title}" está pronto. Você pode conferir e aprovar por aqui: ${approvalUrl}`
+    ? buildQuoteFollowUpMessage(quote, approvalUrl)
+    : buildQuoteApprovalMessage(quote, approvalUrl)
 
   return NextResponse.json({
     approvalUrl,
+    message,
     whatsAppUrl: whatsAppUrl(quote.client.whatsapp || quote.client.phone, message),
     quoteStatus: 'WAITING_APPROVAL',
     request: {

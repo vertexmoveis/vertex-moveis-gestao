@@ -44,6 +44,7 @@ export default function QuoteDetailPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [error, setError] = useState('')
   const [approvalUrl, setApprovalUrl] = useState('')
+  const [approvalMessage, setApprovalMessage] = useState('')
   const [approvalFeedback, setApprovalFeedback] = useState('')
 
   useEffect(() => {
@@ -147,10 +148,11 @@ export default function QuoteDetailPage() {
   const sendApprovalRequest = async (reminder = false) => {
     if (!quote) return
 
-    const canOpenWhatsApp = Boolean(quote.client?.phone)
+    const canOpenWhatsApp = Boolean(quote.client?.whatsapp || quote.client?.phone)
     const messageWindow = canOpenWhatsApp ? window.open('', '_blank') : null
     setSaving(true)
     setError('')
+    setApprovalMessage('')
     setApprovalFeedback('')
 
     const response = await fetch(`/api/quotes/${params.id}/approval-request`, {
@@ -168,9 +170,10 @@ export default function QuoteDetailPage() {
     }
 
     setApprovalUrl(data.approvalUrl || '')
+    setApprovalMessage(data.message || '')
     setApprovalFeedback(
       data.whatsAppUrl
-        ? reminder ? 'Lembrete preparado no WhatsApp com o link de aprovação.' : 'Mensagem preparada no WhatsApp com o link de aprovação.'
+        ? reminder ? 'Mensagem de retorno preparada no WhatsApp com o orçamento e o link de aprovação.' : 'Mensagem preparada no WhatsApp com o orçamento e o link de aprovação.'
         : 'Link de aprovação criado. Copie-o para enviar ao cliente.'
     )
     setQuote((current) => current ? { ...current, status: data.quoteStatus || current.status } : current)
@@ -196,18 +199,32 @@ export default function QuoteDetailPage() {
     }
   }
 
+  const copyApprovalMessage = async () => {
+    if (!approvalMessage) return
+    try {
+      await navigator.clipboard.writeText(approvalMessage)
+      setApprovalFeedback('Mensagem copiada. Cole no WhatsApp para enviar ao cliente.')
+    } catch {
+      setApprovalFeedback('Não foi possível copiar a mensagem automaticamente.')
+    }
+  }
+
   const whatsappUrl = useMemo(() => {
-    if (!quote?.client?.phone || typeof window === 'undefined') return ''
-    const phone = quote.client.phone.replace(/\D/g, '')
+    const client = quote?.client
+    if (!client || typeof window === 'undefined') return ''
+    const contactNumber = client.whatsapp || client.phone
+    if (!contactNumber) return ''
+    const phone = contactNumber.replace(/\D/g, '')
+    const whatsAppNumber = phone.startsWith('55') ? phone : `55${phone}`
     const message = [
-      `Olá, ${quote.client.name}!`,
+      `Olá, ${client.name}!`,
       '',
       `Segue o orçamento ${quote.title} no valor de ${formatCurrency(quote.total)}.`,
       `Para conferir e aprovar, abra a proposta: ${window.location.origin}/api/quotes/${quote.id}/proposal`,
       '',
       'Se estiver tudo certo, me responda com "aprovado" para iniciarmos o projeto.',
     ].join('\n')
-    return `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`
+    return `https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(message)}`
   }, [quote])
 
   if (loading) {
@@ -259,7 +276,7 @@ export default function QuoteDetailPage() {
             </Button>
             <Button variant="outline" loading={saving} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
               <Send size={16} />
-              {quote.status === 'WAITING_APPROVAL' ? 'Enviar lembrete' : 'Enviar para aprovação'}
+              {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
             </Button>
             {whatsappUrl && (
               <Button variant="outline" onClick={() => window.open(whatsappUrl, '_blank')}>
@@ -354,9 +371,21 @@ export default function QuoteDetailPage() {
                   onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}
                 >
                   <Send size={16} />
-                  {quote.status === 'WAITING_APPROVAL' ? 'Enviar lembrete ao cliente' : 'Enviar para aprovação'}
+                  {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
                 </Button>
                 {approvalFeedback && <p className="rounded-lg bg-[#FFF3EA] px-3 py-2 text-xs text-[#A64200]">{approvalFeedback}</p>}
+                {approvalMessage && (
+                  <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#777]">Mensagem pronta para o cliente</p>
+                      <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void copyApprovalMessage()}>
+                        <Copy size={14} />
+                        Copiar
+                      </Button>
+                    </div>
+                    <p className="mt-2 whitespace-pre-line text-xs leading-5 text-[#555]">{approvalMessage}</p>
+                  </div>
+                )}
                 {approvalUrl && (
                   <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#777]">Link de aprovação</p>

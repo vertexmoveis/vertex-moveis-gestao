@@ -412,10 +412,45 @@ export function buildQuoteWhatsAppMessage(quote: { title: string; total: number;
     `Olá, ${quote.client?.name || 'tudo bem'}!`,
     '',
     `Segue o orçamento "${quote.title}" da Vertex Móveis.`,
-    `Valor total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.total)}.`,
+    `Valor total: ${formatQuoteCurrency(quote.total)}.`,
     `Pagamento: ${getQuotePaymentSummary(quote)}.`,
     validUntil ? `Validade: ${validUntil}.` : '',
     '',
     'Qualquer ajuste que quiser fazer, me chama por aqui.',
   ].filter(Boolean).join('\n')
+}
+
+type QuoteContactMessage = {
+  title: string
+  total: number
+  client?: { name: string }
+}
+
+function formatQuoteCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+export function buildQuoteApprovalMessage(quote: QuoteContactMessage, approvalUrl: string) {
+  return [
+    `Olá, ${quote.client?.name || 'tudo bem'}!`,
+    '',
+    `Preparamos o orçamento do seu projeto "${quote.title}" no valor de ${formatQuoteCurrency(quote.total)}.`,
+    `Confira todos os detalhes e aprove a proposta por aqui: ${approvalUrl}`,
+    '',
+    'Ficou alguma dúvida ou deseja ajustar algum item? Pode me responder por aqui.',
+  ].join('\n')
+}
+
+export function buildQuoteFollowUpMessage(quote: QuoteContactMessage, approvalUrl: string) {
+  return [
+    `Olá, ${quote.client?.name || 'tudo bem'}! Tudo certo?`,
+    '',
+    `Queria saber o que você achou do orçamento do seu projeto "${quote.title}", no valor de ${formatQuoteCurrency(quote.total)}.`,
+    'Ficou alguma dúvida, algum detalhe que você gostaria de ajustar ou algo que não ficou como imaginava?',
+    '',
+    'Sua opinião é importante para deixarmos o projeto exatamente como você precisa.',
+    `Você pode rever a proposta e aprovar por aqui: ${approvalUrl}`,
+    '',
+    'Fico à disposição.',
+  ].join('\n')
 }
