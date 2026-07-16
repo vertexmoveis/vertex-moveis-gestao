@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
+import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES, INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 
 const scheduleSchema = z.object({
   projectId: z.string().trim().min(1),
@@ -10,7 +11,9 @@ const scheduleSchema = z.object({
   teamId: z.string().trim().nullable().optional(),
   vehicleId: z.string().trim().nullable().optional(),
   notes: z.string().trim().max(800).nullable().optional(),
-  status: z.enum(['SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED']).default('SCHEDULED'),
+  clientConfirmation: z.string().trim().max(120).nullable().optional(),
+  completionNotes: z.string().trim().max(1200).nullable().optional(),
+  status: z.enum(INSTALLATION_SCHEDULE_STATUSES).default('SCHEDULED'),
 }).strict()
 
 function parseRange(value: string | null, fallback: Date) {
@@ -28,6 +31,11 @@ function serializeSchedule(schedule: {
   vehicleId: string | null
   status: string
   notes: string | null
+  departureAt: Date | null
+  arrivalAt: Date | null
+  completedAt: Date | null
+  clientConfirmation: string | null
+  completionNotes: string | null
   project: { id: string; name: string; client: { name: string } }
   team: { id: string; name: string } | null
   vehicle: { id: string; name: string } | null
@@ -36,6 +44,9 @@ function serializeSchedule(schedule: {
     ...schedule,
     scheduledStart: schedule.scheduledStart.toISOString(),
     scheduledEnd: schedule.scheduledEnd.toISOString(),
+    departureAt: schedule.departureAt?.toISOString() || null,
+    arrivalAt: schedule.arrivalAt?.toISOString() || null,
+    completedAt: schedule.completedAt?.toISOString() || null,
   }
 }
 
@@ -115,7 +126,7 @@ export async function POST(req: NextRequest) {
   const conflict = resourceFilters.length > 0
     ? await prisma.installationSchedule.findFirst({
         where: {
-          status: { in: ['SCHEDULED', 'CONFIRMED'] },
+          status: { in: ACTIVE_INSTALLATION_SCHEDULE_STATUSES },
           scheduledStart: { lt: scheduledEnd },
           scheduledEnd: { gt: scheduledStart },
           OR: resourceFilters,
@@ -128,13 +139,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `${resourceName} já está reservado para ${conflict.project.name} nesse horário.` }, { status: 409 })
   }
 
-  const schedule = await prisma.installationSchedule.create({
-    data: { ...parsed.data, scheduledStart, scheduledEnd },
-    include: {
-      project: { select: { id: true, name: true, client: { select: { name: true } } } },
-      team: { select: { id: true, name: true } },
-      vehicle: { select: { id: true, name: true } },
-    },
+  const schedule = await prisma.$transaction(async (tx) => {
+    const created = await tx.installationSchedule.create({
+      data: {
+        projectId: parsed.data.projectId,
+        scheduledStart,
+        scheduledEnd,
+        teamId: parsed.data.teamId || null,
+        vehicleId: parsed.data.vehicleId || null,
+        notes: parsed.data.notes || null,
+        clientConfirmation: parsed.data.clientConfirmation || null,
+        completionNotes: parsed.data.completionNotes || null,
+        status: 'SCHEDULED',
+      },
+      include: {
+        project: { select: { id: true, name: true, client: { select: { name: true } } } },
+        team: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, name: true } },
+      },
+    })
+    await tx.timelineEvent.create({
+      data: {
+        projectId: created.projectId,
+        event: 'Instalação agendada',
+        description: `Instalação reservada para ${created.scheduledStart.toLocaleDateString('pt-BR')}.`,
+      },
+    })
+    return created
   })
   return NextResponse.json(serializeSchedule(schedule), { status: 201 })
 }

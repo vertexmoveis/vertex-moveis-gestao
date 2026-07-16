@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Avatar } from '@/components/ui/avatar'
 import { ProjectForm } from '@/components/projects/project-form'
+import { ProjectFilesCard, type ProjectFile } from '@/components/projects/project-files-card'
 import { ProjectMaterialsCard } from '@/components/projects/project-materials-card'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
@@ -69,6 +70,7 @@ interface ProjectDetail {
   }
   manager: { id: string; name: string; email: string } | null
   notes: { id: string; content: string; createdAt: string; author: { id: string; name: string } }[]
+  files: ProjectFile[]
   timeline: { id: string; event: string; description: string | null; date: string }[]
   payments: {
     id: string
@@ -324,6 +326,7 @@ export default function ProjectDetailPage() {
     { href: '#producao', label: 'Produção' },
     { href: '#prazos', label: 'Prazos' },
     { href: '#cliente', label: 'Cliente' },
+    { href: '#arquivos', label: 'Arquivos' },
     ...(project.postSaleFollowUpAt || project.stage === 'COMPLETED' ? [{ href: '#pos-venda', label: 'Pós-venda' }] : []),
     { href: '#financeiro', label: 'Financeiro' },
     { href: '#materiais', label: 'Materiais' },
@@ -856,6 +859,12 @@ export default function ProjectDetailPage() {
                 )}
               </CardBody>
             </Card>
+
+            <ProjectFilesCard
+              projectId={project.id}
+              files={project.files}
+              onFilesChange={(files) => setProject((current) => current ? { ...current, files } : current)}
+            />
 
             {/* Timeline */}
             <Card id="historico" className="scroll-mt-28">

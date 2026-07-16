@@ -15,6 +15,8 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShoppingCart,
+  TrendingUp,
   Users,
   Wallet,
   X,
@@ -26,10 +28,12 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/clients', label: 'Clientes', icon: Users },
   { href: '/dashboard/quotes', label: 'Orçamentos', icon: Calculator },
+  { href: '/dashboard/sales', label: 'Vendas', icon: TrendingUp },
   { href: '/dashboard/projects', label: 'Projetos', icon: FolderOpen },
   { href: '/dashboard/production', label: 'Produção', icon: Kanban },
   { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
   { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, adminOnly: true },
+  { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
 ]
 
 const bottomItems = [

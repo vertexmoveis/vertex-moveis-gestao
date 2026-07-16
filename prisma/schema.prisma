@@ -146,6 +146,7 @@ model Quote {
   @@index([status])
   @@index([validUntil])
   @@index([createdAt])
+  @@index([createdById, status, createdAt])
 }
 
 model QuoteItem {
@@ -268,24 +269,30 @@ model OperationalResource {
 }
 
 model InstallationSchedule {
-  id             String               @id @default(cuid())
-  projectId      String
-  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scheduledStart DateTime
-  scheduledEnd   DateTime
-  teamId         String?
-  team           OperationalResource? @relation("ScheduleTeam", fields: [teamId], references: [id], onDelete: SetNull)
-  vehicleId      String?
-  vehicle        OperationalResource? @relation("ScheduleVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
-  status         String               @default("SCHEDULED")
-  notes          String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id                 String               @id @default(cuid())
+  projectId          String
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scheduledStart     DateTime
+  scheduledEnd       DateTime
+  teamId             String?
+  team               OperationalResource? @relation("ScheduleTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  vehicleId          String?
+  vehicle            OperationalResource? @relation("ScheduleVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  status             String               @default("SCHEDULED")
+  notes              String?
+  departureAt        DateTime?
+  arrivalAt          DateTime?
+  completedAt        DateTime?
+  clientConfirmation String?
+  completionNotes    String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([projectId])
   @@index([scheduledStart, scheduledEnd])
   @@index([teamId, scheduledStart])
   @@index([vehicleId, scheduledStart])
+  @@index([status, scheduledStart])
 }
 
 model QuoteApprovalRequest {
@@ -395,9 +402,13 @@ model ProjectFile {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
   type      String
+  category  String   @default("OTHER")
   url       String
   size      Int?
   createdAt DateTime @default(now())
+
+  @@unique([projectId, url])
+  @@index([projectId, category])
 }
 
 model TimelineEvent {

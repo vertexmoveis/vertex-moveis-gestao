@@ -2,6 +2,7 @@
 
 import { PackagePlus, Save, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
@@ -151,17 +152,20 @@ export function ProjectMaterialsCard({
             <h3 className="text-sm font-semibold text-[#121212]">Compras e materiais</h3>
             <p className="mt-1 text-xs text-[#9E9E9E]">{totals.bought}/{materials.length} itens recebidos</p>
           </div>
-          {canManage ? (
-            <div className="flex min-w-0 gap-2">
-              <select value={newMaterialId} onChange={(event) => setNewMaterialId(event.target.value)} className="h-8 min-w-0 max-w-44 rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]">
-                <option value="">Adicionar material</option>
-                {catalog.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
-              </select>
-              <Button type="button" size="sm" onClick={() => void addMaterial()} loading={savingId === 'new'} disabled={!newMaterialId} title="Adicionar material">
-                <PackagePlus size={14} />
-              </Button>
-            </div>
-          ) : null}
+          <div className="flex min-w-0 items-center gap-2">
+            {canManage ? <Link href="/dashboard/purchases" className="text-xs font-semibold text-[#FF6B00] hover:underline">Lista geral</Link> : null}
+            {canManage ? (
+              <div className="flex min-w-0 gap-2">
+                <select value={newMaterialId} onChange={(event) => setNewMaterialId(event.target.value)} className="h-8 min-w-0 max-w-44 rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]">
+                  <option value="">Adicionar material</option>
+                  {catalog.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+                </select>
+                <Button type="button" size="sm" onClick={() => void addMaterial()} loading={savingId === 'new'} disabled={!newMaterialId} title="Adicionar material">
+                  <PackagePlus size={14} />
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardBody className="space-y-4">
@@ -199,6 +203,10 @@ export function ProjectMaterialsCard({
                 ) : (
                   <p className="text-xs text-[#777]">{material.estimatedQuantity.toFixed(2)} {unitLabel(material.unit)} · {MATERIAL_STATUS[material.status].label}</p>
                 )}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#777]">
+                  <span>Falta comprar: <strong className="text-[#121212]">{Math.max(material.estimatedQuantity - material.purchasedQuantity, 0).toFixed(2)} {unitLabel(material.unit)}</strong></span>
+                  {material.actualCost !== null ? <span>Diferença: <strong className={material.actualCost > (material.estimatedCost || 0) ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(material.actualCost - (material.estimatedCost || 0))}</strong></span> : null}
+                </div>
                 {canManage ? (
                   <div className="flex justify-end gap-2">
                     <Button type="button" size="sm" variant="outline" loading={savingId === material.id} onClick={() => void saveMaterial(material)}><Save size={13} /> Salvar</Button>

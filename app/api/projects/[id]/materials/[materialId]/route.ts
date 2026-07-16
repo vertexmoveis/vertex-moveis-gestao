@@ -22,6 +22,12 @@ const projectMaterialSchema = z.object({
   notes: optionalText(800),
 }).strict()
 
+const MATERIAL_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'precisa comprar',
+  ORDERED: 'pedido feito',
+  RECEIVED: 'recebido',
+}
+
 function serializeMaterial(material: {
   id: string
   materialId: string | null
@@ -55,11 +61,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id, materialId } = await params
   try {
-    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id }, select: { id: true } })
+    const existing = await prisma.projectMaterial.findFirst({
+      where: { id: materialId, projectId: id },
+      include: { project: { select: { name: true } } },
+    })
     if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
-    const material = await prisma.projectMaterial.update({
-      where: { id: materialId },
-      data: parsed.data,
+    const material = await prisma.$transaction(async (tx) => {
+      const updated = await tx.projectMaterial.update({
+        where: { id: materialId },
+        data: parsed.data,
+      })
+      if (existing.status !== updated.status) {
+        const statusLabel = MATERIAL_STATUS_LABELS[updated.status] || updated.status
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: 'Material atualizado',
+            description: `${updated.materialName}: ${statusLabel}.`,
+          },
+        })
+      }
+      if (existing.actualCost !== updated.actualCost) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: 'Custo de material atualizado',
+            description: `${updated.materialName}: custo real registrado.`,
+          },
+        })
+      }
+      return updated
     })
     return NextResponse.json(serializeMaterial(material))
   } catch {

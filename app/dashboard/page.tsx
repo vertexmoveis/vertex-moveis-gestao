@@ -20,11 +20,14 @@ import {
   Clock,
   Wallet,
   Calculator,
+  ShoppingCart,
+  TrendingUp,
 } from 'lucide-react'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { businessDaysBetween } from '@/lib/business-days'
 import { getAppAlerts, type AlertTone } from '@/lib/alerts'
+import { getDashboardNextActions, type NextActionKind } from '@/lib/next-actions'
 import Link from 'next/link'
 
 type DashboardUser = { id?: string; role?: string }
@@ -44,6 +47,7 @@ async function getDashboardData(user: DashboardUser) {
     upcomingDeliveries,
     startReminderProjects,
     attentionItems,
+    nextActions,
   ] =
     await Promise.all([
       prisma.client.count({ where: clientScope }),
@@ -99,6 +103,7 @@ async function getDashboardData(user: DashboardUser) {
         },
       }),
       getAppAlerts(user),
+      getDashboardNextActions(user),
     ])
 
   const activeProjects = projectGroups.reduce((total, group) => total + (group.stage !== 'COMPLETED' ? group._count._all : 0), 0)
@@ -127,6 +132,7 @@ async function getDashboardData(user: DashboardUser) {
     todayDeliveries,
     statusDistribution,
     attentionItems,
+    nextActions,
     recentActivities: recentActivities.map((a) => ({
       ...a,
       createdAt: a.createdAt.toISOString(),
@@ -164,11 +170,15 @@ export default async function DashboardPage() {
   const nowTime = new Date().getTime()
   const quickAccessItems = [
     { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} cadastrados`, color: 'bg-blue-50 text-blue-600' },
+    { href: '/dashboard/sales', icon: TrendingUp, label: 'Vendas', sub: 'Funil comercial', color: 'bg-emerald-50 text-emerald-600' },
     { href: '/dashboard/projects', icon: FolderOpen, label: 'Projetos', sub: `${data.activeProjects} ativos`, color: 'bg-orange-50 text-orange-600' },
     { href: '/dashboard/production', icon: Package, label: 'Produção', sub: 'Kanban board', color: 'bg-purple-50 text-purple-600' },
     { href: '/dashboard/calendar', icon: Calendar, label: 'Calendário', sub: 'Agenda e prazos', color: 'bg-green-50 text-green-600' },
     ...(isAdmin
-      ? [{ href: '/dashboard/financeiro', icon: Wallet, label: 'Financeiro', sub: 'Recebimentos', color: 'bg-emerald-50 text-emerald-600' }]
+      ? [
+          { href: '/dashboard/financeiro', icon: Wallet, label: 'Financeiro', sub: 'Recebimentos', color: 'bg-emerald-50 text-emerald-600' },
+          { href: '/dashboard/purchases', icon: ShoppingCart, label: 'Compras', sub: 'Materiais pendentes', color: 'bg-amber-50 text-amber-700' },
+        ]
       : []),
   ]
 
@@ -237,6 +247,56 @@ export default async function DashboardPage() {
                       </div>
                       <p className="mt-3 text-sm font-semibold text-[#121212] group-hover:text-[#FF6B00]">{item.title}</p>
                       <p className="mt-1 text-xs leading-5 text-[#6B7280]">{item.body}</p>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[#121212]">Próximas ações</h2>
+                <p className="text-xs text-[#9E9E9E]">O que precisa ser resolvido primeiro</p>
+              </div>
+              <span className="rounded-full bg-[#F5F5F5] px-3 py-1 text-xs font-semibold text-[#6B7280]">
+                {data.nextActions.length} ação{data.nextActions.length !== 1 ? 'ões' : ''}
+              </span>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            {data.nextActions.length === 0 ? (
+              <div className="flex items-center gap-3 px-5 py-5 text-sm text-[#777]">
+                <CheckCircle size={18} className="text-emerald-600" />
+                Nenhuma ação pendente agora.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#F0F0F0]">
+                {data.nextActions.map((action) => {
+                  const config = nextActionConfig(action.kind)
+                  const Icon = config.icon
+                  const isDue = new Date(action.dueAt).getTime() <= nowTime
+
+                  return (
+                    <Link
+                      key={action.id}
+                      href={action.href}
+                      className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#FAFAFA]"
+                    >
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${config.className}`}>
+                        <Icon size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-[#121212] group-hover:text-[#FF6B00]">{action.title}</span>
+                        <span className="mt-0.5 block truncate text-xs text-[#777]">{action.detail}</span>
+                      </span>
+                      <span className={`shrink-0 text-xs font-medium ${isDue ? 'text-[#D95800]' : 'text-[#9E9E9E]'}`}>
+                        {formatDate(action.dueAt)}
+                      </span>
+                      <ArrowRight size={15} className="shrink-0 text-[#BDBDBD] transition-transform group-hover:translate-x-0.5 group-hover:text-[#FF6B00]" />
                     </Link>
                   )
                 })}
@@ -448,4 +508,21 @@ function attentionToneConfig(tone: AlertTone) {
   }
 
   return tones[tone]
+}
+
+function nextActionConfig(kind: NextActionKind) {
+  switch (kind) {
+    case 'quote':
+      return { icon: Calculator, className: 'bg-blue-50 text-blue-600' }
+    case 'production':
+      return { icon: Package, className: 'bg-orange-50 text-[#FF6B00]' }
+    case 'delivery':
+      return { icon: Truck, className: 'bg-amber-50 text-amber-700' }
+    case 'installation':
+      return { icon: Calendar, className: 'bg-violet-50 text-violet-700' }
+    case 'purchase':
+      return { icon: ShoppingCart, className: 'bg-amber-50 text-amber-700' }
+    case 'post_sale':
+      return { icon: Users, className: 'bg-emerald-50 text-emerald-700' }
+  }
 }
