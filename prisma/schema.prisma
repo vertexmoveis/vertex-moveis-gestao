@@ -420,3 +420,12 @@ model ActivityLog {
   details   String?
   createdAt DateTime @default(now())
 }
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}

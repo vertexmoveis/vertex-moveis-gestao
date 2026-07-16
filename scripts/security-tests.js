@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { spawn, execFileSync } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
+const fs = require('node:fs')
 const path = require('node:path')
 const { Client } = require('pg')
 const bcrypt = require('bcryptjs')
@@ -10,9 +11,12 @@ const root = path.resolve(__dirname, '..')
 const port = Number(process.env.SECURITY_TEST_PORT || 3217)
 const baseUrl = `http://127.0.0.1:${port}`
 const password = `Security-${randomBytes(12).toString('hex')}!Aa1`
+const testAuthSecret = `security-test-${randomBytes(16).toString('hex')}`
+const testEnvironmentFile = path.join(root, '.env.production.local')
 let databaseUrl = ''
 let directDatabaseUrl = ''
 let testSchema = ''
+let createdTestEnvironmentFile = false
 
 function command(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name
@@ -26,6 +30,49 @@ function withSchema(connectionString, schema) {
   const url = new URL(connectionString)
   url.searchParams.set('schema', schema)
   return url.toString()
+}
+
+function testEnvironment() {
+  return {
+    ...process.env,
+    DATABASE_URL: databaseUrl,
+    DATABASE_URL_UNPOOLED: databaseUrl,
+    NEXTAUTH_SECRET: testAuthSecret,
+    NEXTAUTH_URL: baseUrl,
+    SECURITY_TEST_MODE: 'true',
+    RATE_LIMIT_TEST_BACKEND: 'memory',
+  }
+}
+
+function testServerEnvironment() {
+  const environment = testEnvironment()
+  delete environment.DATABASE_URL
+  delete environment.DATABASE_URL_UNPOOLED
+  return environment
+}
+
+function createTestEnvironmentFile() {
+  if (fs.existsSync(testEnvironmentFile)) {
+    throw new Error('O arquivo .env.production.local ja existe e nao sera substituido pelo teste de seguranca.')
+  }
+
+  const content = [
+    `DATABASE_URL=${databaseUrl}`,
+    `DATABASE_URL_UNPOOLED=${databaseUrl}`,
+    `NEXTAUTH_SECRET=${testAuthSecret}`,
+    `NEXTAUTH_URL=${baseUrl}`,
+    'SECURITY_TEST_MODE=true',
+    'RATE_LIMIT_TEST_BACKEND=memory',
+  ].join('\n')
+
+  fs.writeFileSync(testEnvironmentFile, `${content}\n`, { encoding: 'utf8', mode: 0o600 })
+  createdTestEnvironmentFile = true
+}
+
+function removeTestEnvironmentFile() {
+  if (!createdTestEnvironmentFile) return
+  fs.rmSync(testEnvironmentFile, { force: true })
+  createdTestEnvironmentFile = false
 }
 
 function pushTestSchema() {
@@ -42,6 +89,12 @@ function pushTestSchema() {
       stdio: 'inherit',
     },
   )
+}
+
+function buildTestApplication() {
+  const executable = process.platform === 'win32' ? 'cmd.exe' : command('npm')
+  const args = process.platform === 'win32' ? ['/c', 'npm.cmd run build'] : ['run', 'build']
+  execFileSync(executable, args, { cwd: root, env: testServerEnvironment(), stdio: 'inherit' })
 }
 
 async function prepareTestDatabase() {
@@ -120,7 +173,7 @@ async function seedDatabase() {
     },
   })
   await prisma.$disconnect()
-  return { admin, managerOne, clientOne, ownProject, otherProject, team, quote }
+  return { admin, managerOne, managerTwo, clientOne, ownProject, otherProject, team, quote }
 }
 
 function startServer() {
@@ -132,14 +185,7 @@ function startServer() {
 
   const child = spawn(executable, args, {
     cwd: root,
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      DATABASE_URL_UNPOOLED: databaseUrl,
-      NEXTAUTH_SECRET: `security-test-${randomBytes(16).toString('hex')}`,
-      NEXTAUTH_URL: baseUrl,
-      SECURITY_TEST_MODE: 'true',
-    },
+    env: testServerEnvironment(),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -179,7 +225,7 @@ function cookieHeader(jar) {
   return [...jar.entries()].map(([key, value]) => `${key}=${value}`).join('; ')
 }
 
-async function login(email) {
+async function login(email, candidatePassword = password) {
   let jar = new Map()
   const csrfResponse = await fetch(`${baseUrl}/api/auth/csrf`)
   jar = mergeCookies(jar, parseSetCookie(csrfResponse.headers))
@@ -187,7 +233,7 @@ async function login(email) {
   const body = new URLSearchParams({
     csrfToken: csrf.csrfToken,
     email,
-    password,
+    password: candidatePassword,
     json: 'true',
   })
 
@@ -204,6 +250,42 @@ async function login(email) {
   return jar
 }
 
+function hasSessionCookie(jar) {
+  return [...jar.keys()].some((key) => key.includes('session-token'))
+}
+
+async function verifyDatabaseRateLimit() {
+  const key = `security-rate-limit-${randomBytes(12).toString('hex')}`
+  const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+  try {
+    let latest = null
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const now = new Date()
+      const nextResetAt = new Date(now.getTime() + 15 * 60 * 1000)
+      ;[latest] = await prisma.$queryRaw`
+        INSERT INTO "RateLimitBucket" ("key", "count", "resetAt", "updatedAt")
+        VALUES (${key}, 1, ${nextResetAt}, ${now})
+        ON CONFLICT ("key") DO UPDATE
+        SET
+          "count" = CASE
+            WHEN "RateLimitBucket"."resetAt" <= ${now} THEN 1
+            ELSE "RateLimitBucket"."count" + 1
+          END,
+          "resetAt" = CASE
+            WHEN "RateLimitBucket"."resetAt" <= ${now} THEN ${nextResetAt}
+            ELSE "RateLimitBucket"."resetAt"
+          END,
+          "updatedAt" = ${now}
+        RETURNING "count", "resetAt"
+      `
+    }
+    return latest?.count === 6
+  } finally {
+    await prisma.rateLimitBucket.delete({ where: { key } }).catch(() => {})
+    await prisma.$disconnect()
+  }
+}
+
 async function status(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     redirect: 'manual',
@@ -213,6 +295,13 @@ async function status(pathname, options = {}) {
 }
 
 async function runTests(ids) {
+  const databaseRateLimitWorks = await verifyDatabaseRateLimit()
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await login(ids.managerTwo.email, 'senha-incorreta')
+  }
+  const blockedLoginJar = await login(ids.managerTwo.email)
+  const loginWasBlocked = !hasSessionCookie(blockedLoginJar)
+
   const managerJar = await login(ids.managerOne.email)
   const cookie = cookieHeader(managerJar)
   const jsonHeaders = { 'Content-Type': 'application/json', Cookie: cookie }
@@ -261,6 +350,9 @@ async function runTests(ids) {
     : 0
 
   const tests = [
+    ['database rate limit persists six attempts', databaseRateLimitWorks, true],
+    ['login rate limit blocks the sixth attempt', loginWasBlocked, true],
+    ['valid credentials create a session', hasSessionCookie(managerJar), true],
     ['unauthenticated API returns 401', await status('/api/clients'), 401],
     ['manager cannot delete client', await status(`/api/clients/${ids.clientOne.id}`, { method: 'DELETE', headers: { Cookie: cookie } }), 403],
     ['manager cannot delete project', await status(`/api/projects/${ids.ownProject.id}`, { method: 'DELETE', headers: { Cookie: cookie } }), 403],
@@ -292,6 +384,8 @@ async function main() {
   let server
   try {
     await prepareTestDatabase()
+    createTestEnvironmentFile()
+    buildTestApplication()
     const ids = await seedDatabase()
     server = startServer()
     await waitForServer()
@@ -309,6 +403,7 @@ async function main() {
       }
       await new Promise((resolve) => setTimeout(resolve, 500))
     }
+    removeTestEnvironmentFile()
     await removeTestDatabase()
   }
 }

@@ -1,21 +1,34 @@
+import { createHash } from 'node:crypto'
+import { prisma } from './db'
+
 type RateLimitEntry = {
   count: number
   resetAt: number
 }
 
+type DatabaseRateLimitEntry = {
+  count: number
+  resetAt: Date
+}
+
 const buckets = new Map<string, RateLimitEntry>()
+let nextDatabaseCleanupAt = 0
 
 export type RateLimitResult = {
   allowed: boolean
   remaining: number
   resetAt: number
-  backend: 'redis' | 'memory'
+  backend: 'redis' | 'postgres' | 'memory'
 }
 
 export class RateLimitUnavailableError extends Error {
   constructor() {
     super('Rate limit backend unavailable')
   }
+}
+
+function hashRateLimitKey(key: string) {
+  return createHash('sha256').update(key).digest('hex')
 }
 
 function getRedisConfig() {
@@ -47,7 +60,7 @@ async function redisCommand<T>(command: unknown[]): Promise<T> {
 }
 
 async function redisRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
-  const redisKey = `rate-limit:${key}`
+  const redisKey = `rate-limit:${hashRateLimitKey(key)}`
   const windowSeconds = Math.ceil(windowMs / 1000)
   const count = Number(await redisCommand<number>(['INCR', redisKey]))
 
@@ -63,6 +76,59 @@ async function redisRateLimit(key: string, limit: number, windowMs: number): Pro
     remaining: Math.max(0, limit - count),
     resetAt,
     backend: 'redis',
+  }
+}
+
+async function cleanExpiredDatabaseBuckets(now: number) {
+  if (nextDatabaseCleanupAt > now) return
+
+  nextDatabaseCleanupAt = now + 60 * 60 * 1000
+  try {
+    await prisma.rateLimitBucket.deleteMany({
+      where: { resetAt: { lt: new Date(now - 24 * 60 * 60 * 1000) } },
+    })
+  } catch {
+    nextDatabaseCleanupAt = now + 5 * 60 * 1000
+  }
+}
+
+async function postgresRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
+  const now = new Date()
+  const nextResetAt = new Date(now.getTime() + windowMs)
+
+  try {
+    const [entry] = await prisma.$queryRaw<DatabaseRateLimitEntry[]>`
+      INSERT INTO "RateLimitBucket" ("key", "count", "resetAt", "updatedAt")
+      VALUES (${hashRateLimitKey(key)}, 1, ${nextResetAt}, ${now})
+      ON CONFLICT ("key") DO UPDATE
+      SET
+        "count" = CASE
+          WHEN "RateLimitBucket"."resetAt" <= ${now} THEN 1
+          ELSE "RateLimitBucket"."count" + 1
+        END,
+        "resetAt" = CASE
+          WHEN "RateLimitBucket"."resetAt" <= ${now} THEN ${nextResetAt}
+          ELSE "RateLimitBucket"."resetAt"
+        END,
+        "updatedAt" = ${now}
+      RETURNING "count", "resetAt"
+    `
+
+    if (!entry) throw new RateLimitUnavailableError()
+
+    const resetAt = new Date(entry.resetAt).getTime()
+    if (!Number.isFinite(resetAt)) throw new RateLimitUnavailableError()
+
+    await cleanExpiredDatabaseBuckets(now.getTime())
+    return {
+      allowed: entry.count <= limit,
+      remaining: Math.max(0, limit - entry.count),
+      resetAt,
+      backend: 'postgres',
+    }
+  } catch (error) {
+    if (error instanceof RateLimitUnavailableError) throw error
+    throw new RateLimitUnavailableError()
   }
 }
 
@@ -88,17 +154,30 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): RateLimi
 }
 
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
-  if (getRedisConfig()) return redisRateLimit(key, limit, windowMs)
-
   const localMemoryRateLimit =
     (process.env.SECURITY_TEST_MODE === 'true' || process.env.ALLOW_MEMORY_RATE_LIMIT === 'true') &&
     (process.env.NEXTAUTH_URL?.startsWith('http://127.0.0.1') ||
       process.env.NEXTAUTH_URL?.startsWith('http://localhost'))
 
-  if (process.env.NODE_ENV === 'production') {
-    if (localMemoryRateLimit) return memoryRateLimit(key, limit, windowMs)
-    throw new RateLimitUnavailableError()
+  if (process.env.SECURITY_TEST_MODE === 'true' && process.env.RATE_LIMIT_TEST_BACKEND === 'memory') {
+    return memoryRateLimit(key, limit, windowMs)
   }
 
-  return memoryRateLimit(key, limit, windowMs)
+  if (getRedisConfig()) {
+    try {
+      return await redisRateLimit(key, limit, windowMs)
+    } catch {
+      // Continue with the already configured PostgreSQL database if Redis is unavailable.
+    }
+  }
+
+  try {
+    return await postgresRateLimit(key, limit, windowMs)
+  } catch (error) {
+    if (localMemoryRateLimit || process.env.NODE_ENV !== 'production') {
+      return memoryRateLimit(key, limit, windowMs)
+    }
+    if (error instanceof RateLimitUnavailableError) throw error
+    throw new RateLimitUnavailableError()
+  }
 }
