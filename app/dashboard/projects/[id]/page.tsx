@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar, Send, Clock, CheckCircle, Trash2, Phone, MessageCircle, CreditCard, CheckSquare, Square, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Header } from '@/components/layout/header'
@@ -46,6 +46,15 @@ interface ProjectDetail {
   warrantyEndsAt: string | null
   value: number | null
   productionCost: number | null
+  costSummary: {
+    estimatedCost: number
+    adjustedCost: number
+    materialAdjustment: number
+    actualMaterials: number
+    trackedMaterials: number
+    totalMaterials: number
+    hasActualCosts: boolean
+  } | null
   downPayment: number | null
   downPaymentDate: string | null
   installmentCount: number
@@ -115,29 +124,93 @@ export default function ProjectDetailPage() {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [managers, setManagers] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [editOptionsLoading, setEditOptionsLoading] = useState(false)
+  const [editOptionsError, setEditOptionsError] = useState('')
   const [note, setNote] = useState('')
   const [sendingNote, setSendingNote] = useState(false)
   const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, string>>({})
   const [postSaleSaving, setPostSaleSaving] = useState(false)
 
-  useEffect(() => {
-    Promise.all([
-      fetch(`/api/projects/${id}`).then((r) => r.json()),
-      fetch('/api/clients').then((r) => r.json()),
-      fetch('/api/users').then((r) => r.json()),
-    ]).then(([p, c, u]) => {
-      setProject(p)
-      if (Array.isArray(p?.payments)) {
+  const handleCostSummaryChange = useCallback((costSummary: NonNullable<ProjectDetail['costSummary']>) => {
+    setProject((current) => current ? { ...current, costSummary } : current)
+  }, [])
+
+  const loadProject = useCallback(async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const response = await fetch(`/api/projects/${id}`)
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.id) throw new Error(data?.error || 'Não foi possível carregar o projeto.')
+      setProject(data)
+      if (Array.isArray(data.payments)) {
         setPaymentMethodsById(
-          Object.fromEntries(p.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
+          Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
         )
       }
-      setClients(c)
-      setManagers(u)
+    } catch (error) {
+      setProject(null)
+      setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o projeto.')
+    } finally {
       setLoading(false)
-    })
+    }
   }, [id])
+
+  useEffect(() => {
+    let active = true
+    fetch(`/api/projects/${id}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!active) return
+        if (!response.ok || !data?.id) {
+          setProject(null)
+          setLoadError(data?.error || 'Não foi possível carregar o projeto.')
+          return
+        }
+        setProject(data)
+        if (Array.isArray(data.payments)) {
+          setPaymentMethodsById(
+            Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
+          )
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        setProject(null)
+        setLoadError('Não foi possível carregar o projeto.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [id])
+
+  const openEdit = async () => {
+    setEditOpen(true)
+    if (clients.length > 0 && managers.length > 0) return
+
+    setEditOptionsLoading(true)
+    setEditOptionsError('')
+    try {
+      const [clientsResponse, managersResponse] = await Promise.all([
+        fetch('/api/clients?options=1'),
+        fetch('/api/users'),
+      ])
+      const [clientOptions, managerOptions] = await Promise.all([
+        clientsResponse.json().catch(() => []),
+        managersResponse.json().catch(() => []),
+      ])
+      if (!clientsResponse.ok || !managersResponse.ok) throw new Error('Não foi possível carregar as opções de edição.')
+      setClients(Array.isArray(clientOptions) ? clientOptions : [])
+      setManagers(Array.isArray(managerOptions) ? managerOptions : [])
+    } catch (error) {
+      setEditOptionsError(error instanceof Error ? error.message : 'Não foi possível carregar as opções de edição.')
+    } finally {
+      setEditOptionsLoading(false)
+    }
+  }
 
   const handleEdit = async (data: Record<string, string>) => {
     const res = await fetch(`/api/projects/${id}`, {
@@ -240,7 +313,12 @@ export default function ProjectDetailPage() {
 
   const handleDelete = async () => {
     if (!confirm('Excluir este projeto? Esta ação não pode ser desfeita.')) return
-    await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      setLoadError(data?.error || 'Não foi possível excluir o projeto.')
+      return
+    }
     router.push('/dashboard/projects')
   }
 
@@ -270,8 +348,9 @@ export default function ProjectDetailPage() {
 
   if (!project) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-[#9E9E9E]">Projeto não encontrado</p>
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-red-600">{loadError || 'Projeto não encontrado.'}</p>
+        <Button variant="outline" onClick={() => void loadProject()}><RefreshCw size={15} /> Tentar novamente</Button>
       </div>
     )
   }
@@ -286,7 +365,8 @@ export default function ProjectDetailPage() {
     : null
   const totalPaid = project.payments.reduce((sum, payment) => sum + (payment.paidAt ? payment.amount : 0), 0)
   const totalOpen = project.payments.reduce((sum, payment) => sum + (!payment.paidAt ? payment.amount : 0), 0)
-  const profit = (project.value || 0) - (project.productionCost || 0)
+  const projectCost = project.costSummary?.adjustedCost ?? project.productionCost ?? 0
+  const profit = (project.value || 0) - projectCost
   const checklistDone = project.checklist.filter((item) => item.completedAt).length
   const checklistProgress = project.checklist.length > 0 ? Math.round((checklistDone / project.checklist.length) * 100) : 0
   const environments = project.environments || []
@@ -340,7 +420,7 @@ export default function ProjectDetailPage() {
         title={project.name}
         subtitle={project.client.name}
         userName=""
-        action={{ label: 'Editar Projeto', onClick: () => setEditOpen(true) }}
+        action={{ label: 'Editar Projeto', onClick: () => void openEdit() }}
       />
 
       <div className="flex-1 p-6 space-y-6 overflow-y-auto">
@@ -402,11 +482,14 @@ export default function ProjectDetailPage() {
                   {project.value && (
                     <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#FAFAFA] p-3">
                       <div>
-                        <p className="text-[10px] text-[#9E9E9E]">Custo</p>
-                        <p className="text-sm font-semibold text-[#121212]">{formatCurrency(project.productionCost || 0)}</p>
+                        <p className="text-[10px] text-[#9E9E9E]">{project.costSummary?.hasActualCosts ? 'Custo ajustado' : 'Custo previsto'}</p>
+                        <p className="text-sm font-semibold text-[#121212]">{formatCurrency(projectCost)}</p>
+                        {project.costSummary?.hasActualCosts ? (
+                          <p className="mt-1 text-[10px] text-[#777]">Previsto: {formatCurrency(project.costSummary.estimatedCost)}</p>
+                        ) : null}
                       </div>
                       <div>
-                        <p className="text-[10px] text-[#9E9E9E]">Lucro previsto</p>
+                        <p className="text-[10px] text-[#9E9E9E]">{project.costSummary?.hasActualCosts ? 'Lucro ajustado' : 'Lucro previsto'}</p>
                         <p className={`text-sm font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(profit)}</p>
                       </div>
                     </div>
@@ -638,7 +721,13 @@ export default function ProjectDetailPage() {
               </CardBody>
             </Card>
 
-            <ProjectMaterialsCard projectId={project.id} projectValue={project.value} canManage={project.value !== null} />
+            <ProjectMaterialsCard
+              projectId={project.id}
+              projectValue={project.value}
+              baseCost={project.productionCost}
+              canManage={project.value !== null}
+              onCostSummaryChange={handleCostSummaryChange}
+            />
 
             {/* Client */}
             <Card id="cliente" className="scroll-mt-28">
@@ -961,6 +1050,14 @@ export default function ProjectDetailPage() {
       </div>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Editar Projeto" size="lg">
+        {editOptionsLoading ? (
+          <div className="h-56 animate-pulse rounded-lg bg-[#F5F5F5]" />
+        ) : editOptionsError ? (
+          <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p>{editOptionsError}</p>
+            <Button type="button" variant="outline" onClick={() => void openEdit()}><RefreshCw size={15} /> Tentar novamente</Button>
+          </div>
+        ) : (
         <ProjectForm
           clients={clients}
           managers={managers}
@@ -984,6 +1081,7 @@ export default function ProjectDetailPage() {
           onSubmit={handleEdit}
           onCancel={() => setEditOpen(false)}
         />
+        )}
       </Modal>
     </div>
   )

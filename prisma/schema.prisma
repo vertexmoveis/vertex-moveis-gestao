@@ -125,6 +125,8 @@ model Quote {
   paymentMethod      String          @default("TO_DEFINE")
   cardInstallments   Int             @default(1)
   cardDownPayment    Float           @default(0)
+  cardFeePercent     Float           @default(0)
+  cardFeeAmount      Float           @default(0)
   subtotal           Float           @default(0)
   costTotal          Float           @default(0)
   total              Float           @default(0)
@@ -306,12 +308,19 @@ model QuoteApprovalRequest {
   approvedAt     DateTime?
   rejectedAt     DateTime?
   expiresAt      DateTime?
+  invalidatedAt  DateTime?
+  snapshot       String?
+  revisionVersion Int?
+  responseIpHash String?
+  responseUserAgent String?
+  responseNote   String?
   message        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([quoteId])
   @@index([expiresAt])
+  @@index([invalidatedAt])
   @@index([sentAt])
 }
 
@@ -439,4 +448,17 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model SystemEvent {
+  id        String   @id @default(cuid())
+  type      String
+  severity  String   @default("INFO")
+  source    String
+  message   String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([severity, createdAt])
 }

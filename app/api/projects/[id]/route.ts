@@ -27,6 +27,7 @@ import {
   serviceUnavailable,
 } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { calculateProjectCostSummary } from '@/lib/project-costs'
 
 function addCalendarDays(date: Date, days: number) {
   const result = new Date(date)
@@ -139,6 +140,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true, createdAt: true, updatedAt: true },
         orderBy: { position: 'asc' },
       },
+      materials: auth.user.role === 'ADMIN'
+        ? { select: { estimatedCost: true, actualCost: true } }
+        : false,
     },
   })
 
@@ -147,6 +151,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   let checklist = project.checklist
   const environments = await ensureProjectEnvironmentsFromRoom(id, project.room)
   checklist = await ensureProjectChecklist(id, prisma, checklist)
+  const costSummary = auth.user.role === 'ADMIN' && 'materials' in project && Array.isArray(project.materials)
+    ? calculateProjectCostSummary(project.productionCost, project.materials)
+    : null
 
   return NextResponse.json({
     ...project,
@@ -191,6 +198,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     })),
     environments: environments.map(serializeEnvironment),
     environmentSummary: summarizeEnvironments(environments),
+    costSummary,
     timeline: project.timeline.map((t) => ({
       ...t,
       date: t.date.toISOString(),

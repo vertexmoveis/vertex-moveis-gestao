@@ -147,6 +147,8 @@ export async function POST(req: NextRequest) {
           paymentMethod: totals.paymentMethod,
           cardInstallments: totals.cardInstallments,
           cardDownPayment: totals.cardDownPayment,
+          cardFeePercent: totals.cardFeePercent,
+          cardFeeAmount: totals.cardFeeAmount,
           subtotal: totals.subtotal,
           costTotal: totals.costTotal,
           total: totals.total,

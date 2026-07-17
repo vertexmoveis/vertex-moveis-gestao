@@ -9,6 +9,7 @@ import {
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { ensureDefaultQuoteSettings, getActiveQuotePriceRules } from '@/lib/quote-price-rules'
+import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
   const quote = await prisma.quote.findUnique({
@@ -85,7 +86,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const input = parsed.data
 
-    const quote = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       await ensureDefaultQuoteSettings(tx)
       const [priceRules, materials] = await Promise.all([
         getActiveQuotePriceRules(tx),
@@ -94,13 +95,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const totals = calculateQuoteTotals(input.items, { ...input, priceRules, materialCosts: materials })
       const existing = await tx.quote.findUnique({
         where: { id },
-        include: { items: { orderBy: { position: 'asc' } } },
+        include: {
+          client: { select: { name: true } },
+          items: { orderBy: { position: 'asc' } },
+          approvalRequests: {
+            where: { invalidatedAt: null },
+            select: { id: true, approvedAt: true, rejectedAt: true },
+          },
+        },
       })
       if (!existing) throw new Error('Not found')
+      if (existing.convertedProjectId || existing.status === 'SOLD') throw new Error('Quote locked')
+
+      const previousApprovalSnapshot = buildQuoteApprovalSnapshot(existing)
 
       await tx.quoteItem.deleteMany({ where: { quoteId: id } })
 
-      const updated = await tx.quote.update({
+      let updated = await tx.quote.update({
         where: { id },
         data: {
           clientId: input.clientId,
@@ -117,6 +128,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           paymentMethod: totals.paymentMethod,
           cardInstallments: totals.cardInstallments,
           cardDownPayment: totals.cardDownPayment,
+          cardFeePercent: totals.cardFeePercent,
+          cardFeeAmount: totals.cardFeeAmount,
           subtotal: totals.subtotal,
           costTotal: totals.costTotal,
           total: totals.total,
@@ -124,7 +137,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           customerNotes: input.customerNotes,
           lossReason: input.status === 'LOST' ? input.lossReason : null,
           sentAt: existing.sentAt || (['SENT', 'WAITING_APPROVAL'].includes(input.status) ? new Date() : null),
-          approvedAt: existing.approvedAt || (input.status === 'APPROVED' ? new Date() : null),
+          approvedAt: input.status === 'APPROVED' ? (existing.approvedAt || new Date()) : null,
           lostAt: input.status === 'LOST' ? (existing.lostAt || new Date()) : null,
           items: { create: totals.items },
         },
@@ -133,6 +146,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           items: { orderBy: { position: 'asc' } },
         },
       })
+
+      const approvalTermsChanged = previousApprovalSnapshot !== buildQuoteApprovalSnapshot(updated)
+      const hasApprovalState = existing.status === 'APPROVED' || existing.approvalRequests.length > 0
+      const approvalReset = approvalTermsChanged && hasApprovalState
+
+      if (approvalReset) {
+        await tx.quoteApprovalRequest.updateMany({
+          where: { quoteId: id, invalidatedAt: null },
+          data: { invalidatedAt: new Date() },
+        })
+        updated = await tx.quote.update({
+          where: { id },
+          data: { status: 'DRAFT', approvedAt: null, sentAt: null, lostAt: null, lossReason: null },
+          include: {
+            client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+            items: { orderBy: { position: 'asc' } },
+          },
+        })
+      }
 
       const latest = await tx.quoteRevision.findFirst({
         where: { quoteId: id },
@@ -148,13 +180,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
       })
 
-      return updated
+      return { quote: updated, approvalReset }
     })
 
-    return NextResponse.json(serializeQuote(quote))
+    return NextResponse.json({ ...serializeQuote(result.quote), approvalReset: result.approvalReset })
   } catch (error) {
     if (error instanceof Error && error.message === 'Not found') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+    if (error instanceof Error && error.message === 'Quote locked') {
+      return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
     }
     return serverError()
   }
@@ -174,6 +209,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+
+  const currentQuote = await prisma.quote.findUnique({ where: { id }, select: { status: true, convertedProjectId: true } })
+  if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
+    return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
+  }
 
   let body: unknown
   try {
@@ -218,6 +258,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+
+  const currentQuote = await prisma.quote.findUnique({ where: { id }, select: { status: true, convertedProjectId: true } })
+  if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
+    return badRequest('O orçamento vendido faz parte do histórico do projeto e não pode ser excluído.')
+  }
 
   await prisma.quote.delete({ where: { id } })
   return NextResponse.json({ success: true })

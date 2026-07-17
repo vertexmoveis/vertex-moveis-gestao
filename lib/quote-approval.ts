@@ -1,0 +1,122 @@
+import { parseQuoteAccessories } from './quotes'
+
+export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 1
+
+type QuoteApprovalItemSource = {
+  id?: string
+  environment: string
+  description: string
+  material?: string | null
+  finish?: string | null
+  width: number
+  height: number
+  quantity: number
+  total: number
+  notes?: string | null
+  accessories?: string[] | string | null
+}
+
+export type QuoteApprovalSource = {
+  id: string
+  number?: number | null
+  title: string
+  validUntil?: Date | string | null
+  installationFee: number
+  manualDiscount: number
+  paymentDiscount: number
+  paymentMethod: string
+  cardInstallments: number
+  cardDownPayment: number
+  subtotal: number
+  total: number
+  customerNotes?: string | null
+  client: { name: string }
+  items: QuoteApprovalItemSource[]
+}
+
+export type QuoteApprovalSnapshot = {
+  version: typeof QUOTE_APPROVAL_SNAPSHOT_VERSION
+  quote: {
+    id: string
+    number: number | null
+    title: string
+    validUntil: string | null
+    installationFee: number
+    manualDiscount: number
+    paymentDiscount: number
+    paymentMethod: string
+    cardInstallments: number
+    cardDownPayment: number
+    subtotal: number
+    total: number
+    customerNotes: string | null
+    client: { name: string }
+    items: Array<{
+      id: string
+      environment: string
+      description: string
+      material: string | null
+      finish: string | null
+      width: number
+      height: number
+      quantity: number
+      total: number
+      notes: string | null
+      accessories: string[]
+    }>
+  }
+}
+
+function dateToIso(value?: Date | string | null) {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
+  return JSON.stringify({
+    version: QUOTE_APPROVAL_SNAPSHOT_VERSION,
+    quote: {
+      id: quote.id,
+      number: quote.number || null,
+      title: quote.title,
+      validUntil: dateToIso(quote.validUntil),
+      installationFee: quote.installationFee,
+      manualDiscount: quote.manualDiscount,
+      paymentDiscount: quote.paymentDiscount,
+      paymentMethod: quote.paymentMethod,
+      cardInstallments: quote.cardInstallments,
+      cardDownPayment: quote.cardDownPayment,
+      subtotal: quote.subtotal,
+      total: quote.total,
+      customerNotes: quote.customerNotes || null,
+      client: { name: quote.client.name },
+      items: quote.items.map((item, index) => ({
+        id: `item-${index + 1}`,
+        environment: item.environment,
+        description: item.description,
+        material: item.material || null,
+        finish: item.finish || null,
+        width: item.width,
+        height: item.height,
+        quantity: item.quantity,
+        total: item.total,
+        notes: item.notes || null,
+        accessories: parseQuoteAccessories(item.accessories),
+      })),
+    },
+  } satisfies QuoteApprovalSnapshot)
+}
+
+export function parseQuoteApprovalSnapshot(value?: string | null): QuoteApprovalSnapshot | null {
+  if (!value) return null
+
+  try {
+    const parsed = JSON.parse(value) as QuoteApprovalSnapshot
+    if (parsed?.version !== QUOTE_APPROVAL_SNAPSHOT_VERSION) return null
+    if (!parsed.quote?.id || !parsed.quote.title || !parsed.quote.client?.name || !Array.isArray(parsed.quote.items)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}

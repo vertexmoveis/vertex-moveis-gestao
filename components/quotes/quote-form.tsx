@@ -63,6 +63,7 @@ export type QuotePayload = {
   paymentMethod: QuotePaymentMethod
   cardInstallments: number
   cardDownPayment: number
+  cardFeePercent: number
   validUntil?: string
   notes?: string
   customerNotes?: string
@@ -234,6 +235,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const [paymentMethod, setPaymentMethod] = useState<QuotePaymentMethod>(initialData?.paymentMethod || 'TO_DEFINE')
   const [cardInstallments, setCardInstallments] = useState(String(initialData?.cardInstallments || 1))
   const [cardDownPayment, setCardDownPayment] = useState(moneyToString(initialData?.cardDownPayment) || '0')
+  const [cardFeePercent, setCardFeePercent] = useState(moneyToString(initialData?.cardFeePercent) || '0')
   const [validUntil, setValidUntil] = useState(initialData?.validUntil?.slice(0, 10) || '')
   const [notes, setNotes] = useState(initialData?.notes || '')
   const [customerNotes, setCustomerNotes] = useState(
@@ -278,8 +280,9 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       paymentMethod,
       cardInstallments: Math.min(Math.max(Math.round(parseNumber(cardInstallments) || 1), 1), 24),
       cardDownPayment: parseNumber(cardDownPayment),
+      cardFeePercent: parseNumber(cardFeePercent),
     }
-  ), [cardDownPayment, cardInstallments, discount, installationFee, initialData?.materialCostPerM2, items, materials, paymentMethod, priceRules])
+  ), [cardDownPayment, cardFeePercent, cardInstallments, discount, installationFee, initialData?.materialCostPerM2, items, materials, paymentMethod, priceRules])
 
   const updateItem = <K extends keyof DraftItem>(index: number, field: K, value: DraftItem[K]) => {
     setItems((current) => current.map((item, itemIndex) => (
@@ -384,6 +387,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       paymentMethod,
       cardInstallments: Math.min(Math.max(Math.round(parseNumber(cardInstallments) || 1), 1), 24),
       cardDownPayment: enteredCardDownPayment,
+      cardFeePercent: paymentMethod === 'CARD' ? parseNumber(cardFeePercent) : 0,
       validUntil: validUntil || undefined,
       notes: notes.trim() || undefined,
       customerNotes: customerNotes.trim() || undefined,
@@ -457,7 +461,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <Input label="Desconto comercial" inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 border-y border-[#E8E8E8] py-4 lg:grid-cols-[minmax(220px,1fr)_180px_180px]">
+      <div className="grid grid-cols-1 gap-3 border-y border-[#E8E8E8] py-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px_180px]">
         <Select
           label="Forma de pagamento"
           value={paymentMethod}
@@ -481,6 +485,13 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                 return { value, label: `${value}x` }
               })}
             />
+            <Input
+              label="Taxa da operadora (%)"
+              inputMode="decimal"
+              value={cardFeePercent}
+              onChange={(event) => setCardFeePercent(event.target.value)}
+              helperText={`Custo estimado: ${formatCurrency(calculated.cardFeeAmount)}`}
+            />
           </>
         ) : (
           <div className="flex min-h-10 items-center border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-4 py-2 text-sm text-[#7A3B00] lg:col-span-2">
@@ -490,7 +501,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
           </div>
         )}
         {paymentMethod === 'CARD' && (
-          <div className="border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-3">
+          <div className="border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-4">
             {getQuotePaymentSummary({
               total: calculated.total,
               paymentMethod,

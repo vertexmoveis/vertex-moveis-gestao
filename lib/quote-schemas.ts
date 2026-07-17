@@ -65,6 +65,15 @@ const cardInstallmentsField = z
   })
   .refine((value) => !Number.isNaN(value), 'Informe de 1 a 24 parcelas')
 
+const cardFeePercentField = z
+  .preprocess(emptyToUndefined, z.union([z.string(), z.number()]).optional())
+  .transform((value) => {
+    if (value === undefined) return 0
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 30 ? parsed : Number.NaN
+  })
+  .refine((value) => !Number.isNaN(value), 'Informe uma taxa entre 0% e 30%')
+
 export const quoteItemSchema = z.object({
   environment: z.string().trim().min(1, 'Informe o ambiente').max(120),
   description: z.string().trim().min(1, 'Informe o móvel').max(240),
@@ -107,6 +116,7 @@ export const quoteSaveSchema = z.object({
   paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD']).default('TO_DEFINE'),
   cardInstallments: cardInstallmentsField,
   cardDownPayment: moneyField(0),
+  cardFeePercent: cardFeePercentField,
   notes: nullableString(2000),
   customerNotes: nullableString(2000),
   lossReason: nullableString(500),

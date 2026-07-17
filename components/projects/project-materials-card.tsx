@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/utils'
+import { calculateProjectCostSummary, type ProjectCostSummary } from '@/lib/project-costs'
 
 type ProjectMaterial = {
   id: string
@@ -49,11 +50,15 @@ function numberValue(value: string) {
 export function ProjectMaterialsCard({
   projectId,
   projectValue,
+  baseCost,
   canManage,
+  onCostSummaryChange,
 }: {
   projectId: string
   projectValue: number | null
+  baseCost: number | null
   canManage: boolean
+  onCostSummaryChange?: (summary: ProjectCostSummary) => void
 }) {
   const [materials, setMaterials] = useState<ProjectMaterial[]>([])
   const [catalog, setCatalog] = useState<CatalogMaterial[]>([])
@@ -86,6 +91,11 @@ export function ProjectMaterialsCard({
     const bought = materials.filter((item) => item.status === 'RECEIVED').length
     return { estimated, actual, bought }
   }, [materials])
+  const costSummary = useMemo(() => calculateProjectCostSummary(baseCost, materials), [baseCost, materials])
+
+  useEffect(() => {
+    onCostSummaryChange?.(costSummary)
+  }, [costSummary, onCostSummaryChange])
 
   const saveMaterial = async (material: ProjectMaterial) => {
     if (!canManage) return
@@ -142,7 +152,7 @@ export function ProjectMaterialsCard({
     setMaterials((current) => current.filter((item) => item.id !== material.id))
   }
 
-  const realMargin = projectValue === null ? null : projectValue - totals.actual
+  const realMargin = projectValue === null ? null : projectValue - costSummary.adjustedCost
 
   return (
     <Card id="materiais" className="scroll-mt-28">
@@ -172,9 +182,9 @@ export function ProjectMaterialsCard({
         {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
         {canManage ? (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="rounded-lg bg-[#FAFAFA] p-3"><p className="text-[10px] text-[#9E9E9E]">Custo previsto</p><p className="mt-1 font-bold text-[#121212]">{formatCurrency(totals.estimated)}</p></div>
-            <div className="rounded-lg bg-blue-50 p-3"><p className="text-[10px] text-blue-700">Custo real lançado</p><p className="mt-1 font-bold text-blue-700">{formatCurrency(totals.actual)}</p></div>
-            <div className="rounded-lg bg-emerald-50 p-3"><p className="text-[10px] text-emerald-700">Resultado após materiais</p><p className="mt-1 font-bold text-emerald-700">{realMargin === null ? '-' : formatCurrency(realMargin)}</p></div>
+            <div className="rounded-lg bg-[#FAFAFA] p-3"><p className="text-[10px] text-[#9E9E9E]">Materiais previstos</p><p className="mt-1 font-bold text-[#121212]">{formatCurrency(totals.estimated)}</p></div>
+            <div className="rounded-lg bg-blue-50 p-3"><p className="text-[10px] text-blue-700">Custo ajustado</p><p className="mt-1 font-bold text-blue-700">{formatCurrency(costSummary.adjustedCost)}</p><p className="mt-1 text-[10px] text-blue-700/70">{costSummary.trackedMaterials}/{costSummary.totalMaterials} custos reais</p></div>
+            <div className="rounded-lg bg-emerald-50 p-3"><p className="text-[10px] text-emerald-700">Lucro ajustado</p><p className="mt-1 font-bold text-emerald-700">{realMargin === null ? '-' : formatCurrency(realMargin)}</p></div>
           </div>
         ) : null}
 

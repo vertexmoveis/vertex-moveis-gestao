@@ -36,6 +36,8 @@ export type QuoteData = {
   paymentMethod?: QuotePaymentMethod
   cardInstallments?: number
   cardDownPayment?: number
+  cardFeePercent?: number
+  cardFeeAmount?: number
   installationFee: number
   total: number
   costTotal: number

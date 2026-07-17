@@ -44,3 +44,19 @@ export function formatDateOnly(value: DateOnlyValue) {
 
   return `${String(parts.day).padStart(2, '0')}/${String(parts.month).padStart(2, '0')}/${parts.year}`
 }
+
+export function dateOnlyKeyInTimeZone(value: Date, timeZone = 'America/Sao_Paulo') {
+  const formattedParts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value)
+  const part = (type: Intl.DateTimeFormatPartTypes) => formattedParts.find((item) => item.type === type)?.value || ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+export function isDateOnlyExpired(value: DateOnlyValue, now = new Date(), timeZone = 'America/Sao_Paulo') {
+  const key = dateOnlyKey(value)
+  return Boolean(key && key < dateOnlyKeyInTimeZone(now, timeZone))
+}

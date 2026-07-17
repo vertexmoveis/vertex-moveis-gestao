@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { PublicApprovalActions } from '@/components/quotes/public-approval-actions'
 import { prisma } from '@/lib/db'
-import { formatDateOnly } from '@/lib/date-only'
+import { formatDateOnly, isDateOnlyExpired } from '@/lib/date-only'
 import {
   getQuoteInstallmentGridColumns,
   getQuotePaymentDetails,
@@ -10,6 +10,7 @@ import {
   quoteDisplayCode,
 } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
+import { buildQuoteApprovalSnapshot, parseQuoteApprovalSnapshot } from '@/lib/quote-approval'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +22,11 @@ const INSTALLMENT_GRID_CLASSES: Record<number, string> = {
   5: 'grid-cols-2 sm:grid-cols-5',
 }
 
-function responseMessage(request: { approvedAt: Date | null; rejectedAt: Date | null; expiresAt: Date | null }) {
+function responseMessage(request: { approvedAt: Date | null; rejectedAt: Date | null; expiresAt: Date | null; invalidatedAt: Date | null }) {
+  if (request.invalidatedAt) return 'Esta proposta foi atualizada. Peça um novo link à Vertex Móveis para conferir os valores atuais.'
   if (request.approvedAt) return 'Este orçamento já foi aprovado. A Vertex Móveis entrará em contato para os próximos passos.'
   if (request.rejectedAt) return 'Este orçamento recebeu um pedido de ajuste. A Vertex Móveis entrará em contato.'
-  if (request.expiresAt && request.expiresAt < new Date()) return 'Este link de aprovação expirou. Peça uma nova proposta à Vertex Móveis.'
+  if (isDateOnlyExpired(request.expiresAt)) return 'Este link de aprovação expirou. Peça uma nova proposta à Vertex Móveis.'
   return null
 }
 
@@ -44,7 +46,9 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
 
   if (!request) notFound()
 
-  const quote = request.quote
+  const storedSnapshot = parseQuoteApprovalSnapshot(request.snapshot)
+  const currentSnapshot = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(request.quote))
+  const quote = (storedSnapshot || currentSnapshot)!.quote
   const groupedItems = quote.items.reduce<Record<string, typeof quote.items>>((groups, item) => {
     const environment = item.environment || 'Ambiente'
     groups[environment] = groups[environment] || []

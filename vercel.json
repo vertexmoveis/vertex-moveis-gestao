@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "public": true,
-  "buildCommand": "npm run db:deploy && npm run prisma:generate && next build"
+  "buildCommand": "npm run vercel-build"
 }

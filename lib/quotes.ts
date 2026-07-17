@@ -151,6 +151,7 @@ export type QuotePricingInput = {
   paymentMethod?: string | null
   cardInstallments?: number | null
   cardDownPayment?: number | null
+  cardFeePercent?: number | null
   priceRules?: QuotePriceRule[]
   materialCosts?: { name: string; unitCost: number; active?: boolean }[]
 }
@@ -171,6 +172,10 @@ export function safeQuoteCardInstallments(value?: number | null) {
 
 export function safeQuoteCardDownPayment(value: number | null | undefined, total: number) {
   return roundCurrency(Math.min(Math.max(Number(value) || 0, 0), Math.max(total || 0, 0)))
+}
+
+export function safeQuoteCardFeePercent(value?: number | null) {
+  return Math.min(Math.max(Number(value) || 0, 0), 30)
 }
 
 export function getQuoteCardInstallmentPlan(
@@ -338,7 +343,7 @@ export function calculateQuoteItem(item: QuoteCalculationItemInput, pricing: Quo
 export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing: QuotePricingInput) {
   const calculatedItems = items.map((item, index) => calculateQuoteItem(item, pricing, index + 1))
   const itemsSubtotal = roundCurrency(calculatedItems.reduce((sum, item) => sum + item.total, 0))
-  const costTotal = roundCurrency(
+  const baseCostTotal = roundCurrency(
     calculatedItems.reduce((sum, item) => sum + item.cost, 0) + Math.max(pricing.installationFee || 0, 0)
   )
   const subtotal = roundCurrency(itemsSubtotal + Math.max(pricing.installationFee || 0, 0))
@@ -353,6 +358,11 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
   const cardDownPayment = paymentMethod === 'CARD'
     ? safeQuoteCardDownPayment(pricing.cardDownPayment, total)
     : 0
+  const cardFeePercent = paymentMethod === 'CARD' ? safeQuoteCardFeePercent(pricing.cardFeePercent) : 0
+  const cardFeeAmount = paymentMethod === 'CARD'
+    ? roundCurrency(Math.max(total - cardDownPayment, 0) * (cardFeePercent / 100))
+    : 0
+  const costTotal = roundCurrency(baseCostTotal + cardFeeAmount)
 
   return {
     items: calculatedItems,
@@ -364,6 +374,8 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
     paymentMethod,
     cardInstallments: paymentMethod === 'CARD' ? safeQuoteCardInstallments(pricing.cardInstallments) : 1,
     cardDownPayment,
+    cardFeePercent,
+    cardFeeAmount,
     total,
     profit: roundCurrency(total - costTotal),
   }
@@ -418,6 +430,8 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
       paymentMethod: quote.paymentMethod,
       cardInstallments: quote.cardInstallments,
       cardDownPayment: quote.cardDownPayment,
+      cardFeePercent: quote.cardFeePercent,
+      cardFeeAmount: quote.cardFeeAmount,
     },
     totals: {
       subtotal: quote.subtotal,

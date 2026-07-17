@@ -3,7 +3,7 @@
 import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Send, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
@@ -42,39 +42,70 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editOptionsLoading, setEditOptionsLoading] = useState(false)
+  const [editOptionsError, setEditOptionsError] = useState('')
   const [error, setError] = useState('')
   const [approvalUrl, setApprovalUrl] = useState('')
   const [approvalMessage, setApprovalMessage] = useState('')
   const [approvalFeedback, setApprovalFeedback] = useState('')
 
-  useEffect(() => {
-    let active = true
-
-    fetch(`/api/quotes/${params.id}`)
-      .then(async (response) => {
-        const data = await response.json()
-        if (!active) return
-        if (response.ok) {
-          setQuote(data)
-        } else {
-          setError(data?.error || 'Orçamento não encontrado.')
-        }
-        setLoading(false)
-      })
-
-    fetch('/api/clients')
-      .then((response) => response.json())
-      .then((data) => {
-        if (active) setClients(Array.isArray(data) ? data.map((client: ClientResponse) => ({ id: client.id, name: client.name })) : [])
-      })
-      .catch(() => {
-        if (active) setClients([])
-      })
-
-    return () => {
-      active = false
+  const loadQuote = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`/api/quotes/${params.id}`)
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.id) throw new Error(data?.error || 'Orçamento não encontrado.')
+      setQuote(data)
+    } catch (loadError) {
+      setQuote(null)
+      setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o orçamento.')
+    } finally {
+      setLoading(false)
     }
   }, [params.id])
+
+  useEffect(() => {
+    let active = true
+    fetch(`/api/quotes/${params.id}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!active) return
+        if (!response.ok || !data?.id) {
+          setQuote(null)
+          setError(data?.error || 'Orçamento não encontrado.')
+          return
+        }
+        setQuote(data)
+      })
+      .catch(() => {
+        if (!active) return
+        setQuote(null)
+        setError('Não foi possível carregar o orçamento.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [params.id])
+
+  const openEdit = async () => {
+    setModalOpen(true)
+    if (clients.length > 0) return
+
+    setEditOptionsLoading(true)
+    setEditOptionsError('')
+    try {
+      const response = await fetch('/api/clients?options=1')
+      const data = await response.json().catch(() => [])
+      if (!response.ok) throw new Error('Não foi possível carregar os clientes.')
+      setClients(Array.isArray(data) ? data.map((client: ClientResponse) => ({ id: client.id, name: client.name })) : [])
+    } catch (loadError) {
+      setEditOptionsError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar os clientes.')
+    } finally {
+      setEditOptionsLoading(false)
+    }
+  }
 
   const environments = useMemo(() => {
     if (!quote) return []
@@ -92,6 +123,11 @@ export default function QuoteDetailPage() {
       throw new Error(data?.error || 'Não foi possível salvar o orçamento.')
     }
     setQuote(data)
+    if (data.approvalReset) {
+      setApprovalUrl('')
+      setApprovalMessage('')
+      setApprovalFeedback('A proposta mudou. O link anterior foi cancelado e será necessário enviá-la novamente ao cliente.')
+    }
     setModalOpen(false)
   }
 
@@ -242,14 +278,16 @@ export default function QuoteDetailPage() {
     return (
       <div className="flex h-full flex-col">
         <Header title="Orçamento" subtitle="Não encontrado" />
-        <div className="flex-1 p-6">
+        <div className="flex-1 space-y-3 p-6">
           <p className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" onClick={() => void loadQuote()}>Tentar novamente</Button>
         </div>
       </div>
     )
   }
 
   const paymentSummary = getQuotePaymentSummary(quote)
+  const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
 
   return (
     <div className="flex h-full flex-col">
@@ -262,11 +300,11 @@ export default function QuoteDetailPage() {
             Voltar para Orçamentos
           </Link>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setModalOpen(true)}>
+            <Button variant="outline" onClick={() => void openEdit()} disabled={quoteLocked} title={quoteLocked ? 'Orçamento já transformado em projeto' : 'Editar orçamento'}>
               <Edit3 size={16} />
               Editar
             </Button>
-            <Button variant="danger" loading={saving} onClick={deleteQuote}>
+            <Button variant="danger" loading={saving} disabled={quoteLocked} onClick={deleteQuote} title={quoteLocked ? 'O orçamento vendido faz parte do histórico' : 'Excluir orçamento'}>
               <Trash2 size={16} />
               Excluir
             </Button>
@@ -274,7 +312,7 @@ export default function QuoteDetailPage() {
               <FileText size={16} />
               Proposta/PDF
             </Button>
-            <Button variant="outline" loading={saving} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
+            <Button variant="outline" loading={saving} disabled={quoteLocked} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
               <Send size={16} />
               {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
             </Button>
@@ -349,6 +387,11 @@ export default function QuoteDetailPage() {
                       Entrada prevista: {formatCurrency(quote.cardDownPayment || 0)}
                     </p>
                   )}
+                  {quote.paymentMethod === 'CARD' && (quote.cardFeeAmount || 0) > 0 && (
+                    <p className="mt-1 text-xs text-[#777]">
+                      Taxa da operadora ({quote.cardFeePercent || 0}%): {formatCurrency(quote.cardFeeAmount || 0)} incluída no custo
+                    </p>
+                  )}
                   {(quote.manualDiscount || 0) > 0 && (
                     <p className="mt-1 text-xs text-[#777]">Desconto comercial: {formatCurrency(quote.manualDiscount || 0)}</p>
                   )}
@@ -368,6 +411,7 @@ export default function QuoteDetailPage() {
                   type="button"
                   className="w-full justify-start"
                   loading={saving}
+                  disabled={quoteLocked}
                   onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}
                 >
                   <Send size={16} />
@@ -403,6 +447,7 @@ export default function QuoteDetailPage() {
                     variant={quote.status === value ? 'primary' : 'outline'}
                     className="w-full justify-start"
                     loading={saving && quote.status !== value}
+                    disabled={quoteLocked}
                     onClick={() => updateStatus(value)}
                   >
                     {QUOTE_STATUS_LABELS[value]}
@@ -489,7 +534,16 @@ export default function QuoteDetailPage() {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Editar Orçamento" size="xl" className="max-w-6xl">
-        <QuoteForm clients={clients} initialData={quote} onSubmit={handleUpdate} onCancel={() => setModalOpen(false)} />
+        {editOptionsLoading ? (
+          <div className="h-72 animate-pulse rounded-lg bg-[#F5F5F5]" />
+        ) : editOptionsError ? (
+          <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p>{editOptionsError}</p>
+            <Button variant="outline" onClick={() => void openEdit()}>Tentar novamente</Button>
+          </div>
+        ) : (
+          <QuoteForm clients={clients} initialData={quote} onSubmit={handleUpdate} onCancel={() => setModalOpen(false)} />
+        )}
       </Modal>
     </div>
   )

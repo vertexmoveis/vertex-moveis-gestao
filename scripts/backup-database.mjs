@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Client } from 'pg'
@@ -31,12 +32,35 @@ const tableOrder = [
   'ProjectFile',
   'TimelineEvent',
   'ActivityLog',
+  'SystemEvent',
 ]
+
+async function recordBackupEvent(directUrl, event) {
+  const client = new Client({ connectionString: directUrl })
+  try {
+    await client.connect()
+    await client.query(
+      'INSERT INTO "SystemEvent" ("id", "type", "severity", "source", "message", "details", "createdAt") VALUES ($1, $2, $3, $4, $5, $6::jsonb, CURRENT_TIMESTAMP)',
+      [randomUUID(), event.type, event.severity, 'backup-database', event.message, JSON.stringify(event.details || {})],
+    )
+  } catch {
+    // A falha de auditoria nunca pode esconder o resultado principal do backup.
+  } finally {
+    await client.end().catch(() => {})
+  }
+}
 
 function timestamp() {
   const now = new Date()
   const date = now.toISOString().slice(0, 19).replace(/[-:T]/g, '')
   return `${date}-${String(now.getMilliseconds()).padStart(3, '0')}`
+}
+
+function safeEventMessage(value) {
+  return String(value)
+    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[conexao removida]')
+    .replace(/(password|token|secret)=([^&\s]+)/gi, '$1=[removido]')
+    .slice(0, 1000)
 }
 
 function quoteIdentifier(identifier) {
@@ -200,7 +224,7 @@ async function createBackup() {
   }
 
   const totalRows = tableOrder.reduce((sum, table) => sum + snapshot.tables[table].length, 0)
-  return {
+  const result = {
     success: true,
     fileName,
     path: targetPath,
@@ -211,13 +235,38 @@ async function createBackup() {
     totalRows,
     removed: removedLocal.length + removedSecondary.length,
   }
+  await recordBackupEvent(directUrl, {
+    type: 'BACKUP_SUCCESS',
+    severity: 'INFO',
+    message: 'Backup verificado e restaurado com sucesso.',
+    details: {
+      fileName,
+      secondaryCopied: Boolean(secondaryPath),
+      retentionDays,
+      verified: true,
+      restoreTested: true,
+      totalRows,
+      removed: result.removed,
+    },
+  })
+  return result
 }
 
 createBackup()
   .then((result) => {
     process.stdout.write(`${JSON.stringify(result)}\n`)
   })
-  .catch((error) => {
+  .catch(async (error) => {
+    try {
+      const { directUrl } = loadDatabaseEnv()
+      await recordBackupEvent(directUrl, {
+        type: 'BACKUP_FAILURE',
+        severity: 'ERROR',
+        message: safeEventMessage(error instanceof Error ? error.message : 'Nao foi possivel criar o backup PostgreSQL.'),
+      })
+    } catch {
+      // A mensagem original continua sendo a fonte principal da falha.
+    }
     process.stderr.write(`${error instanceof Error ? error.message : 'Nao foi possivel criar o backup PostgreSQL.'}\n`)
     process.exitCode = 1
   })

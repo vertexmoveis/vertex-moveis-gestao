@@ -9,6 +9,11 @@ import { PricingMaterialsSettings } from '@/components/settings/pricing-material
 import { OperationsResourcesSettings } from '@/components/settings/operations-resources-settings'
 import { prisma } from '@/lib/db'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
+import { CheckCircle2, DatabaseBackup, TriangleAlert } from 'lucide-react'
+
+function formatTimestamp(value: Date) {
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(value)
+}
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -16,6 +21,10 @@ export default async function SettingsPage() {
   const isAdmin = user?.role === 'ADMIN'
   const canCreateLocalBackup = process.env.VERCEL !== '1'
   if (isAdmin) await ensureDefaultQuoteSettings(prisma)
+  const databaseTime = isAdmin
+    ? (await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS now`)[0]?.now || new Date(0)
+    : new Date(0)
+  const errorWindowStart = new Date(databaseTime.getTime() - 24 * 60 * 60 * 1000)
   const [priceRules, materials, resources] = isAdmin
     ? await Promise.all([
         prisma.quotePriceRule.findMany({ orderBy: [{ active: 'desc' }, { environment: 'asc' }, { name: 'asc' }] }),
@@ -23,6 +32,31 @@ export default async function SettingsPage() {
         prisma.operationalResource.findMany({ orderBy: [{ type: 'asc' }, { active: 'desc' }, { name: 'asc' }] }),
       ])
     : [[], [], []]
+  const [latestBackup, recentErrorCount, recentErrors] = isAdmin
+    ? await Promise.all([
+        prisma.systemEvent.findFirst({
+          where: { type: { in: ['BACKUP_SUCCESS', 'BACKUP_FAILURE'] } },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.systemEvent.count({
+          where: { severity: 'ERROR', createdAt: { gte: errorWindowStart } },
+        }),
+        prisma.systemEvent.findMany({
+          where: { severity: 'ERROR' },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: { id: true, source: true, message: true, createdAt: true },
+        }),
+      ])
+    : [null, 0, []]
+  const backupDetails = latestBackup?.details && typeof latestBackup.details === 'object' && !Array.isArray(latestBackup.details)
+    ? latestBackup.details as Record<string, unknown>
+    : {}
+  const backupRecent = latestBackup
+    ? databaseTime.getTime() - latestBackup.createdAt.getTime() < 36 * 60 * 60 * 1000
+    : false
+  const secondaryCopied = backupDetails.secondaryCopied === true
+  const backupHealthy = latestBackup?.type === 'BACKUP_SUCCESS' && backupRecent && secondaryCopied
 
   return (
     <div className="flex flex-col h-full">
@@ -67,6 +101,52 @@ export default async function SettingsPage() {
                 </p>
               )}
           </CardBody>
+          </Card>
+        )}
+
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#121212]">Saúde do sistema</h2>
+                  <p className="mt-1 text-xs text-[#777]">Backup, cópia externa e erros recentes</p>
+                </div>
+                {backupHealthy
+                  ? <CheckCircle2 size={20} className="text-emerald-600" aria-label="Sistema protegido" />
+                  : <TriangleAlert size={20} className="text-amber-600" aria-label="Sistema requer atenção" />}
+              </div>
+            </CardHeader>
+            <CardBody className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className={`border-l-4 p-3 ${backupHealthy ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <div className="flex items-center gap-2"><DatabaseBackup size={15} /><p className="text-xs font-semibold">Último backup</p></div>
+                  <p className="mt-2 text-sm font-bold">{latestBackup ? formatTimestamp(latestBackup.createdAt) : 'Ainda não registrado'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{latestBackup?.type === 'BACKUP_SUCCESS' ? 'Arquivo restaurado e conferido' : 'Verifique a execução diária'}</p>
+                </div>
+                <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
+                  <p className="text-xs font-semibold text-blue-800">Segunda cópia</p>
+                  <p className="mt-2 text-sm font-bold text-blue-900">{secondaryCopied ? 'OneDrive confirmado' : 'Pendente'}</p>
+                  <p className="mt-1 text-xs text-blue-800/70">Retenção de {Number(backupDetails.retentionDays) || 30} dias</p>
+                </div>
+                <div className={`border-l-4 p-3 ${recentErrorCount === 0 ? 'border-emerald-500 bg-emerald-50' : 'border-red-500 bg-red-50'}`}>
+                  <p className="text-xs font-semibold">Erros nas últimas 24h</p>
+                  <p className="mt-2 text-sm font-bold">{recentErrorCount}</p>
+                  <p className="mt-1 text-xs text-[#666]">Falhas registradas pelo servidor</p>
+                </div>
+              </div>
+              {recentErrors.length > 0 ? (
+                <div className="divide-y divide-[#ECECEC] border border-[#E8E8E8]">
+                  {recentErrors.map((event) => (
+                    <div key={event.id} className="grid gap-1 px-3 py-2 text-xs sm:grid-cols-[150px_130px_1fr]">
+                      <span className="text-[#777]">{formatTimestamp(event.createdAt)}</span>
+                      <span className="font-semibold text-[#121212]">{event.source}</span>
+                      <span className="min-w-0 break-words text-red-700">{event.message}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </CardBody>
           </Card>
         )}
 

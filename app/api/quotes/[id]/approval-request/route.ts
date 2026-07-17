@@ -2,8 +2,10 @@ import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { buildQuoteApprovalMessage, buildQuoteFollowUpMessage } from '@/lib/quotes'
+import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
 import { badRequest, forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { isDateOnlyExpired } from '@/lib/date-only'
 
 function whatsAppUrl(phone: string | null | undefined, message: string) {
   const digits = (phone || '').replace(/\D/g, '')
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where: { id },
     include: {
       client: { select: { name: true, phone: true, whatsapp: true } },
+      items: { orderBy: { position: 'asc' } },
+      revisions: { orderBy: { version: 'desc' }, take: 1, select: { version: true } },
       approvalRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
     },
   })
@@ -46,12 +50,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (quote.status === 'APPROVED') return badRequest('Este orçamento já foi aprovado. Transforme-o em projeto para continuar.')
 
   const now = new Date()
-  if (quote.validUntil && quote.validUntil < now) {
+  if (isDateOnlyExpired(quote.validUntil, now)) {
     return badRequest('A validade deste orçamento expirou. Atualize a proposta antes de enviar para aprovação.')
   }
+  const approvalSnapshot = buildQuoteApprovalSnapshot(quote)
+  const revisionVersion = quote.revisions[0]?.version || null
   const request = await prisma.$transaction(async (tx) => {
     const latest = quote.approvalRequests[0]
-    const canReuse = latest && !latest.approvedAt && !latest.rejectedAt && (!latest.expiresAt || latest.expiresAt >= now)
+    const canReuse = latest
+      && !latest.approvedAt
+      && !latest.rejectedAt
+      && !latest.invalidatedAt
+      && latest.snapshot === approvalSnapshot
+      && !isDateOnlyExpired(latest.expiresAt, now)
+
+    if (!canReuse) {
+      await tx.quoteApprovalRequest.updateMany({
+        where: { quoteId: quote.id, approvedAt: null, rejectedAt: null, invalidatedAt: null },
+        data: { invalidatedAt: now },
+      })
+    }
+
     const approvalRequest = canReuse
       ? await tx.quoteApprovalRequest.update({
           where: { id: latest.id },
@@ -65,6 +84,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             expiresAt: quote.validUntil || null,
             reminderCount: reminder ? 1 : 0,
             lastReminderAt: reminder ? now : null,
+            snapshot: approvalSnapshot,
+            revisionVersion,
           },
         })
 

@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { calculateProjectCostSummary } from '@/lib/project-costs'
 
 function parseMonth(value: string | null) {
   const now = new Date()
@@ -117,9 +118,13 @@ export async function GET(req: NextRequest) {
       where: { dueDate: { gte: month.dueEnd }, paidAt: null },
       _sum: { amount: true },
     }),
-    prisma.project.aggregate({
+    prisma.project.findMany({
       where: soldProjectsWhere,
-      _sum: { value: true, productionCost: true },
+      select: {
+        value: true,
+        productionCost: true,
+        materials: { select: { estimatedCost: true, actualCost: true } },
+      },
     }),
     prisma.projectPayment.findMany({
       where: paymentListWhere,
@@ -139,13 +144,17 @@ export async function GET(req: NextRequest) {
     prisma.projectPayment.count({ where: paymentListWhere }),
   ])
 
+  const soldValue = soldProjects.reduce((total, project) => total + (project.value || 0), 0)
+  const soldCost = soldProjects.reduce((total, project) => (
+    total + calculateProjectCostSummary(project.productionCost, project.materials).adjustedCost
+  ), 0)
   const summary = {
     received: received._sum.amount || 0,
     receivable: receivable._sum.amount || 0,
     overdue: overdue._sum.amount || 0,
-    sold: soldProjects._sum.value || 0,
-    cost: soldProjects._sum.productionCost || 0,
-    profit: (soldProjects._sum.value || 0) - (soldProjects._sum.productionCost || 0),
+    sold: soldValue,
+    cost: soldCost,
+    profit: soldValue - soldCost,
     future: future._sum.amount || 0,
   }
 

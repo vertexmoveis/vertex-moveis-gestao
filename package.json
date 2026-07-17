@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "npm run prisma:generate && next dev",
     "build": "npm run prisma:generate && next build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
+    "test": "tsx --test tests/*.test.ts",
     "local:url": "powershell -ExecutionPolicy Bypass -File scripts/show-local-url.ps1",
     "local:firewall": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows-firewall.ps1",
     "local:startup": "powershell -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1",
@@ -52,6 +54,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   },
   "overrides": {
