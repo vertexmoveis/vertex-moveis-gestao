@@ -9,6 +9,7 @@ import {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_DIFFICULTY_LABELS,
   getQuoteAutomaticPricing,
+  getQuoteInstallmentGridColumns,
   getQuotePaymentDetails,
   parseQuoteAccessories,
   quoteCentimetersToMillimeters,
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
   const payment = getQuotePaymentDetails(quote)
+  const installmentGridColumns = getQuoteInstallmentGridColumns(payment.installments.length)
   const phone = quote.client.whatsapp || quote.client.phone || ''
   const digits = phone.replace(/\D/g, '')
   const whatsAppNumber = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : ''
@@ -121,46 +123,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .environment { margin-bottom: 18px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
     .environment-header { padding: 13px 16px; display: flex; justify-content: space-between; gap: 16px; background: var(--soft); border-bottom: 1px solid var(--line); }
     .environment-title { font-size: 14px; font-weight: 800; }
-    .environment-count { color: var(--muted); font-size: 11px; }
-    .item { display: grid; grid-template-columns: minmax(180px, 1.5fr) 1fr 1fr auto; gap: 18px; align-items: center; padding: 15px 16px; border-bottom: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
+    .environment-count { color: var(--muted); font-size: 12px; }
+    .item { display: grid; grid-template-columns: minmax(176px, 1.6fr) minmax(110px, .8fr) minmax(140px, 1fr) auto; gap: 14px; align-items: center; padding: 15px 16px; border-bottom: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
     .item:last-child { border: 0; }
-    .item-name { font-size: 13px; font-weight: 800; }
-    .item-notes { margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.45; }
-    .item-detail span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-    .item-detail strong { display: block; margin-top: 4px; font-size: 12px; line-height: 1.35; }
-    .item-price { min-width: 104px; text-align: right; font-size: 13px; font-weight: 800; }
-    .difficulty { display: inline-block; margin-top: 6px; padding: 3px 6px; border-radius: 4px; background: var(--orange-soft); color: #b84a00; font-size: 9px; font-weight: 800; }
+    .item-name { font-size: 14px; font-weight: 800; }
+    .item-notes { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .item-detail span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .item-detail strong { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; }
+    .item-price { min-width: 104px; text-align: right; font-size: 14px; font-weight: 800; }
+    .difficulty { display: inline-block; margin-top: 6px; padding: 3px 6px; border-radius: 4px; background: var(--orange-soft); color: #b84a00; font-size: 10px; font-weight: 800; }
     .payment-section { padding: 0 42px 34px; break-inside: avoid; page-break-inside: avoid; }
     .payment-panel { overflow: hidden; border: 1px solid var(--line); border-top: 4px solid var(--orange); border-radius: 8px; }
     .payment-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 17px 18px; background: var(--soft); border-bottom: 1px solid var(--line); }
     .payment-header h2 { margin: 0; font-size: 17px; }
-    .payment-header p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .payment-header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .payment-method { min-width: 150px; text-align: right; }
-    .payment-method span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .payment-method span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
     .payment-method strong { display: block; margin-top: 5px; color: var(--orange); font-size: 14px; }
     .payment-metrics { display: grid; grid-template-columns: repeat(4, 1fr); }
     .payment-metric { min-height: 78px; padding: 15px 16px; border-right: 1px solid var(--line); }
     .payment-metric:last-child { border-right: 0; }
-    .payment-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .payment-metric span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
     .payment-metric strong { display: block; margin-top: 7px; font-size: 15px; line-height: 1.25; }
     .payment-metric.total { background: var(--ink); color: #fff; }
     .payment-metric.total span { color: #bdbdbd; }
     .payment-metric.total strong { color: #ff9a52; font-size: 18px; }
     .installments { padding: 16px 18px 18px; border-top: 1px solid var(--line); }
     .installments-title { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 10px; }
-    .installments-title strong { font-size: 12px; }
-    .installments-title span { color: var(--muted); font-size: 10px; }
+    .installments-title strong { font-size: 13px; }
+    .installments-title span { color: var(--muted); font-size: 11px; }
     .installment-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .installment-grid.columns-1 { grid-template-columns: minmax(0, 1fr); }
+    .installment-grid.columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .installment-grid.columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .installment-grid.columns-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .installment { padding: 9px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; }
-    .installment span { display: block; color: var(--muted); font-size: 9px; }
-    .installment strong { display: block; margin-top: 3px; font-size: 11px; }
-    .payment-note { margin: 11px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
-    .closing { padding: 0 42px 38px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start; }
+    .installment span { display: block; color: var(--muted); font-size: 10px; }
+    .installment strong { display: block; margin-top: 3px; font-size: 12px; }
+    .payment-note { margin: 11px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .closing { padding: 0 42px 38px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
     .details { border-top: 2px solid var(--ink); padding-top: 15px; }
     .details h2 { margin: 0 0 12px; font-size: 16px; }
     .details p { margin: 0 0 12px; color: #4f4f4f; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
     .conditions { margin: 14px 0 0; padding: 0; list-style: none; }
-    .conditions li { position: relative; margin: 8px 0; padding-left: 15px; color: #4f4f4f; font-size: 11px; line-height: 1.45; }
+    .conditions li { position: relative; margin: 8px 0; padding-left: 15px; color: #4f4f4f; font-size: 12px; line-height: 1.55; }
     .conditions li::before { content: ''; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
     .summary { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     .summary-title { padding: 13px 15px; background: var(--soft); font-size: 12px; font-weight: 800; }
@@ -192,7 +198,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .payment-metric:nth-child(2) { border-right: 0; }
       .payment-metric { border-bottom: 1px solid var(--line); }
       .payment-metric:nth-last-child(-n + 2) { border-bottom: 0; }
-      .installment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .installment-grid,
+      .installment-grid.columns-2,
+      .installment-grid.columns-3,
+      .installment-grid.columns-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .installment-grid.columns-1 { grid-template-columns: minmax(0, 1fr); }
       .closing { grid-template-columns: 1fr; }
       .actions { left: 12px; right: 12px; bottom: 12px; justify-content: stretch; }
       .actions > * { flex: 1; text-align: center; }
@@ -205,6 +215,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .header { padding-top: 20px; }
       .intro { padding-top: 26px; }
       .section, .closing { padding-bottom: 24px; }
+      .header, .overview, .payment-panel, .closing, .summary, .footer { break-inside: avoid; page-break-inside: avoid; }
+      .section-heading, .environment-header, h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+      .environment { break-inside: auto; page-break-inside: auto; }
+      .item, .installments { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -295,7 +309,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ${payment.method === 'CARD' && payment.installments.length > 0 ? `
           <div class="installments">
             <div class="installments-title"><strong>Detalhamento das parcelas</strong><span>${payment.installments.length} ${payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span></div>
-            <div class="installment-grid">
+            <div class="installment-grid columns-${installmentGridColumns}">
               ${payment.installments.map((installment) => `
                 <div class="installment"><span>Parcela ${installment.number}</span><strong>${formatCurrency(installment.amount)}</strong></div>
               `).join('')}
@@ -313,7 +327,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         <ul class="conditions">
           <li>As medidas finais serão conferidas antes do início da fabricação.</li>
           <li>Alterações de medidas, materiais ou acabamentos podem exigir uma revisão do valor.</li>
-          <li>Forma de pagamento: ${escapeHtml(payment.summary)}.</li>
+          <li>As condições de pagamento estão detalhadas no quadro acima.</li>
           <li>Prazo previsto de entrega: 30 dias úteis após a aprovação do projeto e a confirmação do pagamento.</li>
           <li>${quote.validUntil ? `Esta proposta é válida até ${formatDate(quote.validUntil)}.` : 'A validade desta proposta será confirmada no envio.'}</li>
         </ul>
@@ -324,7 +338,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ${quote.installationFee > 0 ? `<div class="summary-row"><span>Instalação</span><strong>${formatCurrency(quote.installationFee)}</strong></div>` : ''}
         ${quote.manualDiscount > 0 ? `<div class="summary-row"><span>Desconto comercial</span><strong>− ${formatCurrency(quote.manualDiscount)}</strong></div>` : ''}
         ${quote.paymentDiscount > 0 ? `<div class="summary-row"><span>Desconto Pix (3%)</span><strong>− ${formatCurrency(quote.paymentDiscount)}</strong></div>` : ''}
-        <div class="summary-row"><span>Pagamento</span><strong>${escapeHtml(payment.summary)}</strong></div>
         <div class="summary-total"><span>Total</span><strong>${formatCurrency(quote.total)}</strong></div>
       </div>
     </section>

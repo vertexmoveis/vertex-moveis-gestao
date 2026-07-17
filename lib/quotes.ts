@@ -248,6 +248,15 @@ export function getQuotePaymentDetails(quote: {
   }
 }
 
+export function getQuoteInstallmentGridColumns(count: number) {
+  const installmentCount = Math.max(Math.floor(Number(count) || 1), 1)
+  if (installmentCount <= 2) return installmentCount
+  if (installmentCount % 5 === 0) return 5
+  if (installmentCount % 4 === 0) return 4
+  if (installmentCount % 3 === 0) return 3
+  return 4
+}
+
 export const QUOTE_CALCULATION_MODES: QuoteCalculationMode[] = ['AREA_M2', 'LINEAR_METER', 'UNIT']
 
 export function safeQuoteCalculationMode(value?: string | null): QuoteCalculationMode {

@@ -4,6 +4,7 @@ import { PublicApprovalActions } from '@/components/quotes/public-approval-actio
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
 import {
+  getQuoteInstallmentGridColumns,
   getQuotePaymentDetails,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
@@ -11,6 +12,14 @@ import {
 import { formatCurrency } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
+
+const INSTALLMENT_GRID_CLASSES: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-2 sm:grid-cols-3',
+  4: 'grid-cols-2 sm:grid-cols-4',
+  5: 'grid-cols-2 sm:grid-cols-5',
+}
 
 function responseMessage(request: { approvedAt: Date | null; rejectedAt: Date | null; expiresAt: Date | null }) {
   if (request.approvedAt) return 'Este orçamento já foi aprovado. A Vertex Móveis entrará em contato para os próximos passos.'
@@ -43,8 +52,11 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
     return groups
   }, {})
   const totalItems = quote.items.reduce((total, item) => total + item.quantity, 0)
+  const itemSubtotal = quote.items.reduce((total, item) => total + item.total, 0)
   const message = responseMessage(request)
   const payment = getQuotePaymentDetails(quote)
+  const installmentGridColumns = getQuoteInstallmentGridColumns(payment.installments.length)
+  const installmentGridClass = INSTALLMENT_GRID_CLASSES[installmentGridColumns] || INSTALLMENT_GRID_CLASSES[4]
 
   return (
     <main className="min-h-screen bg-[#F4F3F0] px-4 py-6 sm:px-6 sm:py-10">
@@ -106,12 +118,12 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
                     <div key={item.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.5fr)_auto_auto] sm:items-center">
                       <div>
                         <p className="font-semibold text-[#121212]">{item.description}</p>
-                        <p className="mt-1 text-xs text-[#777]">
+                        <p className="mt-1 text-sm leading-5 text-[#777]">
                           {item.material || 'MDF'}{item.finish ? ` · ${item.finish}` : ''}{item.quantity > 1 ? ` · Quantidade ${item.quantity}` : ''}
                         </p>
-                        {item.notes ? <p className="mt-1 text-xs leading-5 text-[#777]">{item.notes}</p> : null}
+                        {item.notes ? <p className="mt-1 text-sm leading-5 text-[#777]">{item.notes}</p> : null}
                       </div>
-                      <p className="text-xs font-medium text-[#555] sm:text-right">
+                      <p className="text-sm font-medium text-[#555] sm:text-right">
                         {quoteCentimetersToMillimeters(item.width)} x {quoteCentimetersToMillimeters(item.height)} mm
                       </p>
                       <p className="font-bold text-[#121212] sm:min-w-28 sm:text-right">{formatCurrency(item.total)}</p>
@@ -192,7 +204,7 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
                   <h3 className="text-sm font-bold text-[#121212]">Detalhamento das parcelas</h3>
                   <span className="text-xs text-[#777]">{payment.installments.length} {payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span>
                 </div>
-                <div className="grid grid-cols-2 border-l border-t border-[#E8E8E8] sm:grid-cols-4">
+                <div className={`grid ${installmentGridClass} border-l border-t border-[#E8E8E8]`}>
                   {payment.installments.map((installment) => (
                     <div key={installment.number} className="border-b border-r border-[#E8E8E8] px-3 py-2.5">
                       <p className="text-[10px] text-[#777]">Parcela {installment.number}</p>
@@ -200,7 +212,7 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-[11px] leading-5 text-[#777]">As datas de vencimento serão combinadas na contratação. A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
+                <p className="mt-3 text-xs leading-5 text-[#777]">As datas de vencimento serão combinadas na contratação. A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
               </div>
             ) : null}
           </div>
@@ -212,17 +224,18 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
             <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#5E5E5E]">
               {quote.customerNotes || 'A produção será iniciada após a aprovação e a confirmação do pagamento combinado.'}
             </p>
-            <ul className="mt-4 space-y-2 text-xs leading-5 text-[#666]">
+            <ul className="mt-4 space-y-2 text-sm leading-6 text-[#666]">
               <li>As medidas finais serão conferidas antes do início da fabricação.</li>
               <li>Alterações de medidas, materiais ou acabamentos podem exigir revisão de valor.</li>
-              <li>Forma de pagamento: {payment.summary}.</li>
+              <li>As condições de pagamento estão detalhadas no quadro acima.</li>
               <li>Prazo previsto de entrega: 30 dias úteis após a aprovação do projeto e a confirmação do pagamento.</li>
             </ul>
           </div>
           <div className="overflow-hidden rounded-lg border border-[#E8E8E8]">
             <p className="bg-[#FAFAF8] px-4 py-3 text-sm font-bold text-[#121212]">Resumo do investimento</p>
             <div className="space-y-3 px-4 py-4 text-sm">
-              <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Pagamento</span><strong className="text-right text-[#121212]">{payment.summary}</strong></div>
+              <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Móveis planejados</span><strong className="text-right text-[#121212]">{formatCurrency(itemSubtotal)}</strong></div>
+              {quote.installationFee > 0 ? <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Instalação</span><strong className="text-[#121212]">{formatCurrency(quote.installationFee)}</strong></div> : null}
               {quote.manualDiscount > 0 ? <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Desconto comercial</span><strong className="text-[#121212]">- {formatCurrency(quote.manualDiscount)}</strong></div> : null}
               {quote.paymentDiscount > 0 ? <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Desconto Pix</span><strong className="text-[#121212]">- {formatCurrency(quote.paymentDiscount)}</strong></div> : null}
               <div className="flex items-center justify-between gap-4 border-t border-[#E8E8E8] pt-3"><span className="font-bold text-[#121212]">Total</span><strong className="text-xl text-[#FF6B00]">{formatCurrency(quote.total)}</strong></div>
