@@ -4,7 +4,7 @@ import { PublicApprovalActions } from '@/components/quotes/public-approval-actio
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
 import {
-  getQuotePaymentSummary,
+  getQuotePaymentDetails,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
 } from '@/lib/quotes'
@@ -44,7 +44,7 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
   }, {})
   const totalItems = quote.items.reduce((total, item) => total + item.quantity, 0)
   const message = responseMessage(request)
-  const paymentSummary = getQuotePaymentSummary(quote)
+  const payment = getQuotePaymentDetails(quote)
 
   return (
     <main className="min-h-screen bg-[#F4F3F0] px-4 py-6 sm:px-6 sm:py-10">
@@ -123,6 +123,89 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
           </div>
         </section>
 
+        <section className="border-t border-[#ECE9E5] px-6 py-8 sm:px-10 sm:py-10">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#FF6B00]">Pagamento</p>
+              <h2 className="mt-1 text-lg font-bold text-[#121212]">Condições de pagamento</h2>
+            </div>
+            <p className="text-sm font-semibold text-[#FF6B00]">{payment.methodLabel}</p>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-[#E8E8E8] border-t-4 border-t-[#FF6B00]">
+            <div className="grid sm:grid-cols-4">
+              {payment.method === 'CARD' ? (
+                <>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Entrada</p>
+                    <p className="mt-1 font-bold text-[#121212]">{payment.downPayment > 0 ? formatCurrency(payment.downPayment) : 'Sem entrada'}</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Saldo parcelado</p>
+                    <p className="mt-1 font-bold text-[#121212]">{formatCurrency(payment.financedAmount)}</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Parcelamento</p>
+                    <p className="mt-1 font-bold text-[#121212]">{payment.installments.length > 0 ? `${payment.installments.length}x no cartão` : 'Sem saldo restante'}</p>
+                  </div>
+                </>
+              ) : payment.method === 'PIX' ? (
+                <>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Valor antes do Pix</p>
+                    <p className="mt-1 font-bold text-[#121212]">{formatCurrency(payment.totalBeforePaymentDiscount)}</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Desconto Pix</p>
+                    <p className="mt-1 font-bold text-emerald-700">- {formatCurrency(payment.paymentDiscount)}</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Pagamento</p>
+                    <p className="mt-1 font-bold text-[#121212]">À vista</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Forma</p>
+                    <p className="mt-1 font-bold text-[#121212]">A combinar</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Entrada</p>
+                    <p className="mt-1 font-bold text-[#121212]">A combinar</p>
+                  </div>
+                  <div className="border-b border-[#E8E8E8] px-4 py-4 sm:border-b-0 sm:border-r">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B8B8B]">Parcelamento</p>
+                    <p className="mt-1 font-bold text-[#121212]">A combinar</p>
+                  </div>
+                </>
+              )}
+              <div className="bg-[#121212] px-4 py-4 text-white">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-white/60">Total da proposta</p>
+                <p className="mt-1 text-lg font-extrabold text-[#FF9A52]">{formatCurrency(payment.total)}</p>
+              </div>
+            </div>
+
+            {payment.method === 'CARD' && payment.installments.length > 0 ? (
+              <div className="border-t border-[#E8E8E8] px-4 py-4">
+                <div className="mb-3 flex items-center justify-between gap-4">
+                  <h3 className="text-sm font-bold text-[#121212]">Detalhamento das parcelas</h3>
+                  <span className="text-xs text-[#777]">{payment.installments.length} {payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span>
+                </div>
+                <div className="grid grid-cols-2 border-l border-t border-[#E8E8E8] sm:grid-cols-4">
+                  {payment.installments.map((installment) => (
+                    <div key={installment.number} className="border-b border-r border-[#E8E8E8] px-3 py-2.5">
+                      <p className="text-[10px] text-[#777]">Parcela {installment.number}</p>
+                      <p className="mt-0.5 text-sm font-bold text-[#121212]">{formatCurrency(installment.amount)}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-[11px] leading-5 text-[#777]">As datas de vencimento serão combinadas na contratação. A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
         <section className="grid gap-6 border-t border-[#ECE9E5] px-6 py-8 sm:grid-cols-[1.1fr_0.9fr] sm:px-10">
           <div>
             <h2 className="text-base font-bold text-[#121212]">Informações da proposta</h2>
@@ -132,13 +215,14 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
             <ul className="mt-4 space-y-2 text-xs leading-5 text-[#666]">
               <li>As medidas finais serão conferidas antes do início da fabricação.</li>
               <li>Alterações de medidas, materiais ou acabamentos podem exigir revisão de valor.</li>
-              <li>Forma de pagamento: {paymentSummary}.</li>
+              <li>Forma de pagamento: {payment.summary}.</li>
+              <li>Prazo previsto de entrega: 30 dias úteis após a aprovação do projeto e a confirmação do pagamento.</li>
             </ul>
           </div>
           <div className="overflow-hidden rounded-lg border border-[#E8E8E8]">
             <p className="bg-[#FAFAF8] px-4 py-3 text-sm font-bold text-[#121212]">Resumo do investimento</p>
             <div className="space-y-3 px-4 py-4 text-sm">
-              <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Pagamento</span><strong className="text-right text-[#121212]">{paymentSummary}</strong></div>
+              <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Pagamento</span><strong className="text-right text-[#121212]">{payment.summary}</strong></div>
               {quote.manualDiscount > 0 ? <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Desconto comercial</span><strong className="text-[#121212]">- {formatCurrency(quote.manualDiscount)}</strong></div> : null}
               {quote.paymentDiscount > 0 ? <div className="flex justify-between gap-4 text-[#5E5E5E]"><span>Desconto Pix</span><strong className="text-[#121212]">- {formatCurrency(quote.paymentDiscount)}</strong></div> : null}
               <div className="flex items-center justify-between gap-4 border-t border-[#E8E8E8] pt-3"><span className="font-bold text-[#121212]">Total</span><strong className="text-xl text-[#FF6B00]">{formatCurrency(quote.total)}</strong></div>

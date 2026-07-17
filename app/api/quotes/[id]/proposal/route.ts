@@ -9,8 +9,7 @@ import {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_DIFFICULTY_LABELS,
   getQuoteAutomaticPricing,
-  getQuoteCardInstallmentPlan,
-  getQuotePaymentSummary,
+  getQuotePaymentDetails,
   parseQuoteAccessories,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
@@ -70,8 +69,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const environments = Object.entries(grouped)
   const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
-  const paymentSummary = getQuotePaymentSummary(quote)
-  const cardPlan = getQuoteCardInstallmentPlan(quote.total, quote.cardInstallments, quote.cardDownPayment)
+  const payment = getQuotePaymentDetails(quote)
   const phone = quote.client.whatsapp || quote.client.phone || ''
   const digits = phone.replace(/\D/g, '')
   const whatsAppNumber = digits ? (digits.startsWith('55') ? digits : `55${digits}`) : ''
@@ -132,6 +130,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .item-detail strong { display: block; margin-top: 4px; font-size: 12px; line-height: 1.35; }
     .item-price { min-width: 104px; text-align: right; font-size: 13px; font-weight: 800; }
     .difficulty { display: inline-block; margin-top: 6px; padding: 3px 6px; border-radius: 4px; background: var(--orange-soft); color: #b84a00; font-size: 9px; font-weight: 800; }
+    .payment-section { padding: 0 42px 34px; break-inside: avoid; page-break-inside: avoid; }
+    .payment-panel { overflow: hidden; border: 1px solid var(--line); border-top: 4px solid var(--orange); border-radius: 8px; }
+    .payment-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 17px 18px; background: var(--soft); border-bottom: 1px solid var(--line); }
+    .payment-header h2 { margin: 0; font-size: 17px; }
+    .payment-header p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .payment-method { min-width: 150px; text-align: right; }
+    .payment-method span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .payment-method strong { display: block; margin-top: 5px; color: var(--orange); font-size: 14px; }
+    .payment-metrics { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .payment-metric { min-height: 78px; padding: 15px 16px; border-right: 1px solid var(--line); }
+    .payment-metric:last-child { border-right: 0; }
+    .payment-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .payment-metric strong { display: block; margin-top: 7px; font-size: 15px; line-height: 1.25; }
+    .payment-metric.total { background: var(--ink); color: #fff; }
+    .payment-metric.total span { color: #bdbdbd; }
+    .payment-metric.total strong { color: #ff9a52; font-size: 18px; }
+    .installments { padding: 16px 18px 18px; border-top: 1px solid var(--line); }
+    .installments-title { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 10px; }
+    .installments-title strong { font-size: 12px; }
+    .installments-title span { color: var(--muted); font-size: 10px; }
+    .installment-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .installment { padding: 9px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; }
+    .installment span { display: block; color: var(--muted); font-size: 9px; }
+    .installment strong { display: block; margin-top: 3px; font-size: 11px; }
+    .payment-note { margin: 11px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
     .closing { padding: 0 42px 38px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: start; }
     .details { border-top: 2px solid var(--ink); padding-top: 15px; }
     .details h2 { margin: 0 0 12px; font-size: 16px; }
@@ -162,6 +185,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .item { grid-template-columns: 1fr 1fr; }
       .item-main, .item-price { grid-column: 1 / -1; }
       .item-price { text-align: left; }
+      .payment-section { padding-left: 22px; padding-right: 22px; }
+      .payment-header { flex-direction: column; gap: 12px; }
+      .payment-method { min-width: 0; text-align: left; }
+      .payment-metrics { grid-template-columns: 1fr 1fr; }
+      .payment-metric:nth-child(2) { border-right: 0; }
+      .payment-metric { border-bottom: 1px solid var(--line); }
+      .payment-metric:nth-last-child(-n + 2) { border-bottom: 0; }
+      .installment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .closing { grid-template-columns: 1fr; }
       .actions { left: 12px; right: 12px; bottom: 12px; justify-content: stretch; }
       .actions > * { flex: 1; text-align: center; }
@@ -236,6 +267,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       `).join('')}
     </section>
 
+    <section class="payment-section">
+      <div class="payment-panel">
+        <div class="payment-header">
+          <div>
+            <h2>Condições de pagamento</h2>
+            <p>Valores apresentados de forma completa para facilitar sua conferência.</p>
+          </div>
+          <div class="payment-method"><span>Forma escolhida</span><strong>${escapeHtml(payment.methodLabel)}</strong></div>
+        </div>
+        <div class="payment-metrics">
+          ${payment.method === 'CARD' ? `
+            <div class="payment-metric"><span>Entrada</span><strong>${payment.downPayment > 0 ? formatCurrency(payment.downPayment) : 'Sem entrada'}</strong></div>
+            <div class="payment-metric"><span>Saldo parcelado</span><strong>${formatCurrency(payment.financedAmount)}</strong></div>
+            <div class="payment-metric"><span>Parcelamento</span><strong>${payment.installments.length > 0 ? `${payment.installments.length}x no cartão` : 'Sem saldo restante'}</strong></div>
+          ` : payment.method === 'PIX' ? `
+            <div class="payment-metric"><span>Valor antes do Pix</span><strong>${formatCurrency(payment.totalBeforePaymentDiscount)}</strong></div>
+            <div class="payment-metric"><span>Desconto Pix</span><strong>− ${formatCurrency(payment.paymentDiscount)}</strong></div>
+            <div class="payment-metric"><span>Pagamento</span><strong>À vista</strong></div>
+          ` : `
+            <div class="payment-metric"><span>Forma</span><strong>A combinar</strong></div>
+            <div class="payment-metric"><span>Entrada</span><strong>A combinar</strong></div>
+            <div class="payment-metric"><span>Parcelamento</span><strong>A combinar</strong></div>
+          `}
+          <div class="payment-metric total"><span>Total da proposta</span><strong>${formatCurrency(payment.total)}</strong></div>
+        </div>
+        ${payment.method === 'CARD' && payment.installments.length > 0 ? `
+          <div class="installments">
+            <div class="installments-title"><strong>Detalhamento das parcelas</strong><span>${payment.installments.length} ${payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span></div>
+            <div class="installment-grid">
+              ${payment.installments.map((installment) => `
+                <div class="installment"><span>Parcela ${installment.number}</span><strong>${formatCurrency(installment.amount)}</strong></div>
+              `).join('')}
+            </div>
+            <p class="payment-note">As datas de vencimento serão combinadas na contratação. A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
+          </div>
+        ` : ''}
+      </div>
+    </section>
+
     <section class="closing">
       <div class="details">
         <h2>Informações da proposta</h2>
@@ -243,7 +313,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         <ul class="conditions">
           <li>As medidas finais serão conferidas antes do início da fabricação.</li>
           <li>Alterações de medidas, materiais ou acabamentos podem exigir uma revisão do valor.</li>
-          <li>Forma de pagamento: ${escapeHtml(paymentSummary)}.</li>
+          <li>Forma de pagamento: ${escapeHtml(payment.summary)}.</li>
+          <li>Prazo previsto de entrega: 30 dias úteis após a aprovação do projeto e a confirmação do pagamento.</li>
           <li>${quote.validUntil ? `Esta proposta é válida até ${formatDate(quote.validUntil)}.` : 'A validade desta proposta será confirmada no envio.'}</li>
         </ul>
       </div>
@@ -253,9 +324,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ${quote.installationFee > 0 ? `<div class="summary-row"><span>Instalação</span><strong>${formatCurrency(quote.installationFee)}</strong></div>` : ''}
         ${quote.manualDiscount > 0 ? `<div class="summary-row"><span>Desconto comercial</span><strong>− ${formatCurrency(quote.manualDiscount)}</strong></div>` : ''}
         ${quote.paymentDiscount > 0 ? `<div class="summary-row"><span>Desconto Pix (3%)</span><strong>− ${formatCurrency(quote.paymentDiscount)}</strong></div>` : ''}
-        ${quote.paymentMethod === 'CARD' && cardPlan.downPayment > 0 ? `<div class="summary-row"><span>Entrada</span><strong>${formatCurrency(cardPlan.downPayment)}</strong></div>` : ''}
-        ${quote.paymentMethod === 'CARD' && cardPlan.downPayment > 0 ? `<div class="summary-row"><span>Saldo no cartão</span><strong>${formatCurrency(cardPlan.financedAmount)}</strong></div>` : ''}
-        <div class="summary-row"><span>Pagamento</span><strong>${escapeHtml(paymentSummary)}</strong></div>
+        <div class="summary-row"><span>Pagamento</span><strong>${escapeHtml(payment.summary)}</strong></div>
         <div class="summary-total"><span>Total</span><strong>${formatCurrency(quote.total)}</strong></div>
       </div>
     </section>

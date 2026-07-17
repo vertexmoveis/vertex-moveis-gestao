@@ -214,6 +214,40 @@ export function getQuotePaymentSummary(quote: {
   return `${downPaymentPrefix}${plan.count - 1}x de ${format(plan.installmentValue)} e última de ${format(plan.lastInstallmentValue)} no cartão`
 }
 
+export function getQuotePaymentDetails(quote: {
+  total: number
+  paymentMethod?: string | null
+  paymentDiscount?: number | null
+  cardInstallments?: number | null
+  cardDownPayment?: number | null
+}) {
+  const method = safeQuotePaymentMethod(quote.paymentMethod)
+  const total = roundCurrency(Math.max(Number(quote.total) || 0, 0))
+  const paymentDiscount = method === 'PIX'
+    ? roundCurrency(Math.max(Number(quote.paymentDiscount) || 0, 0))
+    : 0
+  const totalBeforePaymentDiscount = roundCurrency(total + paymentDiscount)
+  const cardPlan = getQuoteCardInstallmentPlan(total, quote.cardInstallments, quote.cardDownPayment)
+  const installments = method === 'CARD' && cardPlan.financedAmount > 0
+    ? Array.from({ length: cardPlan.count }, (_, index) => ({
+        number: index + 1,
+        amount: index === cardPlan.count - 1 ? cardPlan.lastInstallmentValue : cardPlan.installmentValue,
+      }))
+    : []
+
+  return {
+    method,
+    methodLabel: QUOTE_PAYMENT_METHOD_LABELS[method],
+    summary: getQuotePaymentSummary(quote),
+    total,
+    paymentDiscount,
+    totalBeforePaymentDiscount,
+    downPayment: method === 'CARD' ? cardPlan.downPayment : 0,
+    financedAmount: method === 'CARD' ? cardPlan.financedAmount : 0,
+    installments,
+  }
+}
+
 export const QUOTE_CALCULATION_MODES: QuoteCalculationMode[] = ['AREA_M2', 'LINEAR_METER', 'UNIT']
 
 export function safeQuoteCalculationMode(value?: string | null): QuoteCalculationMode {
