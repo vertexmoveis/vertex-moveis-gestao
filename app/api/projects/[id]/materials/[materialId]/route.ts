@@ -93,8 +93,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return updated
     })
     return NextResponse.json(serializeMaterial(material))
-  } catch {
-    return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
+  } catch (error) {
+    console.error('Erro ao excluir material do projeto:', error)
+    return NextResponse.json({ error: 'Não foi possível excluir o material.' }, { status: 500 })
   }
 }
 
@@ -104,9 +105,26 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id, materialId } = await params
   try {
-    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id }, select: { id: true } })
+    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id } })
     if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
-    await prisma.projectMaterial.delete({ where: { id: materialId } })
+    await prisma.$transaction(async (tx) => {
+      await tx.projectMaterial.delete({ where: { id: materialId } })
+      await tx.timelineEvent.create({
+        data: {
+          projectId: id,
+          event: 'Material removido',
+          description: `${existing.materialName} foi removido da lista de compras.`,
+        },
+      })
+      await tx.activityLog.create({
+        data: {
+          userId: auth.user.id,
+          projectId: id,
+          action: 'Material removido',
+          details: `${existing.materialName} | previsto: ${existing.estimatedQuantity} ${existing.unit} | comprado: ${existing.purchasedQuantity} ${existing.unit} | custo previsto: ${existing.estimatedCost} | custo real: ${existing.actualCost ?? 'não informado'} | status: ${existing.status}`,
+        },
+      })
+    })
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })

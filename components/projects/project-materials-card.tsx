@@ -64,6 +64,8 @@ export function ProjectMaterialsCard({
   const [catalog, setCatalog] = useState<CatalogMaterial[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [newMaterialId, setNewMaterialId] = useState('')
 
@@ -146,10 +148,23 @@ export function ProjectMaterialsCard({
   }
 
   const removeMaterial = async (material: ProjectMaterial) => {
-    if (!canManage || !window.confirm(`Excluir ${material.materialName} da lista?`)) return
-    const response = await fetch(`/api/projects/${projectId}/materials/${material.id}`, { method: 'DELETE' })
-    if (!response.ok) return setError('Não foi possível excluir o material.')
-    setMaterials((current) => current.filter((item) => item.id !== material.id))
+    if (!canManage || deletingId) return
+    setDeletingId(material.id)
+    setError('')
+    try {
+      const response = await fetch(`/api/projects/${projectId}/materials/${material.id}`, { method: 'DELETE' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(data?.error || 'Não foi possível excluir o material.')
+        return
+      }
+      setMaterials((current) => current.filter((item) => item.id !== material.id))
+      setPendingDeleteId(null)
+    } catch {
+      setError('Não foi possível excluir o material. Verifique sua conexão e tente novamente.')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const realMargin = projectValue === null ? null : projectValue - costSummary.adjustedCost
@@ -217,10 +232,19 @@ export function ProjectMaterialsCard({
                   <span>Falta comprar: <strong className="text-[#121212]">{Math.max(material.estimatedQuantity - material.purchasedQuantity, 0).toFixed(2)} {unitLabel(material.unit)}</strong></span>
                   {material.actualCost !== null ? <span>Diferença: <strong className={material.actualCost > (material.estimatedCost || 0) ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(material.actualCost - (material.estimatedCost || 0))}</strong></span> : null}
                 </div>
-                {canManage ? (
+                {canManage && pendingDeleteId === material.id ? (
+                  <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-xs font-semibold text-red-800">Excluir {material.materialName}?</p>
+                    <p className="text-[11px] text-red-700">O material será removido da lista de compras. Esta ação não pode ser desfeita.</p>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={deletingId === material.id} onClick={() => setPendingDeleteId(null)}>Cancelar</Button>
+                      <Button type="button" size="sm" variant="danger" loading={deletingId === material.id} onClick={() => void removeMaterial(material)}>Excluir material</Button>
+                    </div>
+                  </div>
+                ) : canManage ? (
                   <div className="flex justify-end gap-2 border-t border-[#F0F0F0] pt-3">
                     <Button type="button" size="sm" variant="outline" loading={savingId === material.id} onClick={() => void saveMaterial(material)}><Save size={13} /> Salvar</Button>
-                    <button type="button" title="Excluir material" onClick={() => void removeMaterial(material)} className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+                    <button type="button" title={`Excluir ${material.materialName}`} aria-label={`Excluir ${material.materialName}`} onClick={() => setPendingDeleteId(material.id)} className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
                   </div>
                 ) : null}
               </div>
