@@ -157,25 +157,25 @@ export function ProjectMaterialsCard({
   return (
     <Card id="materiais" className="scroll-mt-28">
       <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-[#121212]">Compras e materiais</h3>
-            <p className="mt-1 text-xs text-[#9E9E9E]">{totals.bought}/{materials.length} itens recebidos</p>
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-[#121212]">Compras e materiais</h3>
+              <p className="mt-1 text-xs text-[#9E9E9E]">{totals.bought}/{materials.length} itens recebidos</p>
+            </div>
+            {canManage ? <Link href="/dashboard/purchases" className="shrink-0 text-xs font-semibold text-[#FF6B00] hover:underline">Lista geral</Link> : null}
           </div>
-          <div className="flex min-w-0 items-center gap-2">
-            {canManage ? <Link href="/dashboard/purchases" className="text-xs font-semibold text-[#FF6B00] hover:underline">Lista geral</Link> : null}
-            {canManage ? (
-              <div className="flex min-w-0 gap-2">
-                <select value={newMaterialId} onChange={(event) => setNewMaterialId(event.target.value)} className="h-8 min-w-0 max-w-44 rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]">
-                  <option value="">Adicionar material</option>
-                  {catalog.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
-                </select>
-                <Button type="button" size="sm" onClick={() => void addMaterial()} loading={savingId === 'new'} disabled={!newMaterialId} title="Adicionar material">
-                  <PackagePlus size={14} />
-                </Button>
-              </div>
-            ) : null}
-          </div>
+          {canManage ? (
+            <div className="grid grid-cols-[minmax(0,1fr)_2rem] gap-2">
+              <select value={newMaterialId} onChange={(event) => setNewMaterialId(event.target.value)} className="h-8 min-w-0 w-full rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]">
+                <option value="">Adicionar material</option>
+                {catalog.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+              </select>
+              <Button type="button" size="sm" className="h-8 w-8 px-0" onClick={() => void addMaterial()} loading={savingId === 'new'} disabled={!newMaterialId} title="Adicionar material">
+                <PackagePlus size={14} />
+              </Button>
+            </div>
+          ) : null}
         </div>
       </CardHeader>
       <CardBody className="space-y-4">
@@ -202,23 +202,23 @@ export function ProjectMaterialsCard({
                   <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${MATERIAL_STATUS[material.status].className}`}>{MATERIAL_STATUS[material.status].label}</span>
                 </div>
                 {canManage ? (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Input label={`Previsto (${unitLabel(material.unit)})`} inputMode="decimal" value={String(material.estimatedQuantity)} onChange={(event) => updateMaterial(material.id, 'estimatedQuantity', numberValue(event.target.value))} />
                     <Input label={`Comprado (${unitLabel(material.unit)})`} inputMode="decimal" value={String(material.purchasedQuantity)} onChange={(event) => updateMaterial(material.id, 'purchasedQuantity', numberValue(event.target.value))} />
                     <Input label="Custo previsto" inputMode="decimal" value={String(material.estimatedCost || 0)} onChange={(event) => updateMaterial(material.id, 'estimatedCost', numberValue(event.target.value))} />
                     <Input label="Custo real" inputMode="decimal" value={material.actualCost === null ? '' : String(material.actualCost)} onChange={(event) => updateMaterial(material.id, 'actualCost', event.target.value === '' ? null : numberValue(event.target.value))} placeholder="R$ 0,00" />
-                    <Input label="Fornecedor" value={material.supplier || ''} onChange={(event) => updateMaterial(material.id, 'supplier', event.target.value || null)} />
-                    <Select label="Status" value={material.status} onChange={(event) => updateMaterial(material.id, 'status', event.target.value as ProjectMaterial['status'])} options={Object.entries(MATERIAL_STATUS).map(([value, item]) => ({ value, label: item.label }))} />
+                    <Input label="Fornecedor" value={material.supplier || ''} onChange={(event) => updateMaterial(material.id, 'supplier', event.target.value || null)} placeholder="Nome do fornecedor" />
+                    <Select label="Status da compra" value={material.status} onChange={(event) => updateMaterial(material.id, 'status', event.target.value as ProjectMaterial['status'])} options={Object.entries(MATERIAL_STATUS).map(([value, item]) => ({ value, label: item.label }))} />
                   </div>
                 ) : (
                   <p className="text-xs text-[#777]">{material.estimatedQuantity.toFixed(2)} {unitLabel(material.unit)} · {MATERIAL_STATUS[material.status].label}</p>
                 )}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#777]">
+                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 rounded-lg bg-[#FAFAFA] px-3 py-2 text-[11px] text-[#777]">
                   <span>Falta comprar: <strong className="text-[#121212]">{Math.max(material.estimatedQuantity - material.purchasedQuantity, 0).toFixed(2)} {unitLabel(material.unit)}</strong></span>
                   {material.actualCost !== null ? <span>Diferença: <strong className={material.actualCost > (material.estimatedCost || 0) ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(material.actualCost - (material.estimatedCost || 0))}</strong></span> : null}
                 </div>
                 {canManage ? (
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2 border-t border-[#F0F0F0] pt-3">
                     <Button type="button" size="sm" variant="outline" loading={savingId === material.id} onClick={() => void saveMaterial(material)}><Save size={13} /> Salvar</Button>
                     <button type="button" title="Excluir material" onClick={() => void removeMaterial(material)} className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
                   </div>
