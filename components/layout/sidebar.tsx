@@ -76,7 +76,7 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 -translate-x-full flex-col bg-[#121212] shadow-2xl transition-[transform,width] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shadow-none',
+          'fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-64 shrink-0 -translate-x-full flex-col bg-[#121212] shadow-2xl transition-[transform,width] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shadow-none',
           mobileOpen && 'translate-x-0',
           collapsed ? 'lg:w-16' : 'lg:w-60'
         )}

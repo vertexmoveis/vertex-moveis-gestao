@@ -415,7 +415,7 @@ export default function ProjectDetailPage() {
   ]
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       <Header
         title={project.name}
         subtitle={project.client.name}
@@ -423,7 +423,7 @@ export default function ProjectDetailPage() {
         action={{ label: 'Editar Projeto', onClick: () => void openEdit() }}
       />
 
-      <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6">
         <div className="flex items-center justify-between">
           <Link href="/dashboard/projects" className="inline-flex items-center gap-1.5 text-sm text-[#9E9E9E] hover:text-[#121212] transition-colors">
             <ArrowLeft size={14} />
@@ -721,14 +721,6 @@ export default function ProjectDetailPage() {
               </CardBody>
             </Card>
 
-            <ProjectMaterialsCard
-              projectId={project.id}
-              projectValue={project.value}
-              baseCost={project.productionCost}
-              canManage={project.value !== null}
-              onCostSummaryChange={handleCostSummaryChange}
-            />
-
             {/* Client */}
             <Card id="cliente" className="scroll-mt-28">
               <CardHeader>
@@ -949,6 +941,14 @@ export default function ProjectDetailPage() {
               </CardBody>
             </Card>
 
+            <ProjectMaterialsCard
+              projectId={project.id}
+              projectValue={project.value}
+              baseCost={project.productionCost}
+              canManage={project.value !== null}
+              onCostSummaryChange={handleCostSummaryChange}
+            />
+
             <ProjectFilesCard
               projectId={project.id}
               files={project.files}
@@ -962,22 +962,22 @@ export default function ProjectDetailPage() {
               </CardHeader>
               <CardBody>
                 {project.timeline.length === 0 ? (
-                  <p className="text-sm text-[#9E9E9E] text-center py-4">Nenhum evento registrado</p>
+                  <p className="py-4 text-center text-sm text-[#9E9E9E]">Nenhum evento registrado</p>
                 ) : (
                   <div className="relative">
-                    <div className="absolute left-3.5 top-0 bottom-0 w-px bg-[#E8E8E8]" />
+                    <div className="absolute bottom-0 left-3.5 top-0 w-px bg-[#E8E8E8]" />
                     <div className="space-y-5">
                       {project.timeline.map((event) => (
                         <div key={event.id} className="flex items-start gap-4 pl-1">
-                          <div className="w-6 h-6 rounded-full bg-[#FF6B00] flex items-center justify-center flex-shrink-0 z-10">
+                          <div className="z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FF6B00]">
                             <CheckCircle size={12} className="text-white" />
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-[#121212]">{event.event}</p>
                             {event.description && (
-                              <p className="text-xs text-[#9E9E9E] mt-0.5">{event.description}</p>
+                              <p className="mt-0.5 text-xs text-[#9E9E9E]">{event.description}</p>
                             )}
-                            <p className="text-[10px] text-[#BDBDBD] mt-1">{formatDate(event.date)}</p>
+                            <p className="mt-1 text-[10px] text-[#BDBDBD]">{formatDate(event.date)}</p>
                           </div>
                         </div>
                       ))}
