@@ -181,7 +181,7 @@ export function ProjectMaterialsCard({
       <CardBody className="space-y-4">
         {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
         {canManage ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
             <div className="rounded-lg bg-[#FAFAFA] p-3"><p className="text-[10px] text-[#9E9E9E]">Materiais previstos</p><p className="mt-1 font-bold text-[#121212]">{formatCurrency(totals.estimated)}</p></div>
             <div className="rounded-lg bg-blue-50 p-3"><p className="text-[10px] text-blue-700">Custo ajustado</p><p className="mt-1 font-bold text-blue-700">{formatCurrency(costSummary.adjustedCost)}</p><p className="mt-1 text-[10px] text-blue-700/70">{costSummary.trackedMaterials}/{costSummary.totalMaterials} custos reais</p></div>
             <div className="rounded-lg bg-emerald-50 p-3"><p className="text-[10px] text-emerald-700">Lucro ajustado</p><p className="mt-1 font-bold text-emerald-700">{realMargin === null ? '-' : formatCurrency(realMargin)}</p></div>
@@ -202,7 +202,7 @@ export function ProjectMaterialsCard({
                   <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${MATERIAL_STATUS[material.status].className}`}>{MATERIAL_STATUS[material.status].label}</span>
                 </div>
                 {canManage ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
                     <Input label={`Previsto (${unitLabel(material.unit)})`} inputMode="decimal" value={String(material.estimatedQuantity)} onChange={(event) => updateMaterial(material.id, 'estimatedQuantity', numberValue(event.target.value))} />
                     <Input label={`Comprado (${unitLabel(material.unit)})`} inputMode="decimal" value={String(material.purchasedQuantity)} onChange={(event) => updateMaterial(material.id, 'purchasedQuantity', numberValue(event.target.value))} />
                     <Input label="Custo previsto" inputMode="decimal" value={String(material.estimatedCost || 0)} onChange={(event) => updateMaterial(material.id, 'estimatedCost', numberValue(event.target.value))} />
