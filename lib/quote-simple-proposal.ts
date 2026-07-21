@@ -121,6 +121,7 @@ export function renderSimpleQuoteProposal({
       .company { grid-template-columns: 1fr; gap: 12px; }
       .company-contact { text-align: left; }
       .services { display: block; overflow-x: auto; }
+      .services table { min-width: 640px; }
       .signature { grid-template-columns: 1fr; gap: 36px; }
       .actions { left: 10px; right: 10px; bottom: 10px; overflow-x: auto; }
       .actions > * { flex: 1 0 auto; text-align: center; }
