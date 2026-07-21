@@ -275,7 +275,7 @@ export function PricingMaterialsSettings({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-[#121212]">Materiais</h2>
-              <p className="mt-1 text-xs text-[#777]">{activeMaterialCount} material{activeMaterialCount !== 1 ? 'is' : ''} ativo{activeMaterialCount !== 1 ? 's' : ''}</p>
+              <p className="mt-1 text-xs text-[#777]">{activeMaterialCount} {activeMaterialCount === 1 ? 'material ativo' : 'materiais ativos'}</p>
             </div>
             {editingMaterialId ? (
               <Button type="button" size="sm" variant="outline" onClick={() => { setEditingMaterialId(null); setMaterialDraft(defaultMaterial()) }}>
