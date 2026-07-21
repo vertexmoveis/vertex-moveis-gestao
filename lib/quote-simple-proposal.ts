@@ -123,8 +123,8 @@ export function renderSimpleQuoteProposal({
       .services { display: block; overflow-x: auto; }
       .services table { min-width: 640px; }
       .signature { grid-template-columns: 1fr; gap: 36px; }
-      .actions { left: 10px; right: 10px; bottom: 10px; overflow-x: auto; }
-      .actions > * { flex: 1 0 auto; text-align: center; }
+      .actions { left: 10px; right: 10px; bottom: 10px; }
+      .actions > * { min-width: 0; flex: 1 1 0; padding: 8px 6px; text-align: center; white-space: normal; }
     }
     @page { size: A4; margin: 10mm; }
     @media print {
