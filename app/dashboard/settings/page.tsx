@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { BackupButton } from '@/components/settings/backup-button'
 import { PricingMaterialsSettings } from '@/components/settings/pricing-materials-settings'
 import { OperationsResourcesSettings } from '@/components/settings/operations-resources-settings'
+import { CompanyProfileSettings } from '@/components/settings/company-profile-settings'
 import { prisma } from '@/lib/db'
+import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
 import { CheckCircle2, DatabaseBackup, TriangleAlert } from 'lucide-react'
 
@@ -32,6 +34,9 @@ export default async function SettingsPage() {
         prisma.operationalResource.findMany({ orderBy: [{ type: 'asc' }, { active: 'desc' }, { name: 'asc' }] }),
       ])
     : [[], [], []]
+  const companyProfile = isAdmin
+    ? await prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } })
+    : null
   const [latestBackup, recentErrorCount, recentErrors] = isAdmin
     ? await Promise.all([
         prisma.systemEvent.findFirst({
@@ -148,6 +153,10 @@ export default async function SettingsPage() {
               ) : null}
             </CardBody>
           </Card>
+        )}
+
+        {isAdmin && (
+          <CompanyProfileSettings initialProfile={serializeCompanyProfile(companyProfile)} />
         )}
 
         {isAdmin && (

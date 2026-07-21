@@ -137,6 +137,8 @@ export async function POST(req: NextRequest) {
           title: input.title,
           status: input.status,
           validUntil: input.validUntil,
+          deliveryBusinessDays: input.deliveryBusinessDays,
+          firstInstallmentDate: input.firstInstallmentDate,
           pricePerM2: input.pricePerM2,
           materialCostPerM2: input.materialCostPerM2,
           installationFee: input.installationFee,
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
           },
         },
         include: {
-          client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+          client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
         },
       })

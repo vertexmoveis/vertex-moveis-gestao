@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     ? {
         OR: [
           { name: { contains: q } },
+          { document: { contains: q } },
           { email: { contains: q } },
           { phone: { contains: q } },
           { street: { contains: q } },
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      document: auth.user.role === 'ADMIN',
       phone: auth.user.role === 'ADMIN',
       whatsapp: auth.user.role === 'ADMIN',
       email: auth.user.role === 'ADMIN',
@@ -127,6 +129,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         name: true,
+        document: true,
         phone: true,
         whatsapp: true,
         email: true,

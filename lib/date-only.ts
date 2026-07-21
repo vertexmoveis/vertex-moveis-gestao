@@ -31,6 +31,18 @@ export function toDateOnlyUtc(value: DateOnlyValue) {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0, 0))
 }
 
+export function addMonthsToDateOnly(value: DateOnlyValue, months: number) {
+  const parts = dateParts(value)
+  if (!parts) return null
+
+  const monthIndex = parts.month - 1 + Math.trunc(months)
+  const targetYear = parts.year + Math.floor(monthIndex / 12)
+  const targetMonth = ((monthIndex % 12) + 12) % 12
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
+
+  return new Date(Date.UTC(targetYear, targetMonth, Math.min(parts.day, lastDay), 12, 0, 0, 0))
+}
+
 export function dateOnlyKey(value: DateOnlyValue) {
   const parts = dateParts(value)
   if (!parts) return null

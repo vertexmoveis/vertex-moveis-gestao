@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calculateQuoteTotals, getQuoteCardInstallmentPlan } from '@/lib/quotes'
+import { calculateQuoteTotals, getQuoteCardInstallmentPlan, getQuotePaymentDetails } from '@/lib/quotes'
+import { formatDateOnly } from '@/lib/date-only'
 import { buildQuoteApprovalSnapshot, parseQuoteApprovalSnapshot } from '@/lib/quote-approval'
 
 const item = {
@@ -56,12 +57,31 @@ test('as parcelas fecham exatamente o saldo financiado', () => {
   assert.equal(sum, 900)
 })
 
+test('as parcelas mensais preservam o dia e ajustam o fim do mês', () => {
+  const payment = getQuotePaymentDetails({
+    total: 900,
+    paymentMethod: 'CARD',
+    cardInstallments: 3,
+    cardDownPayment: 0,
+    firstInstallmentDate: '2026-01-31',
+  })
+
+  assert.deepEqual(
+    payment.installments.map((installment) => formatDateOnly(installment.dueDate)),
+    ['31/01/2026', '28/02/2026', '31/03/2026']
+  )
+  assert.equal(payment.installments.reduce((sum, installment) => sum + installment.amount, 0), 900)
+})
+
 test('a aprovação guarda somente os termos enviados ao cliente', () => {
   const quote = {
     id: 'quote-1',
     number: 12,
     title: 'Cozinha planejada',
+    createdAt: '2026-07-21T12:00:00.000Z',
     validUntil: '2026-08-01T12:00:00.000Z',
+    deliveryBusinessDays: 30,
+    firstInstallmentDate: '2026-07-21T12:00:00.000Z',
     installationFee: 200,
     manualDiscount: 100,
     paymentDiscount: 0,
@@ -79,6 +99,8 @@ test('a aprovação guarda somente os termos enviados ao cliente', () => {
 
   assert.equal(parsed?.quote.total, 5100)
   assert.equal(parsed?.quote.client.name, 'Cliente Teste')
+  assert.equal(parsed?.quote.deliveryBusinessDays, 30)
+  assert.equal(parsed?.quote.firstInstallmentDate, '2026-07-21T12:00:00.000Z')
   assert.equal(snapshot.includes('costTotal'), false)
   assert.equal(snapshot, buildQuoteApprovalSnapshot({ ...quote, items: [{ ...quote.items[0], id: 'novo-id-interno' }] }))
   assert.notEqual(snapshot, buildQuoteApprovalSnapshot({ ...quote, total: 5200 }))

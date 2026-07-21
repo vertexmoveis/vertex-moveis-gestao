@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const quote = await prisma.quote.findUnique({
     where: { id },
     include: {
-      client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+      client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
       items: { orderBy: { position: 'asc' } },
       revisions: { orderBy: { version: 'desc' }, take: 10 },
       convertedProject: { select: { id: true, name: true } },
@@ -118,6 +118,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           title: input.title,
           status: input.status,
           validUntil: input.validUntil,
+          deliveryBusinessDays: input.deliveryBusinessDays,
+          firstInstallmentDate: input.firstInstallmentDate,
           pricePerM2: input.pricePerM2,
           materialCostPerM2: input.materialCostPerM2,
           installationFee: input.installationFee,
@@ -142,7 +144,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           items: { create: totals.items },
         },
         include: {
-          client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+          client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
         },
       })
@@ -160,7 +162,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           where: { id },
           data: { status: 'DRAFT', approvedAt: null, sentAt: null, lostAt: null, lossReason: null },
           include: {
-            client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+            client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
             items: { orderBy: { position: 'asc' } },
           },
         })

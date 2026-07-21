@@ -64,6 +64,8 @@ export type QuotePayload = {
   cardInstallments: number
   cardDownPayment: number
   cardFeePercent: number
+  deliveryBusinessDays: number
+  firstInstallmentDate?: string
   validUntil?: string
   notes?: string
   customerNotes?: string
@@ -123,6 +125,14 @@ function parseNumber(value: string) {
   const normalized = value.replace(',', '.')
   const number = Number(normalized)
   return Number.isFinite(number) ? number : 0
+}
+
+function todayInputValue() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function itemDescription(item: DraftItem) {
@@ -236,6 +246,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const [cardInstallments, setCardInstallments] = useState(String(initialData?.cardInstallments || 1))
   const [cardDownPayment, setCardDownPayment] = useState(moneyToString(initialData?.cardDownPayment) || '0')
   const [cardFeePercent, setCardFeePercent] = useState(moneyToString(initialData?.cardFeePercent) || '0')
+  const [deliveryBusinessDays, setDeliveryBusinessDays] = useState(String(initialData?.deliveryBusinessDays || 30))
+  const [firstInstallmentDate, setFirstInstallmentDate] = useState(initialData?.firstInstallmentDate?.slice(0, 10) || todayInputValue())
   const [validUntil, setValidUntil] = useState(initialData?.validUntil?.slice(0, 10) || '')
   const [notes, setNotes] = useState(initialData?.notes || '')
   const [customerNotes, setCustomerNotes] = useState(
@@ -254,10 +266,14 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     Promise.all([
       fetch('/api/settings/price-rules?active=1').then((response) => response.ok ? response.json() : []),
       fetch('/api/settings/materials?active=1').then((response) => response.ok ? response.json() : []),
-    ]).then(([rules, materialOptions]) => {
+      fetch('/api/settings/company').then((response) => response.ok ? response.json() : null),
+    ]).then(([rules, materialOptions, companyProfile]) => {
       if (!active) return
       setPriceRules(Array.isArray(rules) ? rules : [])
       setMaterials(Array.isArray(materialOptions) ? materialOptions : [])
+      if (!initialData && companyProfile?.defaultDeliveryBusinessDays) {
+        setDeliveryBusinessDays(String(companyProfile.defaultDeliveryBusinessDays))
+      }
     }).catch(() => {
       if (!active) return
       setPriceRules([])
@@ -265,7 +281,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     })
 
     return () => { active = false }
-  }, [])
+  }, [initialData])
 
   const calculated = useMemo(() => calculateQuoteTotals(
     items.map(toCalculationItem),
@@ -388,6 +404,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       cardInstallments: Math.min(Math.max(Math.round(parseNumber(cardInstallments) || 1), 1), 24),
       cardDownPayment: enteredCardDownPayment,
       cardFeePercent: paymentMethod === 'CARD' ? parseNumber(cardFeePercent) : 0,
+      deliveryBusinessDays: Math.min(Math.max(Math.round(parseNumber(deliveryBusinessDays) || 30), 1), 365),
+      firstInstallmentDate: paymentMethod === 'CARD' ? firstInstallmentDate || undefined : undefined,
       validUntil: validUntil || undefined,
       notes: notes.trim() || undefined,
       customerNotes: customerNotes.trim() || undefined,
@@ -448,6 +466,26 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
           options={QUOTE_STATUSES.map((value) => ({ value, label: QUOTE_STATUS_LABELS[value] }))}
         />
         <Input label="Validade" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Input
+          label="Prazo de entrega (dias úteis)"
+          type="number"
+          min={1}
+          max={365}
+          value={deliveryBusinessDays}
+          onChange={(event) => setDeliveryBusinessDays(event.target.value)}
+          helperText="Contado após a aprovação e a confirmação do pagamento."
+        />
+        <Input
+          label="Primeiro vencimento"
+          type="date"
+          value={firstInstallmentDate}
+          disabled={paymentMethod !== 'CARD'}
+          onChange={(event) => setFirstInstallmentDate(event.target.value)}
+          helperText={paymentMethod === 'CARD' ? 'As demais parcelas serão mensais.' : 'Disponível para pagamento parcelado.'}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px]">

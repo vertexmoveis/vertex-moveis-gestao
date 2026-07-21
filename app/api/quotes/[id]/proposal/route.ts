@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '@/lib/db'
+import { formatClientAddress } from '@/lib/address'
+import { addBusinessDays } from '@/lib/business-days'
+import { COMPANY_PROFILE_ID, formatCompanyAddress, serializeCompanyProfile } from '@/lib/company-profile'
+import { formatDateOnly } from '@/lib/date-only'
+import { renderSimpleQuoteProposal } from '@/lib/quote-simple-proposal'
 import { forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import {
@@ -32,7 +37,7 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(value: Date | null) {
-  return value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(value) : 'A combinar'
+  return value ? formatDateOnly(value) : 'A combinar'
 }
 
 function formatMeasure(value: number) {
@@ -51,13 +56,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      items: { orderBy: { position: 'asc' } },
-    },
-  })
+  const [quote, storedCompanyProfile] = await Promise.all([
+    prisma.quote.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        createdBy: { select: { name: true, email: true } },
+        items: { orderBy: { position: 'asc' } },
+      },
+    }),
+    prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
+  ])
 
   if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
@@ -71,6 +80,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
   const payment = getQuotePaymentDetails(quote)
+  const company = serializeCompanyProfile(storedCompanyProfile)
+  const companyAddress = formatCompanyAddress(company)
+  const clientAddress = formatClientAddress(quote.client)
+  const deliveryForecast = addBusinessDays(quote.approvedAt || quote.createdAt, quote.deliveryBusinessDays)
+  const seller = quote.createdBy?.name || company.tradeName
   const installmentGridColumns = getQuoteInstallmentGridColumns(payment.installments.length)
   const phone = quote.client.whatsapp || quote.client.phone || ''
   const digits = phone.replace(/\D/g, '')
@@ -81,7 +95,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const logoUrl = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
     .then((file) => `data:image/png;base64,${file.toString('base64')}`)
     .catch(() => new URL('/vertex-symbol.png', req.url).toString())
-  const generatedAt = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+  const commercialHref = new URL(`/api/quotes/${quote.id}/proposal`, req.url).toString()
+  const simpleHref = new URL(`/api/quotes/${quote.id}/proposal?modelo=simples`, req.url).toString()
+
+  if (req.nextUrl.searchParams.get('modelo') === 'simples') {
+    return new NextResponse(renderSimpleQuoteProposal({
+      quote,
+      company,
+      logoUrl,
+      whatsAppHref,
+      commercialHref,
+    }), {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+      },
+    })
+  }
 
   const html = `<!doctype html>
 <html lang="pt-BR">
@@ -100,22 +130,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .brand-wrap { display: flex; align-items: center; gap: 14px; }
     .brand-mark { width: 48px; height: 38px; object-fit: contain; }
     .brand-name { font-size: 20px; line-height: 1; font-weight: 800; }
-    .brand-tagline { margin-top: 6px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .brand-tagline { margin-top: 6px; color: var(--muted); font-size: 11px; letter-spacing: 0; text-transform: uppercase; }
+    .brand-details { margin-top: 10px; color: var(--muted); font-size: 10px; line-height: 1.55; }
     .proposal-meta { min-width: 220px; text-align: right; }
-    .proposal-meta strong { display: block; font-size: 12px; color: var(--orange); letter-spacing: .08em; text-transform: uppercase; }
+    .proposal-meta strong { display: block; font-size: 12px; color: var(--orange); letter-spacing: 0; text-transform: uppercase; }
     .proposal-meta h1 { margin: 5px 0 10px; font-size: 25px; line-height: 1.1; }
     .proposal-code { color: var(--muted); font-size: 12px; line-height: 1.7; }
     .intro { padding: 38px 42px 28px; }
-    .eyebrow { margin: 0 0 8px; color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .eyebrow { margin: 0 0 8px; color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
     .intro h2 { margin: 0; max-width: 700px; font-size: 30px; line-height: 1.15; }
     .intro p { max-width: 700px; margin: 15px 0 0; color: #4f4f4f; font-size: 14px; line-height: 1.65; }
     .overview { margin: 0 42px 34px; display: grid; grid-template-columns: 1fr 1fr 1.4fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     .overview-item { min-height: 82px; padding: 17px 20px; border-right: 1px solid var(--line); }
     .overview-item:last-child { border: 0; background: var(--ink); color: #fff; }
-    .overview-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .overview-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
     .overview-item:last-child .overview-label { color: #bdbdbd; }
     .overview-value { font-size: 19px; font-weight: 800; }
     .overview-item:last-child .overview-value { color: #ff9a52; font-size: 22px; }
+    .client-info { margin: -16px 42px 34px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .client-info-title { padding: 11px 15px; background: var(--soft); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .client-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .client-field { min-height: 58px; padding: 11px 15px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); }
+    .client-field:nth-child(even) { border-right: 0; }
+    .client-field span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .client-field strong { display: block; margin-top: 4px; font-size: 12px; line-height: 1.45; }
     .section { padding: 0 42px 34px; }
     .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
     .section-heading h2 { margin: 0; font-size: 17px; }
@@ -128,9 +166,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .item:last-child { border: 0; }
     .item-name { font-size: 14px; font-weight: 800; }
     .item-notes { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .item-detail span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .item-detail span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
     .item-detail strong { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; }
     .item-price { min-width: 104px; text-align: right; font-size: 14px; font-weight: 800; }
+    .item-price span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-weight: 400; }
     .difficulty { display: inline-block; margin-top: 6px; padding: 3px 6px; border-radius: 4px; background: var(--orange-soft); color: #b84a00; font-size: 10px; font-weight: 800; }
     .payment-section { padding: 0 42px 34px; break-inside: avoid; page-break-inside: avoid; }
     .payment-panel { overflow: hidden; border: 1px solid var(--line); border-top: 4px solid var(--orange); border-radius: 8px; }
@@ -138,12 +177,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .payment-header h2 { margin: 0; font-size: 17px; }
     .payment-header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .payment-method { min-width: 150px; text-align: right; }
-    .payment-method span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .payment-method span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
     .payment-method strong { display: block; margin-top: 5px; color: var(--orange); font-size: 14px; }
     .payment-metrics { display: grid; grid-template-columns: repeat(4, 1fr); }
     .payment-metric { min-height: 78px; padding: 15px 16px; border-right: 1px solid var(--line); }
     .payment-metric:last-child { border-right: 0; }
-    .payment-metric span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .payment-metric span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
     .payment-metric strong { display: block; margin-top: 7px; font-size: 15px; line-height: 1.25; }
     .payment-metric.total { background: var(--ink); color: #fff; }
     .payment-metric.total span { color: #bdbdbd; }
@@ -173,8 +212,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .summary-row { display: flex; justify-content: space-between; gap: 18px; padding: 10px 15px; border-top: 1px solid var(--line); color: #4f4f4f; font-size: 12px; }
     .summary-row strong { color: var(--ink); }
     .summary-total { padding: 16px 15px; display: flex; justify-content: space-between; align-items: baseline; gap: 18px; background: var(--ink); color: #fff; }
-    .summary-total span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    .summary-total span { font-size: 11px; text-transform: uppercase; letter-spacing: 0; }
     .summary-total strong { color: #ff9a52; font-size: 22px; }
+    .signature { margin: 0 42px 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 32px 24px 14px; border: 1px solid var(--line); border-radius: 8px; break-inside: avoid; page-break-inside: avoid; }
+    .signature-line { border-top: 1px solid var(--ink); padding-top: 7px; text-align: center; color: var(--muted); font-size: 10px; }
     .footer { padding: 22px 42px 28px; display: flex; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.6; }
     .footer strong { color: var(--ink); }
     .actions { position: fixed; right: 24px; bottom: 24px; z-index: 10; display: flex; gap: 10px; padding: 8px; border-radius: 10px; background: rgba(255,255,255,.96); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
@@ -187,6 +228,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .proposal-meta { min-width: 0; text-align: left; }
       .intro h2 { font-size: 25px; }
       .overview { margin-left: 22px; margin-right: 22px; grid-template-columns: 1fr; }
+      .client-info, .signature { margin-left: 22px; margin-right: 22px; }
+      .client-grid, .signature { grid-template-columns: 1fr; }
+      .client-field { border-right: 0; }
       .overview-item { border-right: 0; border-bottom: 1px solid var(--line); }
       .item { grid-template-columns: 1fr 1fr; }
       .item-main, .item-price { grid-column: 1 / -1; }
@@ -215,7 +259,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .header { padding-top: 20px; }
       .intro { padding-top: 26px; }
       .section, .closing { padding-bottom: 24px; }
-      .header, .overview, .payment-panel, .closing, .summary, .footer { break-inside: avoid; page-break-inside: avoid; }
+      .header, .overview, .client-info, .payment-panel, .closing, .summary, .signature, .footer { break-inside: avoid; page-break-inside: avoid; }
       .section-heading, .environment-header, h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
       .environment { break-inside: auto; page-break-inside: auto; }
       .item, .installments { break-inside: avoid; page-break-inside: avoid; }
@@ -227,16 +271,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     <div class="accent"></div>
     <header class="header">
       <div class="brand-wrap">
-        <img class="brand-mark" src="${escapeHtml(logoUrl)}" alt="Vertex Móveis" />
+        <img class="brand-mark" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(company.tradeName)}" />
         <div>
-          <div class="brand-name">Vertex Móveis</div>
+          <div class="brand-name">${escapeHtml(company.tradeName)}</div>
           <div class="brand-tagline">Móveis planejados</div>
+          <div class="brand-details">
+            ${company.legalName ? `${escapeHtml(company.legalName)}<br>` : ''}
+            ${company.document ? `CNPJ ${escapeHtml(company.document)}<br>` : ''}
+            ${company.phone ? `${escapeHtml(company.phone)}` : ''}${company.phone && company.email ? ' · ' : ''}${company.email ? escapeHtml(company.email) : ''}
+          </div>
         </div>
       </div>
       <div class="proposal-meta">
-        <strong>Proposta comercial</strong>
+        <strong>Orçamento nº ${escapeHtml(quoteDisplayCode(quote))}</strong>
         <h1>${escapeHtml(quote.title)}</h1>
-        <div class="proposal-code">Código ${escapeHtml(quoteDisplayCode(quote))}<br>Emitida em ${generatedAt}<br>Válida até ${formatDate(quote.validUntil)}</div>
+        <div class="proposal-code">Emitido em ${formatDate(quote.createdAt)}<br>Previsão estimada: ${formatDate(deliveryForecast)}<br>Válido até ${formatDate(quote.validUntil)}</div>
       </div>
     </header>
 
@@ -252,6 +301,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="overview-item"><span class="overview-label">Investimento total</span><span class="overview-value">${formatCurrency(quote.total)}</span></div>
     </section>
 
+    <section class="client-info" aria-label="Dados do cliente">
+      <div class="client-info-title">Dados do cliente</div>
+      <div class="client-grid">
+        <div class="client-field"><span>Cliente</span><strong>${escapeHtml(quote.client.name)}</strong></div>
+        <div class="client-field"><span>CPF / CNPJ</span><strong>${escapeHtml(quote.client.document || 'Não informado')}</strong></div>
+        <div class="client-field"><span>Endereço</span><strong>${escapeHtml(clientAddress || 'Não informado')}</strong></div>
+        <div class="client-field"><span>Contato</span><strong>${escapeHtml(quote.client.whatsapp || quote.client.phone || quote.client.email || 'Não informado')}</strong></div>
+      </div>
+    </section>
+
     <section class="section">
       <div class="section-heading"><h2>Composição do orçamento</h2><span>Medidas em largura × altura</span></div>
       ${environments.map(([environment, items]) => `
@@ -264,6 +323,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             const accessories = parseQuoteAccessories(item.accessories)
             const calculationMode = safeQuoteCalculationMode(item.calculationMode)
             const automaticPricing = getQuoteAutomaticPricing(item)
+            const unitTotal = item.quantity > 0 ? item.total / item.quantity : item.total
             return `
             <div class="item">
               <div class="item-main">
@@ -274,7 +334,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
               </div>
               <div class="item-detail"><span>Medidas</span><strong>${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm</strong></div>
               <div class="item-detail"><span>${escapeHtml(`${automaticPricing.label} · ${QUOTE_CALCULATION_MODE_LABELS[calculationMode]}`)}</span><strong>${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}</strong></div>
-              <div class="item-price">${formatCurrency(item.total)}</div>
+              <div class="item-price">${formatCurrency(item.total)}<span>${item.quantity} × ${formatCurrency(unitTotal)}</span></div>
             </div>
           `}).join('')}
         </article>
@@ -311,10 +371,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             <div class="installments-title"><strong>Detalhamento das parcelas</strong><span>${payment.installments.length} ${payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span></div>
             <div class="installment-grid columns-${installmentGridColumns}">
               ${payment.installments.map((installment) => `
-                <div class="installment"><span>Parcela ${installment.number}</span><strong>${formatCurrency(installment.amount)}</strong></div>
+                <div class="installment"><span>Parcela ${installment.number}${installment.dueDate ? ` · ${formatDateOnly(installment.dueDate)}` : ''}</span><strong>${formatCurrency(installment.amount)}</strong></div>
               `).join('')}
             </div>
-            <p class="payment-note">As datas de vencimento serão combinadas na contratação. A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
+            <p class="payment-note">${quote.firstInstallmentDate ? 'Os vencimentos seguem a data informada no orçamento.' : 'As datas de vencimento serão combinadas na contratação.'} A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
           </div>
         ` : ''}
       </div>
@@ -328,7 +388,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           <li>As medidas finais serão conferidas antes do início da fabricação.</li>
           <li>Alterações de medidas, materiais ou acabamentos podem exigir uma revisão do valor.</li>
           <li>As condições de pagamento estão detalhadas no quadro acima.</li>
-          <li>Prazo previsto de entrega: 30 dias úteis após a aprovação do projeto e a confirmação do pagamento.</li>
+          <li>Prazo previsto de entrega: ${quote.deliveryBusinessDays} dias úteis após a aprovação do projeto e a confirmação do pagamento. Previsão estimada em ${formatDate(deliveryForecast)}.</li>
           <li>${quote.validUntil ? `Esta proposta é válida até ${formatDate(quote.validUntil)}.` : 'A validade desta proposta será confirmada no envio.'}</li>
         </ul>
       </div>
@@ -342,13 +402,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       </div>
     </section>
 
+    <section class="signature" aria-label="Assinaturas">
+      <div class="signature-line">Assinatura do cliente</div>
+      <div class="signature-line">${escapeHtml(seller)} · Responsável pelo orçamento</div>
+    </section>
+
     <footer class="footer">
-      <div><strong>Vertex Móveis</strong><br>Rua Saturno, 6 · Cotia, SP · 06702-170</div>
-      <div>Proposta ${escapeHtml(quoteDisplayCode(quote))}<br>Documento gerado pelo sistema Vertex</div>
+      <div><strong>${escapeHtml(company.tradeName)}</strong><br>${companyAddress.map(escapeHtml).join('<br>')}</div>
+      <div>Orçamento ${escapeHtml(quoteDisplayCode(quote))}<br>Vendedor: ${escapeHtml(seller)}<br>Documento gerado pelo sistema Vertex</div>
     </footer>
   </main>
 
   <nav class="actions" aria-label="Ações da proposta">
+    <a href="${escapeHtml(simpleHref)}">Orçamento simples</a>
     ${whatsAppHref ? `<a href="${whatsAppHref}" target="_blank" rel="noopener noreferrer">Enviar no WhatsApp</a>` : ''}
     <button class="primary" type="button" onclick="window.print()">Salvar em PDF</button>
   </nav>

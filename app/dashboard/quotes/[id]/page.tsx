@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Printer, Send, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -310,7 +310,11 @@ export default function QuoteDetailPage() {
             </Button>
             <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal`, '_blank')}>
               <FileText size={16} />
-              Proposta/PDF
+              Proposta comercial
+            </Button>
+            <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal?modelo=simples`, '_blank')}>
+              <Printer size={16} />
+              Orçamento simples
             </Button>
             <Button variant="outline" loading={saving} disabled={quoteLocked} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
               <Send size={16} />
@@ -373,6 +377,14 @@ export default function QuoteDetailPage() {
                   <div>
                     <p className="text-xs text-[#9E9E9E]">Validade</p>
                     <p className="font-semibold text-[#121212]">{quote.validUntil ? formatDate(quote.validUntil) : 'Sem validade'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#9E9E9E]">Prazo de entrega</p>
+                    <p className="font-semibold text-[#121212]">{quote.deliveryBusinessDays || 30} dias úteis</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#9E9E9E]">Primeiro vencimento</p>
+                    <p className="font-semibold text-[#121212]">{quote.firstInstallmentDate ? formatDate(quote.firstInstallmentDate) : 'A combinar'}</p>
                   </div>
                 </div>
                 <div>

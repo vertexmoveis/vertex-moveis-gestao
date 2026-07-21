@@ -29,6 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     select: {
       id: true,
       name: true,
+      document: true,
       phone: true,
       whatsapp: true,
       email: true,

@@ -74,6 +74,15 @@ const cardFeePercentField = z
   })
   .refine((value) => !Number.isNaN(value), 'Informe uma taxa entre 0% e 30%')
 
+const deliveryBusinessDaysField = z
+  .preprocess(emptyToUndefined, z.union([z.string(), z.number()]).optional())
+  .transform((value) => {
+    if (value === undefined) return 30
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 365 ? parsed : Number.NaN
+  })
+  .refine((value) => !Number.isNaN(value), 'Informe um prazo entre 1 e 365 dias úteis')
+
 export const quoteItemSchema = z.object({
   environment: z.string().trim().min(1, 'Informe o ambiente').max(120),
   description: z.string().trim().min(1, 'Informe o móvel').max(240),
@@ -108,6 +117,8 @@ export const quoteSaveSchema = z.object({
   title: z.string().trim().min(1, 'Informe o título').max(160),
   status: z.enum(QUOTE_STATUSES as [string, ...string[]]).default('DRAFT'),
   validUntil: dateField,
+  deliveryBusinessDays: deliveryBusinessDaysField,
+  firstInstallmentDate: dateField,
   pricePerM2: moneyField(1250),
   materialCostPerM2: moneyField(650),
   installationFee: moneyField(0),

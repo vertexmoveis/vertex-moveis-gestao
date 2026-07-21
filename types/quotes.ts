@@ -46,6 +46,8 @@ export type QuoteData = {
   pricePerM2: number
   materialCostPerM2: number
   validUntil?: string | null
+  deliveryBusinessDays?: number
+  firstInstallmentDate?: string | null
   notes?: string | null
   customerNotes?: string | null
   createdAt: string
@@ -53,10 +55,17 @@ export type QuoteData = {
   client: {
     id: string
     name: string
+    document?: string | null
     phone?: string | null
     whatsapp?: string | null
     email?: string | null
     address?: string | null
+    street?: string | null
+    number?: string | null
+    neighborhood?: string | null
+    city?: string | null
+    state?: string | null
+    zipCode?: string | null
   } | null
   items: QuoteItemData[]
   convertedProject?: {

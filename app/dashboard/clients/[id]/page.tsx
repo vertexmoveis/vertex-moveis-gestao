@@ -33,6 +33,7 @@ interface ClientDetail extends ClientData {
 
 type ClientFormData = {
   name: string
+  document?: string
   phone?: string
   whatsapp?: string
   email?: string
@@ -122,6 +123,17 @@ export default function ClientDetailPage() {
                 </div>
 
                 <div className="mt-4 space-y-3 border-t border-[#F5F5F5] pt-4">
+                  {client.document && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[#F5F5F5]">
+                        <User size={13} className="text-[#9E9E9E]" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-[#9E9E9E]">CPF / CNPJ</p>
+                        <p className="text-sm text-[#121212]">{client.document}</p>
+                      </div>
+                    </div>
+                  )}
                   {client.phone && (
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-lg bg-[#F5F5F5] flex items-center justify-center flex-shrink-0">

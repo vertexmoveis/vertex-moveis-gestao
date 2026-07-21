@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { buildPaymentSchedule } from '@/lib/payments'
 import { calculateProjectProductionDates } from '@/lib/business-days'
+import { toDateOnlyUtc } from '@/lib/date-only'
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { normalizeEnvironmentNames } from '@/lib/project-environments'
 import { buildProjectMaterialsFromQuoteItems } from '@/lib/project-materials'
@@ -42,7 +43,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (quote.convertedProjectId) throw new Error('ALREADY_CONVERTED')
 
       const approvalDate = new Date()
-      const productionDates = calculateProjectProductionDates({ approvalDate })
+      const productionDates = calculateProjectProductionDates({
+        approvalDate,
+        deliveryBusinessDays: quote.deliveryBusinessDays,
+      })
       const environmentNames = normalizeEnvironmentNames(
         quote.items.map((item) => item.environment),
         quote.title
@@ -52,8 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const downPayment = Math.max(Number(body.downPayment ?? quoteDownPayment), 0)
       const quoteInstallments = quote.paymentMethod === 'CARD' ? quote.cardInstallments : 1
       const installmentCount = Math.max(Math.floor(Number(body.installmentCount ?? quoteInstallments)), 0)
-      const firstInstallmentDate = body.firstInstallmentDate ? new Date(body.firstInstallmentDate) : null
-      const downPaymentDate = body.downPaymentDate ? new Date(body.downPaymentDate) : approvalDate
+      const firstInstallmentDate = body.firstInstallmentDate
+        ? toDateOnlyUtc(body.firstInstallmentDate)
+        : quote.firstInstallmentDate
+      const downPaymentDate = body.downPaymentDate ? toDateOnlyUtc(body.downPaymentDate) : approvalDate
       const schedule = buildPaymentSchedule({
         value: quote.total,
         downPayment,
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           status: 'APPROVED',
           stage: 'PENDING_START',
           approvalDate,
-          deliveryBusinessDays: 30,
+          deliveryBusinessDays: quote.deliveryBusinessDays,
           deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
           productionReminderBusinessDays: 7,
           productionStartReminderDate: productionDates.productionStartReminderDate,

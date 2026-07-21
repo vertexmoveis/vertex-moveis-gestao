@@ -9,6 +9,7 @@ import { useState } from 'react'
 
 const schema = z.object({
   name: z.string().min(1, 'Nome obrigatório'),
+  document: z.string().optional(),
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
@@ -43,6 +44,7 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
     resolver: zodResolver(schema),
     defaultValues: {
       name: initialData?.name || '',
+      document: initialData?.document || '',
       phone: initialData?.phone || '',
       whatsapp: initialData?.whatsapp || '',
       email: initialData?.email || '',
@@ -102,6 +104,7 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
         error={errors.name?.message}
         {...register('name')}
       />
+      <Input label="CPF / CNPJ" placeholder="000.000.000-00 ou 00.000.000/0000-00" {...register('document')} />
       <div className="grid grid-cols-2 gap-4">
         <Input label="Telefone" placeholder="(11) 99999-9999" {...register('phone')} />
         <Input label="WhatsApp" placeholder="(11) 99999-9999" {...register('whatsapp')} />

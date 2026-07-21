@@ -14,6 +14,7 @@ import type { ClientData } from '@/types'
 
 type ClientFormData = {
   name: string
+  document?: string
   phone?: string
   whatsapp?: string
   email?: string

@@ -72,6 +72,7 @@ const environmentsField = z
 
 export const clientCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  document: nullableString(30),
   phone: nullableString(30),
   whatsapp: nullableString(30),
   email: z.preprocess(

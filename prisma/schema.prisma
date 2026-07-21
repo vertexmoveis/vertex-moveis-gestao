@@ -27,6 +27,7 @@ model User {
 model Client {
   id           String    @id @default(cuid())
   name         String
+  document     String?
   phone        String?
   whatsapp     String?
   email        String?
@@ -105,43 +106,46 @@ model Project {
 }
 
 model Quote {
-  id                 String          @id @default(cuid())
-  clientId           String
-  client             Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdById        String?
-  createdBy          User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  convertedProjectId String?         @unique
-  convertedProject   Project?        @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
-  title              String
-  status             String          @default("DRAFT")
-  validUntil         DateTime?
-  pricePerM2         Float           @default(1250)
-  materialCostPerM2  Float           @default(650)
-  installationFee    Float           @default(0)
-  marginPercent      Float           @default(35)
-  discount           Float           @default(0)
-  manualDiscount     Float           @default(0)
-  paymentDiscount    Float           @default(0)
-  paymentMethod      String          @default("TO_DEFINE")
-  cardInstallments   Int             @default(1)
-  cardDownPayment    Float           @default(0)
-  cardFeePercent     Float           @default(0)
-  cardFeeAmount      Float           @default(0)
-  subtotal           Float           @default(0)
-  costTotal          Float           @default(0)
-  total              Float           @default(0)
-  notes              String?
-  customerNotes      String?
-  lossReason         String?
-  sentAt             DateTime?
-  approvedAt         DateTime?
-  soldAt             DateTime?
-  lostAt             DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  items              QuoteItem[]
-  revisions          QuoteRevision[]
-  approvalRequests   QuoteApprovalRequest[]
+  id                   String                 @id @default(cuid())
+  number               Int                    @unique @default(autoincrement())
+  clientId             String
+  client               Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById          String?
+  createdBy            User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  convertedProjectId   String?                @unique
+  convertedProject     Project?               @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  title                String
+  status               String                 @default("DRAFT")
+  validUntil           DateTime?
+  deliveryBusinessDays Int                    @default(30)
+  firstInstallmentDate DateTime?
+  pricePerM2           Float                  @default(1250)
+  materialCostPerM2    Float                  @default(650)
+  installationFee      Float                  @default(0)
+  marginPercent        Float                  @default(35)
+  discount             Float                  @default(0)
+  manualDiscount       Float                  @default(0)
+  paymentDiscount      Float                  @default(0)
+  paymentMethod        String                 @default("TO_DEFINE")
+  cardInstallments     Int                    @default(1)
+  cardDownPayment      Float                  @default(0)
+  cardFeePercent       Float                  @default(0)
+  cardFeeAmount        Float                  @default(0)
+  subtotal             Float                  @default(0)
+  costTotal            Float                  @default(0)
+  total                Float                  @default(0)
+  notes                String?
+  customerNotes        String?
+  lossReason           String?
+  sentAt               DateTime?
+  approvedAt           DateTime?
+  soldAt               DateTime?
+  lostAt               DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  items                QuoteItem[]
+  revisions            QuoteRevision[]
+  approvalRequests     QuoteApprovalRequest[]
 
   @@index([clientId])
   @@index([createdById])
@@ -149,6 +153,25 @@ model Quote {
   @@index([validUntil])
   @@index([createdAt])
   @@index([createdById, status, createdAt])
+}
+
+model CompanyProfile {
+  id                          String   @id @default("vertex")
+  tradeName                   String   @default("Vertex Móveis")
+  legalName                   String?
+  document                    String?
+  phone                       String?
+  email                       String?
+  street                      String?
+  number                      String?
+  complement                  String?
+  neighborhood                String?
+  city                        String?
+  state                       String?
+  zipCode                     String?
+  defaultDeliveryBusinessDays Int      @default(30)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
 model QuoteItem {
@@ -196,36 +219,36 @@ model QuoteRevision {
 }
 
 model QuotePriceRule {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   name              String
   environment       String?
   furnitureType     String?
   furnitureModel    String?
   priceProfile      String?
-  calculationMode   String   @default("AREA_M2")
+  calculationMode   String    @default("AREA_M2")
   pricePerM2        Float
   materialCostPerM2 Float?
-  validFrom         DateTime @default(now())
+  validFrom         DateTime  @default(now())
   validUntil        DateTime?
-  active            Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([active, validFrom, validUntil])
   @@index([environment, furnitureType, furnitureModel])
 }
 
 model MaterialCatalogItem {
-  id              String            @id @default(cuid())
-  name            String            @unique
-  category        String?
-  defaultFinish   String?
-  unit            String            @default("m2")
-  unitCost        Float             @default(0)
-  supplier        String?
-  active          Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id               String            @id @default(cuid())
+  name             String            @unique
+  category         String?
+  defaultFinish    String?
+  unit             String            @default("m2")
+  unitCost         Float             @default(0)
+  supplier         String?
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   projectMaterials ProjectMaterial[]
 
   @@index([active])
@@ -298,25 +321,25 @@ model InstallationSchedule {
 }
 
 model QuoteApprovalRequest {
-  id             String   @id @default(cuid())
-  quoteId        String
-  quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  token          String   @unique
-  sentAt         DateTime @default(now())
-  reminderCount  Int      @default(0)
-  lastReminderAt DateTime?
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-  expiresAt      DateTime?
-  invalidatedAt  DateTime?
-  snapshot       String?
-  revisionVersion Int?
-  responseIpHash String?
+  id                String    @id @default(cuid())
+  quoteId           String
+  quote             Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  token             String    @unique
+  sentAt            DateTime  @default(now())
+  reminderCount     Int       @default(0)
+  lastReminderAt    DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  expiresAt         DateTime?
+  invalidatedAt     DateTime?
+  snapshot          String?
+  revisionVersion   Int?
+  responseIpHash    String?
   responseUserAgent String?
-  responseNote   String?
-  message        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  responseNote      String?
+  message           String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([quoteId])
   @@index([expiresAt])

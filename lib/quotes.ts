@@ -1,4 +1,5 @@
 import type { Quote, QuoteItem } from '@prisma/client'
+import { addMonthsToDateOnly } from '@/lib/date-only'
 import { roundCurrency } from '@/lib/payments'
 import type { QuoteCalculationMode } from '@/lib/quote-catalog'
 import { getQuoteAutomaticPricing, safeQuotePriceProfile, type QuotePriceProfile } from '@/lib/quote-pricing'
@@ -225,6 +226,7 @@ export function getQuotePaymentDetails(quote: {
   paymentDiscount?: number | null
   cardInstallments?: number | null
   cardDownPayment?: number | null
+  firstInstallmentDate?: Date | string | null
 }) {
   const method = safeQuotePaymentMethod(quote.paymentMethod)
   const total = roundCurrency(Math.max(Number(quote.total) || 0, 0))
@@ -237,6 +239,7 @@ export function getQuotePaymentDetails(quote: {
     ? Array.from({ length: cardPlan.count }, (_, index) => ({
         number: index + 1,
         amount: index === cardPlan.count - 1 ? cardPlan.lastInstallmentValue : cardPlan.installmentValue,
+        dueDate: addMonthsToDateOnly(quote.firstInstallmentDate, index),
       }))
     : []
 
@@ -398,6 +401,7 @@ export function serializeQuote(quote: Quote & { items?: QuoteItem[]; client?: { 
     profit: roundCurrency(quote.total - quote.costTotal),
     status: safeQuoteStatus(quote.status),
     validUntil: quote.validUntil?.toISOString() || null,
+    firstInstallmentDate: quote.firstInstallmentDate?.toISOString() || null,
     sentAt: quote.sentAt?.toISOString() || null,
     approvedAt: quote.approvedAt?.toISOString() || null,
     soldAt: quote.soldAt?.toISOString() || null,
@@ -419,6 +423,8 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
     client: quote.client?.name,
     status: quote.status,
     validUntil: quote.validUntil?.toISOString() || null,
+    deliveryBusinessDays: quote.deliveryBusinessDays,
+    firstInstallmentDate: quote.firstInstallmentDate?.toISOString() || null,
     pricing: {
       pricePerM2: quote.pricePerM2,
       materialCostPerM2: quote.materialCostPerM2,

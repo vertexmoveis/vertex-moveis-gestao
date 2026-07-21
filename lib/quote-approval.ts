@@ -20,7 +20,10 @@ export type QuoteApprovalSource = {
   id: string
   number?: number | null
   title: string
+  createdAt?: Date | string | null
   validUntil?: Date | string | null
+  deliveryBusinessDays?: number | null
+  firstInstallmentDate?: Date | string | null
   installationFee: number
   manualDiscount: number
   paymentDiscount: number
@@ -40,7 +43,10 @@ export type QuoteApprovalSnapshot = {
     id: string
     number: number | null
     title: string
+    createdAt?: string | null
     validUntil: string | null
+    deliveryBusinessDays?: number
+    firstInstallmentDate?: string | null
     installationFee: number
     manualDiscount: number
     paymentDiscount: number
@@ -80,7 +86,10 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
       id: quote.id,
       number: quote.number || null,
       title: quote.title,
+      createdAt: dateToIso(quote.createdAt),
       validUntil: dateToIso(quote.validUntil),
+      deliveryBusinessDays: quote.deliveryBusinessDays || 30,
+      firstInstallmentDate: dateToIso(quote.firstInstallmentDate),
       installationFee: quote.installationFee,
       manualDiscount: quote.manualDiscount,
       paymentDiscount: quote.paymentDiscount,
