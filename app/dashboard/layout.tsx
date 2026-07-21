@@ -5,7 +5,7 @@ import { Sidebar } from '@/components/layout/sidebar'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
+  if (!session || !(session.user as { id?: string } | undefined)?.id) redirect('/login')
 
   return (
     <div className="fixed inset-0 flex overflow-clip bg-[#F5F5F5] print:static print:h-auto print:min-h-screen print:overflow-visible">

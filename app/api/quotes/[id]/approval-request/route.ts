@@ -6,6 +6,8 @@ import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
 import { badRequest, forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
+import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
+import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 
 function whatsAppUrl(phone: string | null | undefined, message: string) {
   const digits = (phone || '').replace(/\D/g, '')
@@ -34,15 +36,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return badRequest('Dados inválidos')
   }
 
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: { select: { name: true, phone: true, whatsapp: true } },
-      items: { orderBy: { position: 'asc' } },
-      revisions: { orderBy: { version: 'desc' }, take: 1, select: { version: true } },
-      approvalRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
-  })
+  const [quote, companyProfile] = await Promise.all([
+    prisma.quote.findUnique({
+      where: { id },
+      include: {
+        client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
+        items: { orderBy: { position: 'asc' } },
+        revisions: { orderBy: { version: 'desc' }, take: 1, select: { version: true } },
+        approvalRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    }),
+    prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
+  ])
   if (!quote) return NextResponse.json({ error: 'Orçamento não encontrado' }, { status: 404 })
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
   if (quote.convertedProjectId || quote.status === 'SOLD') return badRequest('Este orçamento já foi transformado em projeto.')
@@ -52,6 +57,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const now = new Date()
   if (isDateOnlyExpired(quote.validUntil, now)) {
     return badRequest('A validade deste orçamento expirou. Atualize a proposta antes de enviar para aprovação.')
+  }
+  const readiness = evaluateQuoteReadiness({
+    ...quote,
+    company: withCompanyProfileDefaults(companyProfile),
+  }, now)
+  if (!readiness.ready) {
+    return NextResponse.json({
+      error: 'Complete os dados obrigatórios antes de enviar a proposta.',
+      missingFields: readiness.issues.map((issue) => issue.label),
+    }, { status: 422 })
   }
   const approvalSnapshot = buildQuoteApprovalSnapshot(quote)
   const revisionVersion = quote.revisions[0]?.version || null

@@ -53,12 +53,14 @@ export function ProjectMaterialsCard({
   baseCost,
   canManage,
   onCostSummaryChange,
+  actualExpensesTotal = 0,
 }: {
   projectId: string
   projectValue: number | null
   baseCost: number | null
   canManage: boolean
   onCostSummaryChange?: (summary: ProjectCostSummary) => void
+  actualExpensesTotal?: number
 }) {
   const [materials, setMaterials] = useState<ProjectMaterial[]>([])
   const [catalog, setCatalog] = useState<CatalogMaterial[]>([])
@@ -93,7 +95,10 @@ export function ProjectMaterialsCard({
     const bought = materials.filter((item) => item.status === 'RECEIVED').length
     return { estimated, actual, bought }
   }, [materials])
-  const costSummary = useMemo(() => calculateProjectCostSummary(baseCost, materials), [baseCost, materials])
+  const costSummary = useMemo(
+    () => calculateProjectCostSummary(baseCost, materials, actualExpensesTotal > 0 ? [{ amount: actualExpensesTotal }] : []),
+    [actualExpensesTotal, baseCost, materials],
+  )
 
   useEffect(() => {
     onCostSummaryChange?.(costSummary)
@@ -199,6 +204,7 @@ export function ProjectMaterialsCard({
           <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2">
             <div className="rounded-lg bg-[#FAFAFA] p-3"><p className="text-[10px] text-[#9E9E9E]">Materiais previstos</p><p className="mt-1 font-bold text-[#121212]">{formatCurrency(totals.estimated)}</p></div>
             <div className="rounded-lg bg-blue-50 p-3"><p className="text-[10px] text-blue-700">Custo ajustado</p><p className="mt-1 font-bold text-blue-700">{formatCurrency(costSummary.adjustedCost)}</p><p className="mt-1 text-[10px] text-blue-700/70">{costSummary.trackedMaterials}/{costSummary.totalMaterials} custos reais</p></div>
+            <div className="rounded-lg bg-amber-50 p-3"><p className="text-[10px] text-amber-700">Outras despesas</p><p className="mt-1 font-bold text-amber-700">{formatCurrency(costSummary.actualExpenses)}</p></div>
             <div className="rounded-lg bg-emerald-50 p-3"><p className="text-[10px] text-emerald-700">Lucro ajustado</p><p className="mt-1 font-bold text-emerald-700">{realMargin === null ? '-' : formatCurrency(realMargin)}</p></div>
           </div>
         ) : null}

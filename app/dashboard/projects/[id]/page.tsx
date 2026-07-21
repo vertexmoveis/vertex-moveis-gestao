@@ -12,6 +12,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { ProjectForm } from '@/components/projects/project-form'
 import { ProjectFilesCard, type ProjectFile } from '@/components/projects/project-files-card'
 import { ProjectMaterialsCard } from '@/components/projects/project-materials-card'
+import { ProjectExpensesCard } from '@/components/projects/project-expenses-card'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
@@ -34,6 +35,7 @@ interface ProjectDetail {
   status: ProjectStatus
   stage: ProductionStage
   approvalDate: string | null
+  paymentConfirmedAt: string | null
   deliveryBusinessDays: number
   deliveryDeadlineDate: string | null
   productionReminderBusinessDays: number
@@ -51,6 +53,8 @@ interface ProjectDetail {
     adjustedCost: number
     materialAdjustment: number
     actualMaterials: number
+    actualExpenses: number
+    totalExpenses: number
     trackedMaterials: number
     totalMaterials: number
     hasActualCosts: boolean
@@ -132,6 +136,7 @@ export default function ProjectDetailPage() {
   const [sendingNote, setSendingNote] = useState(false)
   const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, string>>({})
   const [postSaleSaving, setPostSaleSaving] = useState(false)
+  const [actualExpensesTotal, setActualExpensesTotal] = useState(0)
 
   const handleCostSummaryChange = useCallback((costSummary: NonNullable<ProjectDetail['costSummary']>) => {
     setProject((current) => current ? { ...current, costSummary } : current)
@@ -145,6 +150,7 @@ export default function ProjectDetailPage() {
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.id) throw new Error(data?.error || 'Não foi possível carregar o projeto.')
       setProject(data)
+      setActualExpensesTotal(data.costSummary?.actualExpenses || 0)
       if (Array.isArray(data.payments)) {
         setPaymentMethodsById(
           Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
@@ -170,6 +176,7 @@ export default function ProjectDetailPage() {
           return
         }
         setProject(data)
+        setActualExpensesTotal(data.costSummary?.actualExpenses || 0)
         if (Array.isArray(data.payments)) {
           setPaymentMethodsById(
             Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
@@ -607,8 +614,17 @@ export default function ProjectDetailPage() {
                     <div className="flex items-center gap-3">
                       <CreditCard size={14} className="text-[#9E9E9E] flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] text-[#9E9E9E]">Aprovação do cartão</p>
+                        <p className="text-[10px] text-[#9E9E9E]">Aprovação do orçamento</p>
                         <p className="text-sm text-[#121212]">{formatDate(project.approvalDate)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {project.paymentConfirmedAt && (
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck size={14} className="flex-shrink-0 text-emerald-600" />
+                      <div>
+                        <p className="text-[10px] text-[#9E9E9E]">Pagamento confirmado</p>
+                        <p className="text-sm font-medium text-emerald-700">{formatDate(project.paymentConfirmedAt)}</p>
                       </div>
                     </div>
                   )}
@@ -946,8 +962,13 @@ export default function ProjectDetailPage() {
               projectValue={project.value}
               baseCost={project.productionCost}
               canManage={project.value !== null}
+              actualExpensesTotal={actualExpensesTotal}
               onCostSummaryChange={handleCostSummaryChange}
             />
+
+            {project.value !== null ? (
+              <ProjectExpensesCard projectId={project.id} onExpensesChange={setActualExpensesTotal} />
+            ) : null}
 
             <ProjectFilesCard
               projectId={project.id}
@@ -1073,6 +1094,7 @@ export default function ProjectDetailPage() {
             installmentCount: project.installmentCount?.toString() || '',
             firstInstallmentDate: project.firstInstallmentDate?.split('T')[0] || '',
             approvalDate: project.approvalDate?.split('T')[0] || '',
+            paymentConfirmedAt: project.paymentConfirmedAt?.split('T')[0] || '',
             deliveryBusinessDays: project.deliveryBusinessDays?.toString() || '',
             productionReminderBusinessDays: project.productionReminderBusinessDays?.toString() || '',
             startDate: project.startDate?.split('T')[0] || '',

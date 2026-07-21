@@ -153,6 +153,7 @@ export interface ProjectData {
   status: ProjectStatus
   stage: ProductionStage
   approvalDate: string | null
+  paymentConfirmedAt?: string | null
   deliveryBusinessDays: number
   deliveryDeadlineDate: string | null
   productionReminderBusinessDays: number

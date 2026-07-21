@@ -1,10 +1,11 @@
 'use client'
 
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
+import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import {
   normalizeProductionStage,
   PROJECT_STATUS_LABELS,
@@ -28,6 +29,7 @@ const schema = z.object({
   status: z.string().min(1),
   stage: z.string().min(1),
   approvalDate: z.string().optional(),
+  paymentConfirmedAt: z.string().optional(),
   deliveryBusinessDays: z.string().optional(),
   productionReminderBusinessDays: z.string().optional(),
   startDate: z.string().optional(),
@@ -77,6 +79,7 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
       status: initialData?.status || 'APPROVED',
       stage: defaultStage,
       approvalDate: initialData?.approvalDate || '',
+      paymentConfirmedAt: initialData?.paymentConfirmedAt || '',
       deliveryBusinessDays: initialData?.deliveryBusinessDays || String(DEFAULT_DELIVERY_BUSINESS_DAYS),
       productionReminderBusinessDays: initialData?.productionReminderBusinessDays || String(DEFAULT_PRODUCTION_REMINDER_BUSINESS_DAYS),
       startDate: initialData?.startDate || '',
@@ -107,15 +110,14 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
 
   const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({ value, label }))
   const stageOptions = PRODUCTION_STAGE_FLOW.map((value) => ({ value, label: PRODUCTION_STAGE_LABELS[value] }))
-  const clientOptions = clients.map((c) => ({ value: c.id, label: c.name }))
   const managerOptions = managers.map((m) => ({ value: m.id, label: m.name }))
   const [watchedValue, watchedProductionCost, watchedDownPayment, watchedInstallmentCount] = useWatch({
     control,
     name: ['value', 'productionCost', 'downPayment', 'installmentCount'],
   })
-  const [watchedApprovalDate, watchedDeliveryBusinessDays, watchedReminderBusinessDays] = useWatch({
+  const [watchedApprovalDate, watchedPaymentConfirmedAt, watchedDeliveryBusinessDays, watchedReminderBusinessDays] = useWatch({
     control,
-    name: ['approvalDate', 'deliveryBusinessDays', 'productionReminderBusinessDays'],
+    name: ['approvalDate', 'paymentConfirmedAt', 'deliveryBusinessDays', 'productionReminderBusinessDays'],
   })
   const value = Number(watchedValue || 0)
   const productionCost = Number(watchedProductionCost || 0)
@@ -127,7 +129,7 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
   const deliveryBusinessDays = Math.max(Math.floor(Number(watchedDeliveryBusinessDays || DEFAULT_DELIVERY_BUSINESS_DAYS)), 1)
   const reminderBusinessDays = Math.max(Math.floor(Number(watchedReminderBusinessDays || DEFAULT_PRODUCTION_REMINDER_BUSINESS_DAYS)), 1)
   const productionDates = calculateProjectProductionDates({
-    approvalDate: watchedApprovalDate,
+    approvalDate: watchedPaymentConfirmedAt || watchedApprovalDate,
     deliveryBusinessDays,
     reminderBusinessDays,
   })
@@ -136,12 +138,18 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <Select
-            label="Cliente *"
-            options={clientOptions}
-            placeholder="Selecione o cliente"
-            error={errors.clientId?.message}
-            {...register('clientId')}
+          <Controller
+            control={control}
+            name="clientId"
+            render={({ field }) => (
+              <ClientSearchSelect
+                label="Cliente *"
+                value={field.value}
+                onChange={field.onChange}
+                initialOptions={clients}
+                error={errors.clientId?.message}
+              />
+            )}
           />
         </div>
         <div className="col-span-2">
@@ -164,6 +172,11 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
             Separe por linha ou vírgula. Cada ambiente terá status próprio no projeto.
           </p>
         </div>
+        <Input
+          label="Confirmação do pagamento"
+          type="date"
+          {...register('paymentConfirmedAt')}
+        />
         <Input
           label="Valor (R$)"
           type="number"

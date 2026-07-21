@@ -1,7 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { PROJECT_STATUS_LABELS, type ProjectStatus } from '@/types'
+import type { ProjectStatus } from '@/types'
 
 interface StatusChartProps {
   data: { status: ProjectStatus; count: number; label: string; color: string }[]
@@ -56,15 +56,16 @@ export function StatusChart({ data }: StatusChartProps) {
           outerRadius={85}
           paddingAngle={3}
           dataKey="count"
+          nameKey="label"
           labelLine={false}
           label={renderCustomLabel}
         >
-          {filtered.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+          {filtered.map((entry) => (
+            <Cell key={entry.status} fill={entry.color} stroke="none" />
           ))}
         </Pie>
         <Tooltip
-          formatter={(value, name) => [value, PROJECT_STATUS_LABELS[name as ProjectStatus] || name]}
+          formatter={(value, name) => [value, name]}
           contentStyle={{
             background: '#fff',
             border: '1px solid #E8E8E8',
@@ -77,7 +78,7 @@ export function StatusChart({ data }: StatusChartProps) {
         <Legend
           formatter={(value) => (
             <span style={{ fontSize: '11px', color: '#121212' }}>
-              {PROJECT_STATUS_LABELS[value as ProjectStatus] || value}
+              {value}
             </span>
           )}
           iconSize={8}

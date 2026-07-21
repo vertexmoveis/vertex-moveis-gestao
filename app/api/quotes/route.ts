@@ -122,6 +122,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = parsed.data
+    if (input.status === 'APPROVED' || input.status === 'SOLD') {
+      return badRequest('A aprovação e a venda devem seguir o fluxo de aceite do cliente.')
+    }
 
     const quote = await prisma.$transaction(async (tx) => {
       await ensureDefaultQuoteSettings(tx)

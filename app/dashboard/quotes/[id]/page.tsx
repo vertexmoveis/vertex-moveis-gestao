@@ -1,12 +1,13 @@
 'use client'
 
-import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Printer, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Printer, Send, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { QuoteForm, type QuotePayload } from '@/components/quotes/quote-form'
 import {
   QUOTE_CALCULATION_MODE_LABELS,
@@ -34,6 +35,11 @@ type ClientResponse = {
   name: string
 }
 
+function todayInputValue() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 export default function QuoteDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -48,6 +54,11 @@ export default function QuoteDetailPage() {
   const [approvalUrl, setApprovalUrl] = useState('')
   const [approvalMessage, setApprovalMessage] = useState('')
   const [approvalFeedback, setApprovalFeedback] = useState('')
+  const [convertOpen, setConvertOpen] = useState(false)
+  const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
+  const [conversionDownPayment, setConversionDownPayment] = useState('0')
+  const [conversionInstallmentCount, setConversionInstallmentCount] = useState('0')
+  const [conversionFirstInstallmentDate, setConversionFirstInstallmentDate] = useState('')
 
   const loadQuote = useCallback(async () => {
     setLoading(true)
@@ -145,13 +156,36 @@ export default function QuoteDetailPage() {
     setSaving(false)
   }
 
+  const openConversion = () => {
+    if (!quote) return
+    if (quote.status !== 'APPROVED') {
+      setError('O orçamento precisa estar aprovado antes de virar projeto.')
+      return
+    }
+    if (!quote.approvalRecord || quote.approvalRecord.invalidatedAt) {
+      setError('O cliente precisa aprovar a versão atual pelo link antes de criar o projeto.')
+      return
+    }
+    setPaymentConfirmedAt(todayInputValue())
+    setConversionDownPayment(String(quote.paymentMethod === 'CARD' ? quote.cardDownPayment || 0 : quote.total))
+    setConversionInstallmentCount(String(quote.paymentMethod === 'CARD' ? quote.cardInstallments || 1 : 0))
+    setConversionFirstInstallmentDate(quote.firstInstallmentDate?.slice(0, 10) || '')
+    setConvertOpen(true)
+  }
+
   const convertToProject = async () => {
     setSaving(true)
     setError('')
     const response = await fetch(`/api/quotes/${params.id}/convert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        paymentConfirmedAt,
+        downPayment: Number(conversionDownPayment) || 0,
+        installmentCount: Number(conversionInstallmentCount) || 0,
+        firstInstallmentDate: conversionFirstInstallmentDate || undefined,
+        downPaymentDate: paymentConfirmedAt,
+      }),
     })
     const data = await response.json()
     setSaving(false)
@@ -159,6 +193,7 @@ export default function QuoteDetailPage() {
       setError(data?.error || 'Não foi possível transformar em projeto.')
       return
     }
+    setConvertOpen(false)
     router.push(`/dashboard/projects/${data.project.id}`)
   }
 
@@ -201,7 +236,8 @@ export default function QuoteDetailPage() {
 
     if (!response.ok) {
       messageWindow?.close()
-      setError(data?.error || 'Não foi possível preparar a aprovação do cliente.')
+      const details = Array.isArray(data?.missingFields) ? ` ${data.missingFields.join(' ')}` : ''
+      setError(`${data?.error || 'Não foi possível preparar a aprovação do cliente.'}${details}`)
       return
     }
 
@@ -286,6 +322,15 @@ export default function QuoteDetailPage() {
     )
   }
 
+  const conversionEntry = Math.max(Number(conversionDownPayment) || 0, 0)
+  const conversionBalance = Math.max(quote.total - conversionEntry, 0)
+  const conversionInstallments = Math.max(Math.floor(Number(conversionInstallmentCount) || 0), 0)
+  const invalidCardTerms = quote.paymentMethod === 'CARD' && (
+    conversionEntry > quote.total ||
+    (conversionBalance > 0 && (conversionInstallments < 1 || !conversionFirstInstallmentDate))
+  )
+  const invalidPaymentDate = !paymentConfirmedAt || paymentConfirmedAt > todayInputValue()
+
   const paymentSummary = getQuotePaymentSummary(quote)
   const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
 
@@ -316,6 +361,12 @@ export default function QuoteDetailPage() {
               <Printer size={16} />
               Orçamento simples
             </Button>
+            {quote.approvalRecord?.token ? (
+              <Button variant="outline" onClick={() => window.open(`/api/public/quote-approvals/${quote.approvalRecord?.token}/certificate`, '_blank')}>
+                <ShieldCheck size={16} />
+                Comprovante
+              </Button>
+            ) : null}
             <Button variant="outline" loading={saving} disabled={quoteLocked} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
               <Send size={16} />
               {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
@@ -332,7 +383,12 @@ export default function QuoteDetailPage() {
                 Ver Projeto
               </Button>
             ) : (
-              <Button loading={saving} onClick={convertToProject}>
+              <Button
+                loading={saving}
+                disabled={quote.status !== 'APPROVED' || !quote.approvalRecord || Boolean(quote.approvalRecord.invalidatedAt)}
+                onClick={openConversion}
+                title={quote.status === 'APPROVED' && quote.approvalRecord && !quote.approvalRecord.invalidatedAt ? 'Confirmar pagamento e criar projeto' : 'Aguarde o aceite do cliente pelo link'}
+              >
                 <CheckCircle2 size={16} />
                 Transformar em Projeto
               </Button>
@@ -419,6 +475,19 @@ export default function QuoteDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Aprovação</p>
               </div>
               <div className="space-y-2 px-5 py-4">
+                {quote.readiness?.ready ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <ShieldCheck size={15} className="mt-0.5 shrink-0" />
+                    <span>Dados conferidos. A proposta está pronta para envio.</span>
+                  </div>
+                ) : quote.readiness?.issues?.length ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                    <div className="flex items-center gap-2 font-semibold"><TriangleAlert size={15} /> Complete antes de enviar</div>
+                    <ul className="mt-2 space-y-1">
+                      {quote.readiness.issues.map((issue) => <li key={issue.key}>• {issue.label}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   className="w-full justify-start"
@@ -452,7 +521,17 @@ export default function QuoteDetailPage() {
                     </Button>
                   </div>
                 )}
-                {(['SENT', 'WAITING_APPROVAL', 'APPROVED', 'LOST'] as QuoteStatus[]).map((value) => (
+                {quote.approvalRecord ? (
+                  <div className={`rounded-lg border p-3 text-xs ${quote.approvalRecord.invalidatedAt ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+                    <p className="font-semibold">{quote.approvalRecord.invalidatedAt ? 'Aceite histórico de' : 'Aprovado por'} {quote.approvalRecord.responseName || quote.client?.name}</p>
+                    <p className="mt-1">Registrado em {quote.approvalRecord.approvedAt ? formatDate(quote.approvalRecord.approvedAt) : '-'}</p>
+                    {quote.approvalRecord.invalidatedAt ? <p className="mt-1">Esta versão foi substituída após uma alteração no orçamento.</p> : null}
+                    <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => window.open(`/api/public/quote-approvals/${quote.approvalRecord?.token}/certificate`, '_blank')}>
+                      <ShieldCheck size={14} /> Comprovante
+                    </Button>
+                  </div>
+                ) : null}
+                {(['SENT', 'WAITING_APPROVAL', 'LOST'] as QuoteStatus[]).map((value) => (
                   <Button
                     key={value}
                     type="button"
@@ -474,7 +553,7 @@ export default function QuoteDetailPage() {
               <div className="flex items-center justify-between border-b border-[#F0F0F0] px-5 py-4">
                 <div>
                   <h2 className="font-semibold text-[#121212]">Móveis do orçamento</h2>
-                  <p className="text-xs text-[#9E9E9E]">{quote.items.length} item{quote.items.length !== 1 ? 's' : ''} cadastrado{quote.items.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-[#9E9E9E]">{quote.items.length} {quote.items.length === 1 ? 'item cadastrado' : 'itens cadastrados'}</p>
                 </div>
               </div>
               <div className="divide-y divide-[#F0F0F0]">
@@ -556,6 +635,45 @@ export default function QuoteDetailPage() {
         ) : (
           <QuoteForm clients={clients} initialData={quote} onSubmit={handleUpdate} onCancel={() => setModalOpen(false)} />
         )}
+      </Modal>
+
+      <Modal open={convertOpen} onClose={() => setConvertOpen(false)} title="Confirmar venda e criar projeto" size="md">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <p className="font-semibold">Orçamento aprovado</p>
+            <p className="mt-1 text-xs leading-5">Os {quote.deliveryBusinessDays || 30} dias úteis de entrega começarão na data de confirmação abaixo.</p>
+          </div>
+          <Input
+            label="Data da confirmação do pagamento"
+            type="date"
+            max={todayInputValue()}
+            value={paymentConfirmedAt}
+            onChange={(event) => setPaymentConfirmedAt(event.target.value)}
+          />
+          {quote.paymentMethod === 'CARD' ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input label="Entrada (R$)" type="number" min={0} max={quote.total} step="0.01" value={conversionDownPayment} onChange={(event) => setConversionDownPayment(event.target.value)} />
+              <Input label="Quantidade de parcelas" type="number" min={conversionBalance > 0 ? 1 : 0} max={24} value={conversionInstallmentCount} onChange={(event) => setConversionInstallmentCount(event.target.value)} />
+              <div className="sm:col-span-2">
+                <Input label="Primeiro vencimento" type="date" disabled={conversionBalance <= 0} value={conversionFirstInstallmentDate} onChange={(event) => setConversionFirstInstallmentDate(event.target.value)} />
+              </div>
+              <div className="sm:col-span-2 rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#555]">
+                Saldo parcelado: <strong>{formatCurrency(conversionBalance)}</strong>
+                {conversionBalance > 0 && conversionInstallments > 0
+                  ? ` em ${conversionInstallments}x de aproximadamente ${formatCurrency(conversionBalance / conversionInstallments)}`
+                  : ''}
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#666]">O pagamento via Pix será registrado pelo valor total de {formatCurrency(quote.total)}.</p>
+          )}
+          <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
+            <Button type="button" variant="outline" onClick={() => setConvertOpen(false)}>Cancelar</Button>
+            <Button type="button" loading={saving} disabled={invalidPaymentDate || invalidCardTerms} onClick={() => void convertToProject()}>
+              <CheckCircle2 size={16} /> Criar projeto
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

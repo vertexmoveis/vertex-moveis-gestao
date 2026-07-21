@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
+import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import {
   DEFAULT_QUOTE_MATERIAL,
   DEFAULT_QUOTE_PRICING,
@@ -16,7 +17,6 @@ import {
   QUOTE_PAYMENT_METHOD_LABELS,
   QUOTE_PAYMENT_METHODS,
   QUOTE_STATUS_LABELS,
-  QUOTE_STATUSES,
   calculateQuoteTotals,
   getQuoteAutomaticPricing,
   getQuoteFurnitureAccessories,
@@ -38,6 +38,8 @@ import {
 import type { QuotePriceRule } from '@/lib/quote-price-rules'
 import { formatCurrency } from '@/lib/utils'
 import type { QuoteData, QuoteItemData } from '@/types/quotes'
+
+const MANUAL_QUOTE_STATUSES: QuoteStatus[] = ['DRAFT', 'SENT', 'WAITING_APPROVAL', 'LOST']
 
 type ClientOption = {
   id: string
@@ -260,6 +262,10 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const [error, setError] = useState('')
   const [priceRules, setPriceRules] = useState<QuotePriceRule[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
+  const clientOptions = [...clients]
+  if (initialData?.client && !clientOptions.some((client) => client.id === initialData.client?.id)) {
+    clientOptions.unshift({ id: initialData.client.id, name: initialData.client.name })
+  }
 
   useEffect(() => {
     let active = true
@@ -452,18 +458,13 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Input label="Nome do orçamento" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Cozinha planejada" />
-        <Select
-          label="Cliente"
-          value={clientId}
-          onChange={(event) => setClientId(event.target.value)}
-          placeholder="Cliente em orçamento"
-          options={clients.map((client) => ({ value: client.id, label: client.name }))}
-        />
+        <ClientSearchSelect label="Cliente" value={clientId} onChange={setClientId} initialOptions={clientOptions} />
         <Select
           label="Status"
           value={status}
           onChange={(event) => setStatus(event.target.value as QuoteStatus)}
-          options={QUOTE_STATUSES.map((value) => ({ value, label: QUOTE_STATUS_LABELS[value] }))}
+          options={(initialData?.status === 'APPROVED' ? [...MANUAL_QUOTE_STATUSES, 'APPROVED' as const] : MANUAL_QUOTE_STATUSES)
+            .map((value) => ({ value, label: QUOTE_STATUS_LABELS[value] }))}
         />
         <Input label="Validade" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} />
       </div>

@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const users = await prisma.user.findMany({
+    where: { active: true },
     select: { id: true, name: true, email: auth.user.role === 'ADMIN', role: true },
     orderBy: { name: 'asc' },
   })

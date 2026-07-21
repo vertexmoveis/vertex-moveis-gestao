@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
       status: true,
       stage: true,
       approvalDate: true,
+      paymentConfirmedAt: true,
       deliveryBusinessDays: true,
       deliveryDeadlineDate: true,
       productionReminderBusinessDays: true,
@@ -85,6 +86,7 @@ export async function GET(req: NextRequest) {
   const items = projects.map((p) => ({
       ...p,
       approvalDate: p.approvalDate?.toISOString() || null,
+      paymentConfirmedAt: p.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: p.deliveryDeadlineDate?.toISOString() || null,
       productionStartReminderDate: p.productionStartReminderDate?.toISOString() || null,
       startDate: p.startDate?.toISOString() || null,
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest) {
     const environmentNames = normalizeEnvironmentNames(input.environments, input.room)
     const room = environmentNames.length > 0 ? environmentNames.join(', ') : input.room
     const productionDates = calculateProjectProductionDates({
-      approvalDate: input.approvalDate,
+      approvalDate: input.paymentConfirmedAt || input.approvalDate,
       deliveryBusinessDays: input.deliveryBusinessDays,
       reminderBusinessDays: input.productionReminderBusinessDays,
     })
@@ -159,6 +161,7 @@ export async function POST(req: NextRequest) {
         status: input.status,
         stage,
         approvalDate: input.approvalDate,
+        paymentConfirmedAt: input.paymentConfirmedAt,
         deliveryBusinessDays: input.deliveryBusinessDays,
         deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
         productionReminderBusinessDays: input.productionReminderBusinessDays,
@@ -219,6 +222,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ...project,
       approvalDate: project.approvalDate?.toISOString() || null,
+      paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
       productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
       startDate: project.startDate?.toISOString() || null,

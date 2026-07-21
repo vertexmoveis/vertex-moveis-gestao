@@ -3,11 +3,17 @@ export type ProjectMaterialCost = {
   actualCost: number | null
 }
 
+export type ProjectExpenseCost = {
+  amount: number | null
+}
+
 export type ProjectCostSummary = {
   estimatedCost: number
   adjustedCost: number
   materialAdjustment: number
   actualMaterials: number
+  actualExpenses: number
+  totalExpenses: number
   trackedMaterials: number
   totalMaterials: number
   hasActualCosts: boolean
@@ -20,6 +26,7 @@ function roundCurrency(value: number) {
 export function calculateProjectCostSummary(
   estimatedCost: number | null | undefined,
   materials: ProjectMaterialCost[],
+  expenses: ProjectExpenseCost[] = [],
 ): ProjectCostSummary {
   const baseCost = Math.max(Number(estimatedCost) || 0, 0)
   const tracked = materials.filter((material) => material.actualCost !== null)
@@ -27,14 +34,20 @@ export function calculateProjectCostSummary(
     (total, material) => total + Math.max(Number(material.actualCost) || 0, 0) - Math.max(Number(material.estimatedCost) || 0, 0),
     0,
   )
+  const actualExpenses = expenses.reduce(
+    (total, expense) => total + Math.max(Number(expense.amount) || 0, 0),
+    0,
+  )
 
   return {
     estimatedCost: roundCurrency(baseCost),
-    adjustedCost: roundCurrency(Math.max(baseCost + materialAdjustment, 0)),
+    adjustedCost: roundCurrency(Math.max(baseCost + materialAdjustment + actualExpenses, 0)),
     materialAdjustment: roundCurrency(materialAdjustment),
     actualMaterials: roundCurrency(tracked.reduce((total, material) => total + Math.max(Number(material.actualCost) || 0, 0), 0)),
+    actualExpenses: roundCurrency(actualExpenses),
+    totalExpenses: expenses.length,
     trackedMaterials: tracked.length,
     totalMaterials: materials.length,
-    hasActualCosts: tracked.length > 0,
+    hasActualCosts: tracked.length > 0 || expenses.length > 0,
   }
 }

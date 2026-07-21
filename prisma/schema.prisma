@@ -14,6 +14,10 @@ model User {
   email          String           @unique
   password       String
   role           String           @default("MANAGER")
+  active         Boolean          @default(true)
+  sessionVersion Int              @default(1)
+  lastLoginAt    DateTime?
+  passwordChangedAt DateTime?
   avatar         String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -22,6 +26,7 @@ model User {
   notes          Note[]
   activities     ActivityLog[]
   paymentHistory PaymentHistory[]
+  expensesCreated ProjectExpense[] @relation("ExpenseCreatedBy")
 }
 
 model Client {
@@ -61,6 +66,7 @@ model Project {
   status                         String                 @default("APPROVED")
   stage                          String                 @default("PENDING_START")
   approvalDate                   DateTime?
+  paymentConfirmedAt             DateTime?
   deliveryBusinessDays           Int                    @default(30)
   deliveryDeadlineDate           DateTime?
   productionReminderBusinessDays Int                    @default(7)
@@ -89,6 +95,7 @@ model Project {
   environments                   ProjectEnvironment[]
   sourceQuote                    Quote?                 @relation("QuoteConvertedProject")
   materials                      ProjectMaterial[]
+  expenses                       ProjectExpense[]
   installationSchedules          InstallationSchedule[]
   postSaleFollowUpAt             DateTime?
   postSaleContactedAt            DateTime?
@@ -99,6 +106,7 @@ model Project {
   @@index([managerId])
   @@index([estimatedEndDate])
   @@index([approvalDate])
+  @@index([paymentConfirmedAt])
   @@index([deliveryDeadlineDate])
   @@index([productionStartReminderDate])
   @@index([stage, postSaleFollowUpAt])
@@ -279,6 +287,27 @@ model ProjectMaterial {
   @@index([materialId])
 }
 
+model ProjectExpense {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category    String
+  description String
+  amount      Float
+  incurredAt  DateTime
+  supplier    String?
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([category])
+  @@index([incurredAt])
+  @@index([createdById])
+}
+
 model OperationalResource {
   id               String                 @id @default(cuid())
   name             String
@@ -337,6 +366,9 @@ model QuoteApprovalRequest {
   responseIpHash    String?
   responseUserAgent String?
   responseNote      String?
+  responseName      String?
+  responseDocument  String?
+  acceptedTermsAt   DateTime?
   message           String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

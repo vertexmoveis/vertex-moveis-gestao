@@ -1,6 +1,6 @@
 import { parseQuoteAccessories } from './quotes'
 
-export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 1
+export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
 
 type QuoteApprovalItemSource = {
   id?: string
@@ -33,7 +33,19 @@ export type QuoteApprovalSource = {
   subtotal: number
   total: number
   customerNotes?: string | null
-  client: { name: string }
+  client: {
+    name: string
+    document?: string | null
+    phone?: string | null
+    whatsapp?: string | null
+    address?: string | null
+    street?: string | null
+    number?: string | null
+    neighborhood?: string | null
+    city?: string | null
+    state?: string | null
+    zipCode?: string | null
+  }
   items: QuoteApprovalItemSource[]
 }
 
@@ -56,7 +68,19 @@ export type QuoteApprovalSnapshot = {
     subtotal: number
     total: number
     customerNotes: string | null
-    client: { name: string }
+    client: {
+      name: string
+      document: string | null
+      phone: string | null
+      whatsapp: string | null
+      address: string | null
+      street: string | null
+      number: string | null
+      neighborhood: string | null
+      city: string | null
+      state: string | null
+      zipCode: string | null
+    }
     items: Array<{
       id: string
       environment: string
@@ -99,7 +123,19 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
       subtotal: quote.subtotal,
       total: quote.total,
       customerNotes: quote.customerNotes || null,
-      client: { name: quote.client.name },
+      client: {
+        name: quote.client.name,
+        document: quote.client.document || null,
+        phone: quote.client.phone || null,
+        whatsapp: quote.client.whatsapp || null,
+        address: quote.client.address || null,
+        street: quote.client.street || null,
+        number: quote.client.number || null,
+        neighborhood: quote.client.neighborhood || null,
+        city: quote.client.city || null,
+        state: quote.client.state || null,
+        zipCode: quote.client.zipCode || null,
+      },
       items: quote.items.map((item, index) => ({
         id: `item-${index + 1}`,
         environment: item.environment,

@@ -32,16 +32,19 @@ export const authOptions: NextAuthOptions = {
           where: { email },
         })
 
-        if (!user) return null
+        if (!user || !user.active) return null
 
         const isValid = await bcrypt.compare(credentials.password, user.password)
         if (!isValid) return null
+
+        await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
 
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          sessionVersion: user.sessionVersion,
         }
       },
     }),
@@ -49,20 +52,38 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login',
   },
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 12 * 60 * 60 },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
         token.role = (user as { role?: string }).role
+        token.sessionVersion = (user as { sessionVersion?: number }).sessionVersion || 1
+        token.invalid = false
+      } else if (token.id) {
+        const current = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { id: true, name: true, email: true, role: true, active: true, sessionVersion: true },
+        })
+        if (!current || !current.active || current.sessionVersion !== Number(token.sessionVersion || 1)) {
+          token.invalid = true
+          token.id = undefined
+          token.role = undefined
+        } else {
+          token.name = current.name
+          token.email = current.email
+          token.role = current.role
+          token.invalid = false
+        }
       }
       return token
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && !token.invalid && token.id) {
         (session.user as { id?: string }).id = token.id as string
         ;(session.user as { role?: string }).role = token.role as string
       }
+      if (token.invalid || !token.id) session.user = undefined
       return session
     },
   },

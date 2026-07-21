@@ -72,4 +72,17 @@ export type QuoteData = {
     id: string
     name: string
   } | null
+  readiness?: {
+    ready: boolean
+    issues: Array<{ key: string; label: string }>
+  }
+  approvalRecord?: {
+    token: string
+    approvedAt: string | null
+    responseName: string | null
+    responseDocument: string | null
+    acceptedTermsAt: string | null
+    invalidatedAt: string | null
+    revisionVersion: number | null
+  } | null
 }

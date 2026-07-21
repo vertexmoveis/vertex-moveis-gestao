@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
         value: true,
         productionCost: true,
         materials: { select: { estimatedCost: true, actualCost: true } },
+        expenses: { select: { amount: true } },
       },
     }),
     prisma.projectPayment.findMany({
@@ -145,8 +146,9 @@ export async function GET(req: NextRequest) {
   ])
 
   const soldValue = soldProjects.reduce((total, project) => total + (project.value || 0), 0)
+  const estimatedCost = soldProjects.reduce((total, project) => total + Math.max(project.productionCost || 0, 0), 0)
   const soldCost = soldProjects.reduce((total, project) => (
-    total + calculateProjectCostSummary(project.productionCost, project.materials).adjustedCost
+    total + calculateProjectCostSummary(project.productionCost, project.materials, project.expenses).adjustedCost
   ), 0)
   const summary = {
     received: received._sum.amount || 0,
@@ -154,6 +156,8 @@ export async function GET(req: NextRequest) {
     overdue: overdue._sum.amount || 0,
     sold: soldValue,
     cost: soldCost,
+    estimatedCost,
+    estimatedProfit: soldValue - estimatedCost,
     profit: soldValue - soldCost,
     future: future._sum.amount || 0,
   }

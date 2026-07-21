@@ -12,8 +12,15 @@ $logDirectory = Join-Path $projectRoot 'logs\backups'
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $logFile = Join-Path $logDirectory ("backup-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
 
+$previousNodeNoWarnings = $env:NODE_NO_WARNINGS
+$env:NODE_NO_WARNINGS = '1'
 & $node.Source $backupScript 2>&1 | Tee-Object -FilePath $logFile
 $exitCode = $LASTEXITCODE
+if ($null -eq $previousNodeNoWarnings) {
+  Remove-Item Env:NODE_NO_WARNINGS -ErrorAction SilentlyContinue
+} else {
+  $env:NODE_NO_WARNINGS = $previousNodeNoWarnings
+}
 
 Get-ChildItem -LiteralPath $logDirectory -File -Filter 'backup-*.log' |
   Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } |

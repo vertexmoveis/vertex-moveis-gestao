@@ -7,12 +7,25 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/dashboard') && !token) {
+  const validToken = token && !token.invalid
+  const isApiMutation = pathname.startsWith('/api/')
+    && !pathname.startsWith('/api/auth/')
+    && !pathname.startsWith('/api/public/')
+    && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+
+  if (isApiMutation && validToken && token.role === 'VIEWER') {
+    return NextResponse.json(
+      { error: 'O perfil de consulta não pode alterar dados.' },
+      { status: 403 },
+    )
+  }
+
+  if (pathname.startsWith('/dashboard') && !validToken) {
     const loginUrl = new URL('/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === '/login' && token) {
+  if (pathname === '/login' && validToken) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
@@ -20,5 +33,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/login', '/api/:path*'],
 }

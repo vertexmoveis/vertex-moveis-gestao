@@ -22,3 +22,16 @@ test('sem custo real o valor previsto permanece intacto', () => {
   assert.equal(summary.adjustedCost, 1500)
   assert.equal(summary.hasActualCosts, false)
 })
+
+test('soma mão de obra, frete e outras despesas ao custo ajustado', () => {
+  const summary = calculateProjectCostSummary(
+    5000,
+    [{ estimatedCost: 1000, actualCost: 1200 }],
+    [{ amount: 800 }, { amount: 250 }],
+  )
+
+  assert.equal(summary.actualExpenses, 1050)
+  assert.equal(summary.totalExpenses, 2)
+  assert.equal(summary.adjustedCost, 6250)
+  assert.equal(summary.hasActualCosts, true)
+})

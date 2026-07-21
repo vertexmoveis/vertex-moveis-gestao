@@ -42,6 +42,8 @@ type FinanceData = {
     overdue: number
     sold: number
     cost: number
+    estimatedCost: number
+    estimatedProfit: number
     profit: number
     future: number
   }
@@ -80,7 +82,8 @@ function moveMonth(month: string, amount: number) {
 
 function formatMonthLabel(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
-  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, monthNumber - 1, 1))
+  const label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, monthNumber - 1, 1))
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 function statusClass(status: FinancePayment['status']) {
@@ -154,6 +157,7 @@ export default function FinanceiroPage() {
       operationalBalance: received - cost,
       future,
       profit,
+      estimatedProfit: summary?.estimatedProfit || 0,
     }
   }, [data])
 
@@ -192,7 +196,7 @@ export default function FinanceiroPage() {
             <Button type="button" variant="outline" onClick={() => { setMonth(moveMonth(month, 1)); setPage(1) }}>
               <ChevronRight size={16} />
             </Button>
-            <span className="ml-2 hidden text-sm font-semibold capitalize text-[#121212] sm:inline">
+            <span className="ml-2 hidden text-sm font-semibold text-[#121212] sm:inline">
               {formatMonthLabel(month)}
             </span>
           </div>
@@ -260,11 +264,11 @@ export default function FinanceiroPage() {
                 <h2 className="text-sm font-semibold text-[#121212]">Fechamento do mês</h2>
                 <p className="text-xs text-[#9E9E9E]">Resumo financeiro para conferir caixa, previsão e risco de atraso.</p>
               </div>
-              <span className="text-xs font-semibold capitalize text-[#6B7280]">{formatMonthLabel(month)}</span>
+              <span className="text-xs font-semibold text-[#6B7280]">{formatMonthLabel(month)}</span>
             </div>
           </CardHeader>
           <CardBody>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
               <div className="rounded-lg bg-emerald-50 p-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Entrou no caixa</p>
                 <p className="mt-2 text-base font-bold text-emerald-700">{formatCurrency(closing.monthCash)}</p>
@@ -289,9 +293,16 @@ export default function FinanceiroPage() {
               </div>
               <div className="rounded-lg bg-[#F5F5F5] p-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Lucro previsto</p>
-                <p className={cn('mt-2 text-base font-bold', closing.profit >= 0 ? 'text-[#121212]' : 'text-red-700')}>
+                <p className={cn('mt-2 text-base font-bold', closing.estimatedProfit >= 0 ? 'text-[#121212]' : 'text-red-700')}>
+                  {formatCurrency(closing.estimatedProfit)}
+                </p>
+              </div>
+              <div className="rounded-lg bg-violet-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Lucro ajustado</p>
+                <p className={cn('mt-2 text-base font-bold', closing.profit >= 0 ? 'text-violet-700' : 'text-red-700')}>
                   {formatCurrency(closing.profit)}
                 </p>
+                <p className="mt-1 text-[10px] text-violet-700/70">Materiais e despesas reais</p>
               </div>
             </div>
           </CardBody>

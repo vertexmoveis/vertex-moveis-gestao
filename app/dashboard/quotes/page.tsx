@@ -300,7 +300,7 @@ export default function QuotesPage() {
                           {QUOTE_STATUS_LABELS[quote.status as QuoteStatus]}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-[#777]">{quote.items.length} móvel{quote.items.length !== 1 ? 's' : ''}</td>
+                      <td className="px-4 py-4 text-[#777]">{quote.items.length} {quote.items.length === 1 ? 'móvel' : 'móveis'}</td>
                       <td className="px-4 py-4">
                         <p className="font-semibold text-emerald-600">{formatCurrency(quote.profit)}</p>
                         <p className="text-xs text-[#9E9E9E]">Custo {formatCurrency(quote.costTotal)}</p>

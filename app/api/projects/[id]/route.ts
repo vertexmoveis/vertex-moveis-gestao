@@ -66,6 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       status: true,
       stage: true,
       approvalDate: true,
+      paymentConfirmedAt: true,
       deliveryBusinessDays: true,
       deliveryDeadlineDate: true,
       productionReminderBusinessDays: true,
@@ -143,6 +144,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       materials: auth.user.role === 'ADMIN'
         ? { select: { estimatedCost: true, actualCost: true } }
         : false,
+      expenses: auth.user.role === 'ADMIN'
+        ? { select: { amount: true } }
+        : false,
     },
   })
 
@@ -152,12 +156,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const environments = await ensureProjectEnvironmentsFromRoom(id, project.room)
   checklist = await ensureProjectChecklist(id, prisma, checklist)
   const costSummary = auth.user.role === 'ADMIN' && 'materials' in project && Array.isArray(project.materials)
-    ? calculateProjectCostSummary(project.productionCost, project.materials)
+    ? calculateProjectCostSummary(
+        project.productionCost,
+        project.materials,
+        'expenses' in project && Array.isArray(project.expenses) ? project.expenses : [],
+      )
     : null
 
   return NextResponse.json({
     ...project,
     approvalDate: project.approvalDate?.toISOString() || null,
+    paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
     deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
     productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
     startDate: project.startDate?.toISOString() || null,
@@ -251,7 +260,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!existing) throw new PaymentScheduleConflictError('Projeto não encontrado.')
 
       const productionDates = calculateProjectProductionDates({
-        approvalDate: input.approvalDate,
+        approvalDate: input.paymentConfirmedAt || input.approvalDate,
         deliveryBusinessDays: input.deliveryBusinessDays,
         reminderBusinessDays: input.productionReminderBusinessDays,
       })
@@ -292,6 +301,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           status: input.status,
           stage,
           approvalDate: input.approvalDate,
+          paymentConfirmedAt: input.paymentConfirmedAt,
           deliveryBusinessDays: input.deliveryBusinessDays,
           deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
           productionReminderBusinessDays: input.productionReminderBusinessDays,
@@ -360,6 +370,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       ...project,
       approvalDate: project.approvalDate?.toISOString() || null,
+      paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
       productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
       startDate: project.startDate?.toISOString() || null,

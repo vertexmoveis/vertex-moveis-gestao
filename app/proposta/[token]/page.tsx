@@ -38,7 +38,7 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
     include: {
       quote: {
         include: {
-          client: { select: { name: true } },
+          client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
         },
       },
@@ -255,9 +255,16 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
           <p className="mt-1 text-sm text-[#666]">Ao aprovar, a Vertex Móveis será avisada para confirmar os próximos passos.</p>
           <div className="mt-4">
             {message ? (
-              <p className="rounded-lg border border-[#E8E8E8] bg-white px-4 py-3 text-sm text-[#444]">{message}</p>
+              <div className="rounded-lg border border-[#E8E8E8] bg-white px-4 py-3 text-sm text-[#444]">
+                <p>{message}</p>
+                {request.approvedAt ? (
+                  <a href={`/api/public/quote-approvals/${token}/certificate`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-emerald-200 px-3 font-semibold text-emerald-700 hover:bg-emerald-50">
+                    Abrir comprovante de aprovação
+                  </a>
+                ) : null}
+              </div>
             ) : (
-              <PublicApprovalActions token={token} />
+              <PublicApprovalActions token={token} clientName={quote.client.name} />
             )}
           </div>
         </section>

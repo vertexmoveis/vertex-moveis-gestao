@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { clientCreateSchema } from '@/lib/schemas'
 import { badRequest, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
@@ -18,33 +19,38 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
   const optionsOnly = searchParams.get('options') === '1'
+  const selectedId = (searchParams.get('selectedId') || '').trim().slice(0, 80)
   const paged = searchParams.get('paged') === '1'
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 24), 1), 100)
 
-  const where = q
+  const where: Prisma.ClientWhereInput | undefined = q
     ? {
         OR: [
-          { name: { contains: q } },
-          { document: { contains: q } },
-          { email: { contains: q } },
-          { phone: { contains: q } },
-          { street: { contains: q } },
-          { neighborhood: { contains: q } },
-          { city: { contains: q } },
-          { zipCode: { contains: q } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { document: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q, mode: 'insensitive' } },
+          { street: { contains: q, mode: 'insensitive' } },
+          { neighborhood: { contains: q, mode: 'insensitive' } },
+          { city: { contains: q, mode: 'insensitive' } },
+          { zipCode: { contains: q, mode: 'insensitive' } },
         ],
       }
     : undefined
 
   if (optionsOnly) {
-    const clients = await prisma.client.findMany({
+    const matches = await prisma.client.findMany({
       where,
       orderBy: { name: 'asc' },
+      take: 25,
       select: { id: true, name: true },
     })
-    return NextResponse.json(clients, {
-      headers: { 'Cache-Control': 'private, max-age=30' },
+    const selected = selectedId && !matches.some((client) => client.id === selectedId)
+      ? await prisma.client.findUnique({ where: { id: selectedId }, select: { id: true, name: true } })
+      : null
+    return NextResponse.json(selected ? [selected, ...matches] : matches, {
+      headers: { 'Cache-Control': 'private, max-age=15' },
     })
   }
 

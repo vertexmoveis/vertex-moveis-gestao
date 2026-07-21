@@ -7,10 +7,20 @@ import { getClientIp } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
 
-const decisionSchema = z.object({
-  decision: z.enum(['APPROVE', 'REJECT']),
-  note: z.string().trim().max(1000).optional(),
-}).strict()
+const decisionSchema = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('APPROVE'),
+    respondentName: z.string().trim().min(3).max(120),
+    respondentDocument: z.string().trim().min(5).max(30),
+    acceptedTerms: z.literal(true),
+    note: z.string().trim().max(1000).optional(),
+  }).strict(),
+  z.object({
+    decision: z.literal('REJECT'),
+    respondentName: z.string().trim().min(3).max(120),
+    note: z.string().trim().max(1000).optional(),
+  }).strict(),
+])
 
 function responseIpHash(req: NextRequest) {
   const salt = process.env.NEXTAUTH_SECRET || 'vertex-approval'
@@ -42,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       include: {
         quote: {
           include: {
-            client: { select: { name: true } },
+            client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
             items: { orderBy: { position: 'asc' } },
           },
         },
@@ -70,6 +80,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         responseIpHash: responseIpHash(req),
         responseUserAgent: (req.headers.get('user-agent') || '').slice(0, 500) || null,
         responseNote: parsed.data.note || null,
+        responseName: parsed.data.respondentName,
+        responseDocument: parsed.data.decision === 'APPROVE' ? parsed.data.respondentDocument : null,
+        acceptedTermsAt: parsed.data.decision === 'APPROVE' ? now : null,
       },
     })
     if (requestUpdate.count !== 1) return { status: 409, error: 'Este orçamento já recebeu uma resposta.' }
@@ -84,5 +97,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   })
 
   if ('error' in outcome) return NextResponse.json({ error: outcome.error }, { status: outcome.status })
-  return NextResponse.json({ success: true, status })
+  return NextResponse.json({
+    success: true,
+    status,
+    certificateUrl: status === 'APPROVED' ? `/api/public/quote-approvals/${token}/certificate` : null,
+  })
 }

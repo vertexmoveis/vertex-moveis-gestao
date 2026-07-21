@@ -10,6 +10,8 @@ import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUn
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { ensureDefaultQuoteSettings, getActiveQuotePriceRules } from '@/lib/quote-price-rules'
 import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
+import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
+import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
   const quote = await prisma.quote.findUnique({
@@ -36,20 +38,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
-      items: { orderBy: { position: 'asc' } },
-      revisions: { orderBy: { version: 'desc' }, take: 10 },
-      convertedProject: { select: { id: true, name: true } },
-    },
-  })
+  const [quote, companyProfile] = await Promise.all([
+    prisma.quote.findUnique({
+      where: { id },
+      include: {
+        client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
+        items: { orderBy: { position: 'asc' } },
+        revisions: { orderBy: { version: 'desc' }, take: 10 },
+        approvalRequests: {
+          where: { approvedAt: { not: null } },
+          orderBy: { approvedAt: 'desc' },
+          take: 1,
+          select: {
+            token: true,
+            approvedAt: true,
+            responseName: true,
+            responseDocument: true,
+            acceptedTermsAt: true,
+            invalidatedAt: true,
+            revisionVersion: true,
+          },
+        },
+        convertedProject: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
+  ])
 
   if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { approvalRequests, ...quoteWithoutApprovalRequests } = quote
 
   return NextResponse.json({
-    ...serializeQuote(quote),
+    ...serializeQuote(quoteWithoutApprovalRequests),
+    readiness: evaluateQuoteReadiness({
+      ...quote,
+      company: withCompanyProfileDefaults(companyProfile),
+    }),
+    approvalRecord: approvalRequests[0]
+      ? {
+          ...approvalRequests[0],
+          approvedAt: approvalRequests[0].approvedAt?.toISOString() || null,
+          acceptedTermsAt: approvalRequests[0].acceptedTermsAt?.toISOString() || null,
+          invalidatedAt: approvalRequests[0].invalidatedAt?.toISOString() || null,
+        }
+      : null,
     revisions: quote.revisions.map((revision) => ({
       ...revision,
       createdAt: revision.createdAt.toISOString(),
@@ -96,7 +128,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const existing = await tx.quote.findUnique({
         where: { id },
         include: {
-          client: { select: { name: true } },
+          client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
           approvalRequests: {
             where: { invalidatedAt: null },
@@ -106,6 +138,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       })
       if (!existing) throw new Error('Not found')
       if (existing.convertedProjectId || existing.status === 'SOLD') throw new Error('Quote locked')
+      if (input.status === 'SOLD') throw new Error('Invalid manual status')
+      if (
+        input.status === 'APPROVED' &&
+        (existing.status !== 'APPROVED' || !existing.approvalRequests.some((request) => Boolean(request.approvedAt)))
+      ) {
+        throw new Error('Invalid manual status')
+      }
 
       const previousApprovalSnapshot = buildQuoteApprovalSnapshot(existing)
 
@@ -193,6 +232,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error instanceof Error && error.message === 'Quote locked') {
       return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
     }
+    if (error instanceof Error && error.message === 'Invalid manual status') {
+      return badRequest('A aprovação e a venda devem seguir o fluxo de aceite do cliente.')
+    }
     return serverError()
   }
 }
@@ -226,6 +268,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const parsed = quoteStatusSchema.safeParse(body)
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
+  if (parsed.data.status === 'APPROVED' || parsed.data.status === 'SOLD') {
+    return badRequest('A aprovação e a venda devem seguir o aceite do cliente e a confirmação do pagamento.')
+  }
 
   const now = new Date()
   const quote = await prisma.quote.update({

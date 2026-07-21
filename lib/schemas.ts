@@ -99,6 +99,7 @@ export const projectCreateSchema = z.object({
   status: z.enum(projectStatuses).default('APPROVED'),
   stage: z.enum(productionStages).default('PENDING_START'),
   approvalDate: dateField,
+  paymentConfirmedAt: dateField,
   deliveryBusinessDays: businessDaysField(30),
   productionReminderBusinessDays: businessDaysField(7),
   startDate: dateField,

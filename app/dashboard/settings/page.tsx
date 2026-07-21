@@ -8,6 +8,7 @@ import { BackupButton } from '@/components/settings/backup-button'
 import { PricingMaterialsSettings } from '@/components/settings/pricing-materials-settings'
 import { OperationsResourcesSettings } from '@/components/settings/operations-resources-settings'
 import { CompanyProfileSettings } from '@/components/settings/company-profile-settings'
+import { UserManagementSettings } from '@/components/settings/user-management-settings'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
@@ -15,6 +16,12 @@ import { CheckCircle2, DatabaseBackup, TriangleAlert } from 'lucide-react'
 
 function formatTimestamp(value: Date) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(value)
+}
+
+const roleLabels: Record<string, string> = {
+  ADMIN: 'Administrador',
+  MANAGER: 'Gerente',
+  VIEWER: 'Consulta',
 }
 
 export default async function SettingsPage() {
@@ -27,13 +34,17 @@ export default async function SettingsPage() {
     ? (await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS now`)[0]?.now || new Date(0)
     : new Date(0)
   const errorWindowStart = new Date(databaseTime.getTime() - 24 * 60 * 60 * 1000)
-  const [priceRules, materials, resources] = isAdmin
+  const [priceRules, materials, resources, managedUsers] = isAdmin
     ? await Promise.all([
         prisma.quotePriceRule.findMany({ orderBy: [{ active: 'desc' }, { environment: 'asc' }, { name: 'asc' }] }),
         prisma.materialCatalogItem.findMany({ orderBy: [{ active: 'desc' }, { category: 'asc' }, { name: 'asc' }] }),
         prisma.operationalResource.findMany({ orderBy: [{ type: 'asc' }, { active: 'desc' }, { name: 'asc' }] }),
+        prisma.user.findMany({
+          orderBy: [{ active: 'desc' }, { name: 'asc' }],
+          select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, createdAt: true },
+        }),
       ])
-    : [[], [], []]
+    : [[], [], [], []]
   const companyProfile = isAdmin
     ? await prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } })
     : null
@@ -84,7 +95,7 @@ export default async function SettingsPage() {
                 <p className="text-sm text-[#9E9E9E]">{user?.email}</p>
                 <div className="mt-1">
                   <Badge color={user?.role === 'ADMIN' ? 'orange' : 'blue'}>
-                    {user?.role === 'ADMIN' ? 'Administrador' : 'Gerente'}
+                    {roleLabels[user?.role || ''] || 'Usuário'}
                   </Badge>
                 </div>
               </div>
@@ -102,7 +113,7 @@ export default async function SettingsPage() {
                 <BackupButton />
               ) : (
                 <p className="text-sm text-[#6B7280]">
-                  A copia local e criada pelo computador da Vertex. O botao manual fica disponivel somente na instalacao local.
+                  A cópia local é criada pelo computador da Vertex. O botão manual fica disponível somente na instalação local.
                 </p>
               )}
           </CardBody>
@@ -127,7 +138,7 @@ export default async function SettingsPage() {
                 <div className={`border-l-4 p-3 ${backupHealthy ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
                   <div className="flex items-center gap-2"><DatabaseBackup size={15} /><p className="text-xs font-semibold">Último backup</p></div>
                   <p className="mt-2 text-sm font-bold">{latestBackup ? formatTimestamp(latestBackup.createdAt) : 'Ainda não registrado'}</p>
-                  <p className="mt-1 text-xs text-[#666]">{latestBackup?.type === 'BACKUP_SUCCESS' ? 'Arquivo restaurado e conferido' : 'Verifique a execução diária'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{latestBackup?.type === 'BACKUP_SUCCESS' ? `${backupDetails.encrypted === true ? 'Criptografado, ' : ''}restaurado e conferido` : 'Verifique a execução diária'}</p>
                 </div>
                 <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-800">Segunda cópia</p>
@@ -157,6 +168,21 @@ export default async function SettingsPage() {
 
         {isAdmin && (
           <CompanyProfileSettings initialProfile={serializeCompanyProfile(companyProfile)} />
+        )}
+
+        {isAdmin && (
+          <UserManagementSettings
+            initialUsers={managedUsers.flatMap((managedUser) => (
+              managedUser.role === 'ADMIN' || managedUser.role === 'MANAGER' || managedUser.role === 'VIEWER'
+                ? [{
+                    ...managedUser,
+                    role: managedUser.role,
+                    lastLoginAt: managedUser.lastLoginAt?.toISOString() || null,
+                    createdAt: managedUser.createdAt.toISOString(),
+                  }]
+                : []
+            ))}
+          />
         )}
 
         {isAdmin && (
