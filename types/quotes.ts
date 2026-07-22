@@ -76,6 +76,7 @@ export type QuoteData = {
   readiness?: {
     ready: boolean
     issues: Array<{ key: string; label: string }>
+    warnings: Array<{ key: string; label: string }>
   }
   approvalRecord?: {
     token: string

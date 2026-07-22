@@ -475,7 +475,14 @@ export default function QuoteDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Aprovação</p>
               </div>
               <div className="space-y-2 px-5 py-4">
-                {quote.readiness?.ready ? (
+                {quote.readiness?.ready && quote.readiness.warnings?.length ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                    <div className="flex items-center gap-2 font-semibold"><TriangleAlert size={15} /> Pode enviar agora</div>
+                    <ul className="mt-2 space-y-1">
+                      {quote.readiness.warnings.map((warning) => <li key={warning.key}>• {warning.label} Você pode completar depois.</li>)}
+                    </ul>
+                  </div>
+                ) : quote.readiness?.ready ? (
                   <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     <ShieldCheck size={15} className="mt-0.5 shrink-0" />
                     <span>Dados conferidos. A proposta está pronta para envio.</span>

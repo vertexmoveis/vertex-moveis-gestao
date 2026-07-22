@@ -8,6 +8,7 @@ export type QuoteReadinessIssue = {
 export type QuoteReadiness = {
   ready: boolean
   issues: QuoteReadinessIssue[]
+  warnings: QuoteReadinessIssue[]
 }
 
 type ReadinessClient = {
@@ -65,7 +66,9 @@ function hasCompleteAddress(source?: ReadinessClient | ReadinessCompany | null) 
 
 export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new Date()): QuoteReadiness {
   const issues: QuoteReadinessIssue[] = []
+  const warnings: QuoteReadinessIssue[] = []
   const add = (key: string, label: string) => issues.push({ key, label })
+  const warn = (key: string, label: string) => warnings.push({ key, label })
   const client = source.client
   const company = source.company
 
@@ -78,7 +81,7 @@ export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new D
 
   if (!client || !hasText(client.name)) add('client.name', 'Informe o nome do cliente.')
   if (!client || (!hasText(client.whatsapp) && !hasText(client.phone))) add('client.contact', 'Cadastre o WhatsApp ou telefone do cliente.')
-  if (!hasCompleteAddress(client)) add('client.address', 'Complete o endereço do cliente.')
+  if (!hasCompleteAddress(client)) warn('client.address', 'O endereço do cliente ainda não foi cadastrado.')
 
   if (!source.paymentMethod || source.paymentMethod === 'TO_DEFINE') {
     add('quote.paymentMethod', 'Escolha Pix ou cartão como forma de pagamento.')
@@ -93,5 +96,5 @@ export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new D
   if (!company || !hasText(company.phone)) add('company.phone', 'Complete o telefone da empresa nas Configurações.')
   if (!hasCompleteAddress(company)) add('company.address', 'Complete o endereço da empresa nas Configurações.')
 
-  return { ready: issues.length === 0, issues }
+  return { ready: issues.length === 0, issues, warnings }
 }
