@@ -94,7 +94,7 @@ export const quoteItemSchema = z.object({
   width: positiveNumberField,
   height: positiveNumberField,
   depth: optionalNumberField,
-  difficulty: z.enum(['NORMAL', 'DIFICIL']).default('NORMAL'),
+  difficulty: z.enum(['NORMAL', 'DIFICIL', 'MUITO_DIFICIL']).default('NORMAL'),
   calculationMode: z.enum(['AREA_M2', 'LINEAR_METER', 'UNIT']).default('AREA_M2'),
   priceProfile: z.enum(['STANDARD', 'WOODGRAIN', 'PROVENCAL', 'EXTERNAL_LACQUER']).default('STANDARD'),
   manualPrice: moneyField(0),

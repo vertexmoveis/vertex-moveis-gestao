@@ -22,6 +22,7 @@ import {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_CALCULATION_MODES,
   QUOTE_DIFFICULTY_LABELS,
+  QUOTE_DIFFICULTY_MULTIPLIER,
   QUOTE_ENVIRONMENT_OPTIONS,
   QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_PRICE_PROFILES,
@@ -40,6 +41,7 @@ import {
   quoteMillimetersToCentimeters,
   resolveQuoteFurnitureSelection,
   safeQuoteCalculationMode,
+  safeQuoteDifficulty,
   safeQuotePriceProfile,
   type QuoteCalculationMode,
   type QuoteDifficulty,
@@ -264,7 +266,7 @@ function itemToDraft(item?: QuoteItemData, draftId = 'initial-item-1'): DraftIte
     widthMm: item?.width ? String(quoteCentimetersToMillimeters(item.width)) : '',
     heightMm: item?.height ? String(quoteCentimetersToMillimeters(item.height)) : '',
     quantity: item?.quantity ? String(item.quantity) : '1',
-    difficulty: item?.difficulty === 'DIFICIL' ? 'DIFICIL' : 'NORMAL',
+    difficulty: safeQuoteDifficulty(item?.difficulty),
     calculationMode: safeQuoteCalculationMode(item?.calculationMode),
     priceProfile: safeQuotePriceProfile(item?.priceProfile),
     manualPrice: moneyToString(item?.manualPrice),
@@ -917,7 +919,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
           <p className="text-sm font-semibold text-[#121212]">Tabela automática da Vertex</p>
           <p className="mt-1 text-xs text-[#777]">
-            O preço muda conforme ambiente, móvel e padrão selecionados. Móvel difícil aumenta 30%.
+            O preço muda conforme ambiente, móvel e padrão selecionados. Móvel difícil aumenta 30%; muito difícil, 60%.
           </p>
         </div>
         <Input label="Instalação" inputMode="decimal" value={installationFee} onChange={(event) => setInstallationFee(event.target.value)} />
@@ -1135,7 +1137,9 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                                 {automaticPricing.label}: {item.calculationMode === 'AREA_M2'
                                   ? `${formatCurrency(areaPrice)}/m²`
                                   : `${formatCurrency(parseNumber(item.manualPrice))}${item.calculationMode === 'LINEAR_METER' ? '/m linear' : '/un.'}`}
-                                {item.difficulty === 'DIFICIL' ? ' · acréscimo de 30%' : ''}
+                                {QUOTE_DIFFICULTY_MULTIPLIER[item.difficulty] > 1
+                                  ? ` · acréscimo de ${Math.round((QUOTE_DIFFICULTY_MULTIPLIER[item.difficulty] - 1) * 100)}%`
+                                  : ''}
                               </span>
                               <strong className="text-sm text-[#121212]">{formatCurrency(calculatedItem.total)}</strong>
                             </div>

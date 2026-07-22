@@ -71,7 +71,7 @@ export const DEFAULT_QUOTE_PRICING = {
   discount: 0,
 }
 
-export type QuoteDifficulty = 'NORMAL' | 'DIFICIL'
+export type QuoteDifficulty = 'NORMAL' | 'DIFICIL' | 'MUITO_DIFICIL'
 export type QuotePaymentMethod = 'TO_DEFINE' | 'PIX' | 'CARD'
 
 export const QUOTE_PAYMENT_METHODS: QuotePaymentMethod[] = ['TO_DEFINE', 'PIX', 'CARD']
@@ -85,11 +85,13 @@ export const QUOTE_PIX_DISCOUNT_PERCENT = 3
 export const QUOTE_DIFFICULTY_LABELS: Record<QuoteDifficulty, string> = {
   NORMAL: 'Normal',
   DIFICIL: 'Difícil (+30%)',
+  MUITO_DIFICIL: 'Muito difícil (+60%)',
 }
 
 export const QUOTE_DIFFICULTY_MULTIPLIER: Record<QuoteDifficulty, number> = {
   NORMAL: 1,
   DIFICIL: 1.3,
+  MUITO_DIFICIL: 1.6,
 }
 
 export const DEFAULT_QUOTE_MATERIAL = 'MDF'
@@ -111,7 +113,7 @@ function normalizeText(value: string) {
 }
 
 export function safeQuoteDifficulty(value?: string | null): QuoteDifficulty {
-  return value === 'DIFICIL' ? 'DIFICIL' : 'NORMAL'
+  return value === 'DIFICIL' || value === 'MUITO_DIFICIL' ? value : 'NORMAL'
 }
 
 export function getQuoteEnvironmentPricePerM2(environment: string, fallback = DEFAULT_QUOTE_PRICING.pricePerM2) {

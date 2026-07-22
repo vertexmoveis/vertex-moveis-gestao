@@ -325,6 +325,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           ${items.map((item) => {
             const accessories = parseQuoteAccessories(item.accessories)
             const calculationMode = safeQuoteCalculationMode(item.calculationMode)
+            const difficulty = safeQuoteDifficulty(item.difficulty)
             const automaticPricing = getQuoteAutomaticPricing(item)
             const unitTotal = item.quantity > 0 ? item.total / item.quantity : item.total
             return `
@@ -333,7 +334,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 <div class="item-name">${escapeHtml(item.description)}</div>
                 ${item.notes ? `<div class="item-notes">${escapeHtml(item.notes)}</div>` : ''}
                 ${accessories.length ? `<div class="item-notes"><strong>Adicionais:</strong> ${escapeHtml(accessories.join(', '))}</div>` : ''}
-                ${safeQuoteDifficulty(item.difficulty) === 'DIFICIL' ? `<span class="difficulty">${escapeHtml(QUOTE_DIFFICULTY_LABELS.DIFICIL)}</span>` : ''}
+                ${difficulty !== 'NORMAL' ? `<span class="difficulty">${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}</span>` : ''}
               </div>
               <div class="item-detail"><span>Medidas</span><strong>${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm</strong></div>
               <div class="item-detail"><span>${escapeHtml(`${automaticPricing.label} · ${QUOTE_CALCULATION_MODE_LABELS[calculationMode]}`)}</span><strong>${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}</strong></div>

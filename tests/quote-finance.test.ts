@@ -67,6 +67,15 @@ test('o nome do ambiente não altera o cálculo e permanece no item salvo', () =
   assert.equal(unnamed.items[0].environmentName, 'Cozinha')
 })
 
+test('a dificuldade aplica acréscimos de 30% e 60% ao móvel', () => {
+  const normal = calculateQuoteTotals([item], { ...pricing, paymentMethod: 'TO_DEFINE' })
+  const difficult = calculateQuoteTotals([{ ...item, difficulty: 'DIFICIL' }], { ...pricing, paymentMethod: 'TO_DEFINE' })
+  const veryDifficult = calculateQuoteTotals([{ ...item, difficulty: 'MUITO_DIFICIL' }], { ...pricing, paymentMethod: 'TO_DEFINE' })
+
+  assert.equal(difficult.items[0].total, normal.items[0].total * 1.3)
+  assert.equal(veryDifficult.items[0].total, normal.items[0].total * 1.6)
+})
+
 test('as parcelas mensais preservam o dia e ajustam o fim do mês', () => {
   const payment = getQuotePaymentDetails({
     total: 900,

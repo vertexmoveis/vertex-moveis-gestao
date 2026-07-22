@@ -4,7 +4,13 @@ import type { CompanyProfileData } from '@/lib/company-profile'
 import { formatCompanyAddress } from '@/lib/company-profile'
 import { formatDateOnly } from '@/lib/date-only'
 import { formatClientAddress } from '@/lib/address'
-import { getQuotePaymentDetails, quoteCentimetersToMillimeters, quoteDisplayCode } from '@/lib/quotes'
+import {
+  getQuotePaymentDetails,
+  QUOTE_DIFFICULTY_LABELS,
+  quoteCentimetersToMillimeters,
+  quoteDisplayCode,
+  safeQuoteDifficulty,
+} from '@/lib/quotes'
 
 type ProposalQuote = Quote & {
   client: Client
@@ -82,10 +88,11 @@ export function renderSimpleQuoteProposal({
     <tr class="environment-row"><td colspan="4">${escapeHtml(environmentName)}</td><td class="money">${formatCurrency(items.reduce((sum, item) => sum + item.total, 0))}</td></tr>
     ${items.map((item) => {
       serviceIndex += 1
+      const difficulty = safeQuoteDifficulty(item.difficulty)
       return `
         <tr>
           <td class="number">${serviceIndex}</td>
-          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
+          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
           <td class="quantity">${item.quantity}</td>
           <td class="money">${formatCurrency(item.quantity > 0 ? item.total / item.quantity : item.total)}</td>
           <td class="money">${formatCurrency(item.total)}</td>
