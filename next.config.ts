@@ -12,7 +12,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://vercel.com https://*.blob.vercel-storage.com",
 ].join('; ')
 
 const nextConfig: NextConfig = {

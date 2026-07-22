@@ -66,6 +66,8 @@ export function ProjectFilesCard({
 
       setUploadingName(file.name)
       setProgress(0)
+      const abortController = new AbortController()
+      const uploadTimeout = window.setTimeout(() => abortController.abort(), 3 * 60 * 1000)
       try {
         const blob = await upload(
           `projects/${projectId}/${sanitizeProjectFileName(file.name)}`,
@@ -76,6 +78,7 @@ export function ProjectFilesCard({
             handleUploadUrl: `/api/projects/${projectId}/files/upload`,
             clientPayload: JSON.stringify({ projectId, category, name: file.name }),
             multipart: file.size > 10 * 1024 * 1024,
+            abortSignal: abortController.signal,
             onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
           }
         )
@@ -98,8 +101,14 @@ export function ProjectFilesCard({
         nextFiles = [recorded as ProjectFile, ...nextFiles.filter((item) => item.id !== recorded.id)]
         onFilesChange(nextFiles)
       } catch (uploadError) {
-        setError(uploadError instanceof Error ? uploadError.message : 'Não foi possível enviar o arquivo.')
+        setError(
+          uploadError instanceof DOMException && uploadError.name === 'AbortError'
+            ? 'O envio demorou mais de 3 minutos e foi interrompido. Confira sua conexão e tente novamente.'
+            : uploadError instanceof Error ? uploadError.message : 'Não foi possível enviar o arquivo.'
+        )
         break
+      } finally {
+        window.clearTimeout(uploadTimeout)
       }
     }
     setProgress(null)
@@ -158,7 +167,7 @@ export function ProjectFilesCard({
           <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-3">
             <div className="flex items-center justify-between gap-3 text-xs text-orange-800">
               <span className="truncate">Enviando {uploadingName}</span>
-              <span className="shrink-0 font-semibold">{progress}%</span>
+              <span className="shrink-0 font-semibold">{progress === 0 ? 'Preparando...' : `${progress}%`}</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-orange-100">
               <div className="h-full rounded-full bg-[#FF6B00] transition-all" style={{ width: `${progress}%` }} />
