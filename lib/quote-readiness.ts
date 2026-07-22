@@ -78,7 +78,6 @@ export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new D
 
   if (!client || !hasText(client.name)) add('client.name', 'Informe o nome do cliente.')
   if (!client || (!hasText(client.whatsapp) && !hasText(client.phone))) add('client.contact', 'Cadastre o WhatsApp ou telefone do cliente.')
-  if (!client || !hasText(client.document)) add('client.document', 'Cadastre o CPF ou CNPJ do cliente.')
   if (!hasCompleteAddress(client)) add('client.address', 'Complete o endereço do cliente.')
 
   if (!source.paymentMethod || source.paymentMethod === 'TO_DEFINE') {

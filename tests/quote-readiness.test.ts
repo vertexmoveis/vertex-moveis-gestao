@@ -39,6 +39,16 @@ test('orçamento completo fica pronto para envio', () => {
   assert.deepEqual(readiness.issues, [])
 })
 
+test('CPF ou CNPJ do cliente não é obrigatório para enviar a proposta', () => {
+  const readiness = evaluateQuoteReadiness({
+    ...completeQuote,
+    client: { ...completeQuote.client, document: '' },
+  }, new Date('2026-07-21T12:00:00-03:00'))
+
+  assert.equal(readiness.ready, true)
+  assert.ok(!readiness.issues.some((issue) => issue.key === 'client.document'))
+})
+
 test('orçamento incompleto informa exatamente o que falta', () => {
   const readiness = evaluateQuoteReadiness({
     ...completeQuote,
@@ -50,6 +60,6 @@ test('orçamento incompleto informa exatamente o que falta', () => {
   assert.equal(readiness.ready, false)
   assert.deepEqual(
     readiness.issues.map((issue) => issue.key),
-    ['quote.validUntil', 'client.contact', 'client.document', 'client.address', 'quote.paymentMethod'],
+    ['quote.validUntil', 'client.contact', 'client.address', 'quote.paymentMethod'],
   )
 })

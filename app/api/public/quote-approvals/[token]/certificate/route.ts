@@ -105,7 +105,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
             <div class="field"><span>Cliente do orçamento</span><strong>${escapeHtml(approvedClient.name)}</strong></div>
             <div class="field"><span>CPF/CNPJ do cadastro</span><strong>${escapeHtml(approvedClient.document || 'Não informado')}</strong></div>
             <div class="field"><span>Responsável pelo aceite</span><strong>${escapeHtml(request.responseName || approvedClient.name)}</strong></div>
-            <div class="field"><span>CPF/CNPJ informado no aceite</span><strong>${escapeHtml(request.responseDocument || 'Aceite anterior sem identificação')}</strong></div>
+            <div class="field"><span>CPF/CNPJ informado no aceite</span><strong>${escapeHtml(request.responseDocument || 'Não informado')}</strong></div>
             <div class="field"><span>Endereço do cliente</span><strong>${escapeHtml(clientAddress || 'Não informado')}</strong></div>
             <div class="field"><span>Validade da proposta</span><strong>${escapeHtml(formatDateOnly(approvedValidity))}</strong></div>
           </div>

@@ -7,11 +7,16 @@ import { getClientIp } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
 
+const optionalDocument = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().trim().min(5).max(30).optional(),
+)
+
 const decisionSchema = z.discriminatedUnion('decision', [
   z.object({
     decision: z.literal('APPROVE'),
     respondentName: z.string().trim().min(3).max(120),
-    respondentDocument: z.string().trim().min(5).max(30),
+    respondentDocument: optionalDocument,
     acceptedTerms: z.literal(true),
     note: z.string().trim().max(1000).optional(),
   }).strict(),
@@ -81,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         responseUserAgent: (req.headers.get('user-agent') || '').slice(0, 500) || null,
         responseNote: parsed.data.note || null,
         responseName: parsed.data.respondentName,
-        responseDocument: parsed.data.decision === 'APPROVE' ? parsed.data.respondentDocument : null,
+        responseDocument: parsed.data.decision === 'APPROVE' ? parsed.data.respondentDocument || null : null,
         acceptedTermsAt: parsed.data.decision === 'APPROVE' ? now : null,
       },
     })

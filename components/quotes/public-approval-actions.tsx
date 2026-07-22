@@ -18,11 +18,6 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
       setStatus('error')
       return
     }
-    if (decision === 'APPROVE' && respondentDocument.trim().length < 5) {
-      setMessage('Informe o CPF ou CNPJ de quem está aprovando.')
-      setStatus('error')
-      return
-    }
     if (decision === 'APPROVE' && !acceptedTerms) {
       setMessage('Confirme que leu e aprova as condições da proposta.')
       setStatus('error')
@@ -37,7 +32,10 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
           decision,
           respondentName: respondentName.trim(),
           ...(decision === 'APPROVE'
-            ? { respondentDocument: respondentDocument.trim(), acceptedTerms }
+            ? {
+                ...(respondentDocument.trim() ? { respondentDocument: respondentDocument.trim() } : {}),
+                acceptedTerms,
+              }
             : {}),
           note: note.trim() || undefined,
         }),
@@ -91,7 +89,7 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
           />
         </div>
         <div>
-          <label htmlFor="approval-document" className="mb-1.5 block text-sm font-medium text-[#121212]">CPF ou CNPJ para aprovação</label>
+          <label htmlFor="approval-document" className="mb-1.5 block text-sm font-medium text-[#121212]">CPF ou CNPJ (opcional)</label>
           <input
             id="approval-document"
             value={respondentDocument}
@@ -99,7 +97,7 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
             maxLength={30}
             inputMode="numeric"
             disabled={status === 'loading'}
-            placeholder="Obrigatório para aprovar"
+            placeholder="Preencha somente se desejar"
             className="min-h-11 w-full rounded-lg border border-[#D9D9D9] bg-white px-3 text-sm text-[#121212] outline-none focus:border-transparent focus:ring-2 focus:ring-[#FF6B00]"
           />
         </div>
