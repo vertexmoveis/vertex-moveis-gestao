@@ -41,6 +41,240 @@ const group = (
   suggestedMode: QuoteCalculationMode = 'AREA_M2'
 ): QuoteFurnitureGroup => ({ type, models, accessories, suggestedMode })
 
+const STANDALONE_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = {
+  Cozinha: [
+    'Balcão auxiliar avulso',
+    'Módulo avulso com portas',
+    'Módulo avulso com gavetas',
+    'Gaveteiro avulso',
+    'Armário multiuso avulso',
+    'Cristaleira avulsa',
+    'Fruteira avulsa',
+    'Carrinho auxiliar planejado',
+    'Mesa dobrável planejada',
+    'Banco-baú de cozinha',
+  ],
+  Banheiro: [
+    'Gaveteiro avulso',
+    'Torre avulsa',
+    'Armário multiuso estreito',
+    'Armário para toalhas avulso',
+    'Banco-baú para banheiro',
+    'Roupeiro de banheiro',
+    'Nicho móvel',
+  ],
+  Dormitório: [
+    'Cômoda avulsa',
+    'Criado-mudo avulso',
+    'Gaveteiro avulso',
+    'Sapateira avulsa',
+    'Penteadeira avulsa',
+    'Banco-baú',
+    'Baú para roupa de cama',
+    'Escrivaninha avulsa',
+    'Estante baixa',
+    'Armário multiuso avulso',
+    'Cabideiro de piso planejado',
+  ],
+  Closet: [
+    'Cômoda para closet',
+    'Gaveteiro central avulso',
+    'Sapateira avulsa',
+    'Penteadeira avulsa',
+    'Banco-baú',
+    'Armário para malas avulso',
+    'Porta-bolsas avulso',
+    'Ilha avulsa com gavetas',
+  ],
+  Sala: [
+    'Mesa de centro',
+    'Mesa lateral',
+    'Aparador avulso',
+    'Buffet avulso',
+    'Rack avulso',
+    'Estante baixa',
+    'Cristaleira avulsa',
+    'Bar avulso',
+    'Banco-baú',
+    'Baú decorativo',
+    'Móvel para vitrola',
+    'Móvel para plantas',
+  ],
+  'Sala de jantar': [
+    'Buffet avulso',
+    'Aparador avulso',
+    'Cristaleira avulsa',
+    'Bar avulso',
+    'Adega avulsa',
+    'Carrinho de café planejado',
+    'Banco-baú',
+    'Mesa de apoio',
+  ],
+  Escritório: [
+    'Gaveteiro móvel',
+    'Arquivo avulso',
+    'Escrivaninha avulsa',
+    'Mesa auxiliar',
+    'Armário para impressora avulso',
+    'Estante baixa',
+    'Credenza',
+    'Carrinho para impressora',
+  ],
+  Lavanderia: [
+    'Gaveteiro avulso',
+    'Armário multiuso avulso',
+    'Cesto de roupas planejado',
+    'Banco-baú',
+    'Carrinho para produtos de limpeza',
+    'Sapateira de serviço',
+    'Módulo organizador avulso',
+  ],
+  'Área gourmet': [
+    'Balcão auxiliar avulso',
+    'Gaveteiro avulso',
+    'Carrinho de churrasco planejado',
+    'Móvel para cervejeira avulso',
+    'Móvel para frigobar avulso',
+    'Adega avulsa',
+    'Cristaleira avulsa',
+    'Banco-baú',
+  ],
+  'Hall de entrada': [
+    'Aparador avulso',
+    'Sapateira avulsa',
+    'Banco-baú',
+    'Baú decorativo',
+    'Porta-chaves planejado',
+    'Cabideiro avulso',
+    'Mesa lateral',
+  ],
+  Corredor: [
+    'Aparador estreito avulso',
+    'Sapateira avulsa',
+    'Banco-baú',
+    'Armário multiuso estreito',
+    'Baú para roupa de cama',
+  ],
+  Varanda: [
+    'Banco-baú',
+    'Aparador avulso',
+    'Buffet avulso',
+    'Armário multiuso avulso',
+    'Carrinho bar planejado',
+    'Floreira planejada',
+    'Mesa de apoio',
+  ],
+  Garagem: [
+    'Gaveteiro de ferramentas avulso',
+    'Armário multiuso avulso',
+    'Baú para ferramentas',
+    'Carrinho para ferramentas',
+    'Estante móvel',
+    'Banco-baú',
+  ],
+  'Quarto infantil': [
+    'Cômoda avulsa',
+    'Criado-mudo infantil',
+    'Gaveteiro avulso',
+    'Baú de brinquedos',
+    'Banco-baú',
+    'Mesa infantil',
+    'Estante baixa',
+    'Sapateira infantil',
+  ],
+  'Quarto de bebê': [
+    'Cômoda avulsa',
+    'Criado-mudo',
+    'Baú de brinquedos',
+    'Banco-baú',
+    'Estante baixa',
+    'Armário para fraldas',
+    'Carrinho auxiliar planejado',
+  ],
+  Biblioteca: [
+    'Estante baixa',
+    'Arquivo avulso',
+    'Banco-baú de leitura',
+    'Mesa lateral',
+    'Carrinho para livros',
+    'Armário baixo avulso',
+  ],
+  Despensa: [
+    'Gaveteiro avulso',
+    'Fruteira avulsa',
+    'Carrinho organizador',
+    'Armário multiuso avulso',
+    'Módulo organizador avulso',
+  ],
+  'Adega e bar': [
+    'Adega avulsa',
+    'Bar avulso',
+    'Cristaleira avulsa',
+    'Carrinho bar planejado',
+    'Buffet avulso',
+    'Móvel para cervejeira avulso',
+    'Móvel para frigobar avulso',
+  ],
+  Studio: [
+    'Cômoda avulsa',
+    'Gaveteiro avulso',
+    'Armário multiuso avulso',
+    'Mesa dobrável planejada',
+    'Banco-baú',
+    'Estante baixa',
+    'Carrinho auxiliar planejado',
+  ],
+  Depósito: [
+    'Gaveteiro avulso',
+    'Armário multiuso avulso',
+    'Baú organizador',
+    'Carrinho organizador',
+    'Estante móvel',
+    'Arquivo avulso',
+  ],
+  Recepção: [
+    'Gaveteiro móvel',
+    'Arquivo avulso',
+    'Armário para impressora avulso',
+    'Mesa lateral',
+    'Aparador avulso',
+    'Revisteiro planejado',
+  ],
+  Consultório: [
+    'Gaveteiro móvel',
+    'Arquivo avulso',
+    'Armário de apoio avulso',
+    'Carrinho auxiliar planejado',
+    'Banco-baú',
+    'Estante baixa',
+  ],
+  Loja: [
+    'Gaveteiro de caixa avulso',
+    'Balcão expositor avulso',
+    'Vitrine avulsa',
+    'Armário de estoque avulso',
+    'Expositor móvel',
+    'Banco-baú',
+  ],
+  'Espaço comercial': [
+    'Gaveteiro móvel',
+    'Arquivo avulso',
+    'Armário multiuso avulso',
+    'Balcão auxiliar avulso',
+    'Estante móvel',
+    'Carrinho auxiliar planejado',
+  ],
+  'Móvel especial': [
+    'Baú sob medida',
+    'Banco-baú sob medida',
+    'Carrinho auxiliar planejado',
+    'Móvel pet avulso',
+    'Móvel para aquário avulso',
+    'Oratório avulso',
+    'Armário técnico avulso',
+  ],
+}
+
 export const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = {
   Cozinha: [
     group('Armário', ['Armário aéreo', 'Armário aéreo em L', 'Armário aéreo basculante', 'Armário aéreo de canto', 'Armário aéreo com nicho', 'Armário aéreo com portas de vidro', 'Armário sobre geladeira', 'Ponte sobre geladeira', 'Armário inferior', 'Armário inferior em L', 'Armário inferior de canto'], CABINET_ACCESSORIES),
@@ -217,6 +451,9 @@ export const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGrou
 QUOTE_FURNITURE_CATALOG.Suíte = QUOTE_FURNITURE_CATALOG.Dormitório
 QUOTE_FURNITURE_CATALOG['Home theater'] = QUOTE_FURNITURE_CATALOG.Sala
 QUOTE_FURNITURE_CATALOG.Churrasqueira = QUOTE_FURNITURE_CATALOG['Área gourmet']
+STANDALONE_FURNITURE_BY_ENVIRONMENT.Suíte = STANDALONE_FURNITURE_BY_ENVIRONMENT.Dormitório
+STANDALONE_FURNITURE_BY_ENVIRONMENT['Home theater'] = STANDALONE_FURNITURE_BY_ENVIRONMENT.Sala
+STANDALONE_FURNITURE_BY_ENVIRONMENT.Churrasqueira = STANDALONE_FURNITURE_BY_ENVIRONMENT['Área gourmet']
 
 export const QUOTE_ENVIRONMENT_OPTIONS = Object.keys(QUOTE_FURNITURE_CATALOG)
 export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string> = {
@@ -228,7 +465,12 @@ export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string>
 const PERSONALIZED_GROUP = group('Personalizado', ['Móvel personalizado'], STANDARD_ACCESSORIES)
 
 export function getQuoteFurnitureGroups(environment: string) {
-  return [...(QUOTE_FURNITURE_CATALOG[environment] || []), PERSONALIZED_GROUP]
+  const standaloneModels = STANDALONE_FURNITURE_BY_ENVIRONMENT[environment]
+  const standaloneGroup = standaloneModels?.length
+    ? [group('Móveis avulsos', standaloneModels, CABINET_ACCESSORIES)]
+    : []
+
+  return [...(QUOTE_FURNITURE_CATALOG[environment] || []), ...standaloneGroup, PERSONALIZED_GROUP]
 }
 
 export function getQuoteFurnitureGroup(environment: string, furnitureType: string) {
