@@ -52,6 +52,12 @@ export function renderSimpleQuoteProposal({
   const deliveryForecast = addBusinessDays(quote.approvedAt || quote.createdAt, quote.deliveryBusinessDays)
   const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
+  const groupedItems = quote.items.reduce<Record<string, QuoteItem[]>>((groups, item) => {
+    const environmentName = item.environmentName || item.environment
+    groups[environmentName] = groups[environmentName] || []
+    groups[environmentName].push(item)
+    return groups
+  }, {})
   const seller = quote.createdBy?.name || company.tradeName
   const paymentRows = payment.method === 'CARD'
     ? [
@@ -71,6 +77,22 @@ export function renderSimpleQuoteProposal({
         amount: payment.total,
         method: payment.methodLabel,
       }]
+  let serviceIndex = 0
+  const serviceRows = Object.entries(groupedItems).map(([environmentName, items]) => `
+    <tr class="environment-row"><td colspan="4">${escapeHtml(environmentName)}</td><td class="money">${formatCurrency(items.reduce((sum, item) => sum + item.total, 0))}</td></tr>
+    ${items.map((item) => {
+      serviceIndex += 1
+      return `
+        <tr>
+          <td class="number">${serviceIndex}</td>
+          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
+          <td class="quantity">${item.quantity}</td>
+          <td class="money">${formatCurrency(item.quantity > 0 ? item.total / item.quantity : item.total)}</td>
+          <td class="money">${formatCurrency(item.total)}</td>
+        </tr>
+      `
+    }).join('')}
+  `).join('')
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -108,6 +130,7 @@ export function renderSimpleQuoteProposal({
     .money { width: 94px; text-align: right; white-space: nowrap; }
     .service-name { font-weight: 800; }
     .service-detail { margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+    .environment-row td { background: #ededed; font-weight: 800; }
     .totals td { font-weight: 800; background: #f4f4f4; }
     .payment-label { font-weight: 700; }
     .signature { margin-top: 18px; min-height: 82px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: end; border: 1px solid var(--ink); padding: 18px 30px 10px; }
@@ -173,15 +196,7 @@ export function renderSimpleQuoteProposal({
       <table aria-label="Itens do orçamento">
         <thead><tr><th class="number">Item</th><th>Descrição</th><th class="quantity">Qtd.</th><th class="money">Valor unit.</th><th class="money">Subtotal</th></tr></thead>
         <tbody>
-          ${quote.items.map((item, index) => `
-            <tr>
-              <td class="number">${index + 1}</td>
-              <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${escapeHtml(item.environment)} · ${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
-              <td class="quantity">${item.quantity}</td>
-              <td class="money">${formatCurrency(item.quantity > 0 ? item.total / item.quantity : item.total)}</td>
-              <td class="money">${formatCurrency(item.total)}</td>
-            </tr>
-          `).join('')}
+          ${serviceRows}
           <tr class="totals"><td colspan="2">TOTAL</td><td class="quantity">${totalQuantity}</td><td></td><td class="money">${formatCurrency(itemSubtotal)}</td></tr>
         </tbody>
       </table>

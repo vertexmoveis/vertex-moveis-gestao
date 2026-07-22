@@ -5,6 +5,7 @@ export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
 type QuoteApprovalItemSource = {
   id?: string
   environment: string
+  environmentName?: string | null
   description: string
   material?: string | null
   finish?: string | null
@@ -84,6 +85,7 @@ export type QuoteApprovalSnapshot = {
     items: Array<{
       id: string
       environment: string
+      environmentName?: string | null
       description: string
       material: string | null
       finish: string | null
@@ -139,6 +141,7 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
       items: quote.items.map((item, index) => ({
         id: `item-${index + 1}`,
         environment: item.environment,
+        environmentName: item.environmentName || item.environment,
         description: item.description,
         material: item.material || null,
         finish: item.finish || null,

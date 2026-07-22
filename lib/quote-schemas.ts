@@ -85,6 +85,7 @@ const deliveryBusinessDaysField = z
 
 export const quoteItemSchema = z.object({
   environment: z.string().trim().min(1, 'Informe o ambiente').max(120),
+  environmentName: nullableString(120),
   description: z.string().trim().min(1, 'Informe o móvel').max(240),
   furnitureType: nullableString(120),
   furnitureModel: nullableString(160),

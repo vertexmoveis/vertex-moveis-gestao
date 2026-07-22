@@ -51,7 +51,7 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
   const currentSnapshot = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(request.quote))
   const quote = (storedSnapshot || currentSnapshot)!.quote
   const groupedItems = quote.items.reduce<Record<string, typeof quote.items>>((groups, item) => {
-    const environment = item.environment || 'Ambiente'
+    const environment = item.environmentName || item.environment || 'Ambiente'
     groups[environment] = groups[environment] || []
     groups[environment].push(item)
     return groups
@@ -117,7 +117,10 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
               <section key={environment} className="overflow-hidden rounded-lg border border-[#E8E8E8]">
                 <div className="flex items-center justify-between gap-4 border-b border-[#E8E8E8] bg-[#FAFAF8] px-4 py-3">
                   <h3 className="font-bold text-[#121212]">{environment}</h3>
-                  <p className="text-xs text-[#777]">{items.reduce((total, item) => total + item.quantity, 0)} {items.reduce((total, item) => total + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</p>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-[#121212]">{formatCurrency(items.reduce((total, item) => total + item.total, 0))}</p>
+                    <p className="text-xs text-[#777]">{items.reduce((total, item) => total + item.quantity, 0)} {items.reduce((total, item) => total + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</p>
+                  </div>
                 </div>
                 <div className="divide-y divide-[#EFEFEF]">
                   {items.map((item) => (

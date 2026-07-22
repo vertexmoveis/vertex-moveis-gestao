@@ -3,6 +3,7 @@ import type { QuoteCalculationMode, QuotePaymentMethod, QuotePriceProfile, Quote
 export type QuoteItemData = {
   id?: string
   environment: string
+  environmentName?: string | null
   description: string
   furnitureType?: string | null
   furnitureModel?: string | null

@@ -72,8 +72,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
 
   const grouped = quote.items.reduce<Record<string, typeof quote.items>>((acc, item) => {
-    acc[item.environment] = acc[item.environment] || []
-    acc[item.environment].push(item)
+    const environmentName = item.environmentName || item.environment
+    acc[environmentName] = acc[environmentName] || []
+    acc[environmentName].push(item)
     return acc
   }, {})
   const environments = Object.entries(grouped)
@@ -162,6 +163,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .environment-header { padding: 13px 16px; display: flex; justify-content: space-between; gap: 16px; background: var(--soft); border-bottom: 1px solid var(--line); }
     .environment-title { font-size: 14px; font-weight: 800; }
     .environment-count { color: var(--muted); font-size: 12px; }
+    .environment-summary { text-align: right; }
+    .environment-subtotal { display: block; margin-bottom: 3px; font-size: 13px; font-weight: 800; }
     .item { display: grid; grid-template-columns: minmax(176px, 1.6fr) minmax(110px, .8fr) minmax(140px, 1fr) auto; gap: 14px; align-items: center; padding: 15px 16px; border-bottom: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
     .item:last-child { border: 0; }
     .item-name { font-size: 14px; font-weight: 800; }
@@ -317,7 +320,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         <article class="environment">
           <div class="environment-header">
             <span class="environment-title">${escapeHtml(environment)}</span>
-            <span class="environment-count">${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</span>
+            <span class="environment-summary"><strong class="environment-subtotal">${formatCurrency(items.reduce((sum, item) => sum + item.total, 0))}</strong><span class="environment-count">${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</span></span>
           </div>
           ${items.map((item) => {
             const accessories = parseQuoteAccessories(item.accessories)

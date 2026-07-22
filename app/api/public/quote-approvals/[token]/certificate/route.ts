@@ -67,7 +67,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const items = approvedItems.map((item, index) => `
     <tr>
       <td>${index + 1}</td>
-      <td><strong>${escapeHtml(item.environment)}</strong><br><span>${escapeHtml(item.description)}</span></td>
+      <td><strong>${escapeHtml(item.environmentName || item.environment)}</strong><br><span>${escapeHtml(item.description)}</span></td>
       <td>${escapeHtml(item.quantity)}</td>
       <td>${escapeHtml(formatCurrency(item.total))}</td>
     </tr>

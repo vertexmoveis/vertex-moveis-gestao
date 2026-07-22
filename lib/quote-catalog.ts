@@ -7,6 +7,20 @@ export type QuoteFurnitureGroup = {
   accessories?: readonly string[]
 }
 
+export type QuoteFurnitureOption = {
+  id: string
+  type: string
+  model: string
+  searchText: string
+  suggestedMode: QuoteCalculationMode
+}
+
+export type QuoteEnvironmentTemplate = {
+  id: string
+  name: string
+  items: readonly { type: string; model: string }[]
+}
+
 const STANDARD_ACCESSORIES = [
   'Iluminação LED',
   'Tomada embutida',
@@ -464,13 +478,155 @@ export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string>
 
 const PERSONALIZED_GROUP = group('Personalizado', ['Móvel personalizado'], STANDARD_ACCESSORIES)
 
+const FURNITURE_SEARCH_ALIASES: Record<string, readonly string[]> = {
+  'Armário aéreo': ['armário superior', 'móvel aéreo'],
+  'Armário inferior': ['armário baixo', 'móvel inferior'],
+  'Gabinete de pia': ['balcão de pia', 'móvel de pia'],
+  'Guarda-roupa de abrir': ['roupeiro', 'armário de quarto'],
+  'Criado-mudo suspenso': ['mesa de cabeceira suspensa'],
+  'Criado-mudo de piso': ['mesa de cabeceira'],
+  'Painel para TV': ['painel de televisão', 'home'],
+  'Balcão de recepção': ['recepção', 'balcão de atendimento'],
+  'Móvel personalizado': ['outro móvel', 'sob medida'],
+}
+
+const QUOTE_ENVIRONMENT_TEMPLATES: Record<string, readonly QuoteEnvironmentTemplate[]> = {
+  Cozinha: [
+    {
+      id: 'cozinha-essencial',
+      name: 'Cozinha essencial',
+      items: [
+        { type: 'Gabinete', model: 'Gabinete de pia' },
+        { type: 'Armário', model: 'Armário aéreo' },
+        { type: 'Armazenamento', model: 'Gaveteiro de cozinha' },
+      ],
+    },
+    {
+      id: 'cozinha-completa',
+      name: 'Cozinha completa',
+      items: [
+        { type: 'Gabinete', model: 'Gabinete de pia' },
+        { type: 'Armário', model: 'Armário aéreo' },
+        { type: 'Torre', model: 'Torre para forno e micro-ondas' },
+        { type: 'Armazenamento', model: 'Paneleiro' },
+        { type: 'Armazenamento', model: 'Gaveteiro de cozinha' },
+      ],
+    },
+  ],
+  Banheiro: [{
+    id: 'banheiro-completo',
+    name: 'Banheiro completo',
+    items: [
+      { type: 'Gabinete', model: 'Gabinete de cuba' },
+      { type: 'Espelheira', model: 'Espelheira com armário' },
+      { type: 'Torre', model: 'Torre lateral' },
+    ],
+  }],
+  Dormitório: [{
+    id: 'dormitorio-completo',
+    name: 'Dormitório completo',
+    items: [
+      { type: 'Guarda-roupa', model: 'Guarda-roupa de abrir' },
+      { type: 'Cabeceira', model: 'Cabeceira simples' },
+      { type: 'Mesa de cabeceira', model: 'Criado-mudo suspenso' },
+    ],
+  }],
+  Closet: [{
+    id: 'closet-completo',
+    name: 'Closet completo',
+    items: [
+      { type: 'Closet', model: 'Closet aberto' },
+      { type: 'Módulo de closet', model: 'Módulo gaveteiro' },
+      { type: 'Sapateira', model: 'Sapateira inclinada' },
+    ],
+  }],
+  Sala: [{
+    id: 'sala-tv',
+    name: 'Sala de TV',
+    items: [
+      { type: 'Painel', model: 'Painel para TV' },
+      { type: 'Rack', model: 'Rack suspenso' },
+      { type: 'Nicho e prateleira', model: 'Nicho decorativo' },
+    ],
+  }],
+  Lavanderia: [{
+    id: 'lavanderia-completa',
+    name: 'Lavanderia completa',
+    items: [
+      { type: 'Gabinete', model: 'Gabinete de tanque' },
+      { type: 'Armário', model: 'Armário aéreo' },
+      { type: 'Vassoureiro', model: 'Vassoureiro alto' },
+    ],
+  }],
+}
+
+QUOTE_ENVIRONMENT_TEMPLATES.Suíte = QUOTE_ENVIRONMENT_TEMPLATES.Dormitório
+QUOTE_ENVIRONMENT_TEMPLATES['Home theater'] = QUOTE_ENVIRONMENT_TEMPLATES.Sala
+
+export function normalizeQuoteCatalogSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function deduplicateFurnitureGroups(groups: readonly QuoteFurnitureGroup[]) {
+  const seenModels = new Set<string>()
+
+  return groups.flatMap((furnitureGroup) => {
+    const models = furnitureGroup.models.filter((model) => {
+      const key = normalizeQuoteCatalogSearch(model)
+      if (seenModels.has(key)) return false
+      seenModels.add(key)
+      return true
+    })
+
+    return models.length ? [{ ...furnitureGroup, models }] : []
+  })
+}
+
 export function getQuoteFurnitureGroups(environment: string) {
   const standaloneModels = STANDALONE_FURNITURE_BY_ENVIRONMENT[environment]
   const standaloneGroup = standaloneModels?.length
     ? [group('Móveis avulsos', standaloneModels, CABINET_ACCESSORIES)]
     : []
 
-  return [...(QUOTE_FURNITURE_CATALOG[environment] || []), ...standaloneGroup, PERSONALIZED_GROUP]
+  return deduplicateFurnitureGroups([
+    ...(QUOTE_FURNITURE_CATALOG[environment] || []),
+    ...standaloneGroup,
+    PERSONALIZED_GROUP,
+  ])
+}
+
+export function getQuoteFurnitureOptions(environment: string): QuoteFurnitureOption[] {
+  return getQuoteFurnitureGroups(environment).flatMap((furnitureGroup) => furnitureGroup.models.map((model) => {
+    const aliases = FURNITURE_SEARCH_ALIASES[model] || []
+    return {
+      id: `${normalizeQuoteCatalogSearch(furnitureGroup.type)}::${normalizeQuoteCatalogSearch(model)}`,
+      type: furnitureGroup.type,
+      model,
+      searchText: normalizeQuoteCatalogSearch([furnitureGroup.type, model, ...aliases].join(' ')),
+      suggestedMode: furnitureGroup.suggestedMode || 'AREA_M2',
+    }
+  }))
+}
+
+export function searchQuoteFurnitureOptions(environment: string, query: string) {
+  const terms = normalizeQuoteCatalogSearch(query).split(' ').filter(Boolean)
+  if (!terms.length) return getQuoteFurnitureOptions(environment)
+
+  return getQuoteFurnitureOptions(environment).filter((option) => (
+    terms.every((term) => option.searchText.includes(term))
+  ))
+}
+
+export function getQuoteEnvironmentTemplates(environment: string) {
+  const available = new Set(getQuoteFurnitureOptions(environment).map((option) => `${option.type}::${option.model}`))
+  return (QUOTE_ENVIRONMENT_TEMPLATES[environment] || []).filter((template) => (
+    template.items.every((item) => available.has(`${item.type}::${item.model}`))
+  ))
 }
 
 export function getQuoteFurnitureGroup(environment: string, furnitureType: string) {

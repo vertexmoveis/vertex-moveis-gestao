@@ -120,7 +120,7 @@ export default function QuoteDetailPage() {
 
   const environments = useMemo(() => {
     if (!quote) return []
-    return Array.from(new Set(quote.items.map((item) => item.environment).filter(Boolean)))
+    return Array.from(new Set(quote.items.map((item) => item.environmentName || item.environment).filter(Boolean)))
   }, [quote])
 
   const handleUpdate = async (payload: QuotePayload) => {
@@ -575,7 +575,7 @@ export default function QuoteDetailPage() {
                   <div key={item.id || `${item.environment}-${item.description}`} className="px-5 py-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <p className="font-semibold text-[#121212]">{item.environment}</p>
+                        <p className="font-semibold text-[#121212]">{item.environmentName || item.environment}</p>
                         <p className="mt-1 text-sm text-[#555]">{item.description}</p>
                         <p className="mt-1 text-xs text-[#9E9E9E]">
                           {quoteCentimetersToMillimeters(item.width)} x {quoteCentimetersToMillimeters(item.height)} mm

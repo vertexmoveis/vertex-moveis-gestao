@@ -11,11 +11,15 @@ export {
   QUOTE_FURNITURE_CATALOG,
   getQuoteFurnitureAccessories,
   getQuoteFurnitureDescription,
+  getQuoteEnvironmentTemplates,
   getQuoteFurnitureGroup,
   getQuoteFurnitureGroups,
+  getQuoteFurnitureOptions,
+  normalizeQuoteCatalogSearch,
   resolveQuoteFurnitureSelection,
+  searchQuoteFurnitureOptions,
 } from '@/lib/quote-catalog'
-export type { QuoteCalculationMode } from '@/lib/quote-catalog'
+export type { QuoteCalculationMode, QuoteEnvironmentTemplate, QuoteFurnitureOption } from '@/lib/quote-catalog'
 export {
   QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_PRICE_PROFILES,
@@ -126,6 +130,7 @@ export function getQuoteItemPricePerM2(
 
 export type QuoteCalculationItemInput = {
   environment: string
+  environmentName?: string | null
   description: string
   furnitureType?: string | null
   furnitureModel?: string | null
@@ -320,6 +325,7 @@ export function calculateQuoteItem(item: QuoteCalculationItemInput, pricing: Quo
 
   return {
     environment: item.environment.trim(),
+    environmentName: item.environmentName?.trim() || item.environment.trim(),
     description: item.description.trim(),
     furnitureType: item.furnitureType?.trim() || null,
     furnitureModel: item.furnitureModel?.trim() || null,
@@ -446,6 +452,7 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
     },
     items: quote.items.map((item) => ({
       environment: item.environment,
+      environmentName: item.environmentName,
       description: item.description,
       furnitureType: item.furnitureType,
       furnitureModel: item.furnitureModel,

@@ -152,6 +152,7 @@ model QuoteItem {
   quoteId         String
   quote           Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   environment     String
+  environmentName String?
   description     String
   furnitureType   String?
   furnitureModel  String?

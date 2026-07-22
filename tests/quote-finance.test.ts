@@ -6,6 +6,7 @@ import { buildQuoteApprovalSnapshot, parseQuoteApprovalSnapshot } from '@/lib/qu
 
 const item = {
   environment: 'Cozinha',
+  environmentName: 'Cozinha principal',
   description: 'Armário aéreo',
   furnitureType: 'Armário',
   furnitureModel: 'Armário aéreo',
@@ -57,6 +58,15 @@ test('as parcelas fecham exatamente o saldo financiado', () => {
   assert.equal(sum, 900)
 })
 
+test('o nome do ambiente não altera o cálculo e permanece no item salvo', () => {
+  const named = calculateQuoteTotals([item], { ...pricing, paymentMethod: 'TO_DEFINE' })
+  const unnamed = calculateQuoteTotals([{ ...item, environmentName: null }], { ...pricing, paymentMethod: 'TO_DEFINE' })
+
+  assert.equal(named.total, unnamed.total)
+  assert.equal(named.items[0].environmentName, 'Cozinha principal')
+  assert.equal(unnamed.items[0].environmentName, 'Cozinha')
+})
+
 test('as parcelas mensais preservam o dia e ajustam o fim do mês', () => {
   const payment = getQuotePaymentDetails({
     total: 900,
@@ -101,6 +111,7 @@ test('a aprovação guarda somente os termos enviados ao cliente', () => {
   assert.equal(parsed?.quote.client.name, 'Cliente Teste')
   assert.equal(parsed?.quote.deliveryBusinessDays, 30)
   assert.equal(parsed?.quote.firstInstallmentDate, '2026-07-21T12:00:00.000Z')
+  assert.equal(parsed?.quote.items[0].environmentName, 'Cozinha principal')
   assert.equal(snapshot.includes('costTotal'), false)
   assert.equal(snapshot, buildQuoteApprovalSnapshot({ ...quote, items: [{ ...quote.items[0], id: 'novo-id-interno' }] }))
   assert.notEqual(snapshot, buildQuoteApprovalSnapshot({ ...quote, total: 5200 }))

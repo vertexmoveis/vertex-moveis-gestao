@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         deliveryBusinessDays: quote.deliveryBusinessDays,
       })
       const environmentNames = normalizeEnvironmentNames(
-        quote.items.map((item) => item.environment),
+        quote.items.map((item) => item.environmentName || item.environment),
         quote.title
       )
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           internalNotes: [
             `Projeto criado a partir do orçamento "${quote.title}".`,
             quote.notes || '',
-            quote.items.map((item) => `${item.environment}: ${item.description}`).join('\n'),
+            quote.items.map((item) => `${item.environmentName || item.environment}: ${item.description}`).join('\n'),
           ].filter(Boolean).join('\n\n'),
           payments: payments.length > 0 ? { create: payments } : undefined,
           checklist: { create: buildDefaultChecklistItems() },
