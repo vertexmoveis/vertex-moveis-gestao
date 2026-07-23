@@ -137,8 +137,22 @@ async function seedDatabase() {
   const managerTwo = await prisma.user.create({
     data: { name: 'Manager Two', email: 'manager-two@example.local', password: await bcrypt.hash(password, 12), role: 'MANAGER' },
   })
-  const clientOne = await prisma.client.create({ data: { name: 'Client One', email: 'client-one@example.local' } })
+  const clientOne = await prisma.client.create({
+    data: { name: 'Client One', email: 'client-one@example.local', phone: '11999999999' },
+  })
   const clientTwo = await prisma.client.create({ data: { name: 'Client Two', email: 'client-two@example.local' } })
+  await prisma.companyProfile.create({
+    data: {
+      tradeName: 'Vertex Security Test',
+      document: '00.000.000/0001-00',
+      phone: '1133334444',
+      street: 'Rua de Teste',
+      number: '1',
+      city: 'Cotia',
+      state: 'SP',
+      zipCode: '06700-000',
+    },
+  })
   const ownProject = await prisma.project.create({
     data: { clientId: clientOne.id, managerId: managerOne.id, name: 'Project One', status: 'APPROVED', stage: 'PENDING_START' },
   })
@@ -153,6 +167,7 @@ async function seedDatabase() {
       title: 'Security Quote',
       status: 'DRAFT',
       validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'PIX',
       subtotal: 1000,
       total: 1000,
       costTotal: 500,
@@ -343,10 +358,14 @@ async function runTests(ids) {
   const approvalToken = approvalPayload.approvalUrl ? new URL(approvalPayload.approvalUrl).pathname.split('/').pop() : ''
   const publicApprovalStatus = approvalToken
     ? await status(`/api/public/quote-approvals/${approvalToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: 'APPROVE' }),
-      })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        decision: 'APPROVE',
+        respondentName: 'Client One',
+        acceptedTerms: true,
+      }),
+    })
     : 0
 
   const tests = [
