@@ -29,11 +29,11 @@ type PriceRuleStore = Pick<PrismaClient, 'quotePriceRule'>
 
 const DEFAULT_PRICE_RULES: Omit<QuotePriceRule, 'id' | 'validFrom' | 'validUntil' | 'active'>[] = [
   { name: 'Cozinha padrão', environment: 'Cozinha', calculationMode: 'AREA_M2', pricePerM2: 2000, materialCostPerM2: 650 },
-  { name: 'Cozinha madeirada', environment: 'Cozinha', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2500, materialCostPerM2: 750 },
-  { name: 'Cozinha provençal', environment: 'Cozinha', priceProfile: 'PROVENCAL', calculationMode: 'AREA_M2', pricePerM2: 4800, materialCostPerM2: 1000 },
+  { name: 'Cozinha madeirada', environment: 'Cozinha', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
+  { name: 'Cozinha provençal', environment: 'Cozinha', priceProfile: 'PROVENCAL', calculationMode: 'AREA_M2', pricePerM2: 3800, materialCostPerM2: 1000 },
   { name: 'Cozinha com laca externa', environment: 'Cozinha', priceProfile: 'EXTERNAL_LACQUER', calculationMode: 'AREA_M2', pricePerM2: 4800, materialCostPerM2: 1100 },
   { name: 'Armário de quarto com portas', environment: 'Dormitório', furnitureType: 'Guarda-roupa', calculationMode: 'AREA_M2', pricePerM2: 1800, materialCostPerM2: 650 },
-  { name: 'Armário de quarto madeirado', environment: 'Dormitório', furnitureType: 'Guarda-roupa', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2000, materialCostPerM2: 750 },
+  { name: 'Armário de quarto madeirado', environment: 'Dormitório', furnitureType: 'Guarda-roupa', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
   { name: 'Closet sem portas', environment: 'Closet', calculationMode: 'AREA_M2', pricePerM2: 1600, materialCostPerM2: 600 },
   { name: 'Closet com portas', environment: 'Closet', furnitureModel: 'Closet com portas', calculationMode: 'AREA_M2', pricePerM2: 1800, materialCostPerM2: 650 },
   { name: 'Gabinete de banheiro', environment: 'Banheiro', furnitureType: 'Gabinete', calculationMode: 'AREA_M2', pricePerM2: 2800, materialCostPerM2: 800 },

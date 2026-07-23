@@ -98,11 +98,11 @@ As regras abaixo são os valores iniciais do sistema. Regras cadastradas em **Co
 | Item ou perfil | Cálculo | Valor padrão |
 | --- | --- | ---: |
 | Cozinha padrão | m² | R$ 2.000,00 |
-| Cozinha madeirada | m² | R$ 2.500,00 |
-| Cozinha provençal | m² | R$ 4.800,00 |
+| Cozinha madeirada | m² | R$ 2.200,00 |
+| Cozinha provençal | m² | R$ 3.800,00 |
 | Cozinha com laca externa | m² | R$ 4.800,00 |
 | Armário de dormitório com portas | m² | R$ 1.800,00 |
-| Armário de dormitório madeirado | m² | R$ 2.000,00 |
+| Armário de dormitório madeirado | m² | R$ 2.200,00 |
 | Closet sem portas | m² | R$ 1.600,00 |
 | Closet com portas | m² | R$ 1.800,00 |
 | Gabinete de banheiro | m² | R$ 2.800,00 |

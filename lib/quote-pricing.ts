@@ -78,7 +78,7 @@ export function getQuoteAutomaticPricing(
     return { mode: 'AREA_M2', rate: 2600, label: 'Porta de giro', overridesSuggestedMode: true }
   }
   if (environment === 'cozinha' && priceProfile === 'PROVENCAL') {
-    return { mode: 'AREA_M2', rate: 4800, label: 'Cozinha provençal', overridesSuggestedMode: false }
+    return { mode: 'AREA_M2', rate: 3800, label: 'Cozinha provençal', overridesSuggestedMode: false }
   }
   if (environment === 'cozinha' && priceProfile === 'EXTERNAL_LACQUER') {
     return { mode: 'AREA_M2', rate: 4800, label: 'Cozinha com laca externa', overridesSuggestedMode: false }
@@ -93,7 +93,7 @@ export function getQuoteAutomaticPricing(
     return { mode: 'AREA_M2', rate: 800, label: 'Painel liso', overridesSuggestedMode: true }
   }
   if (isBedroom && furnitureType === 'guarda-roupa') {
-    const rate = priceProfile === 'WOODGRAIN' ? 2000 : 1800
+    const rate = priceProfile === 'WOODGRAIN' ? 2200 : 1800
     return {
       mode: 'AREA_M2',
       rate,
@@ -111,7 +111,7 @@ export function getQuoteAutomaticPricing(
     }
   }
   if (environment === 'cozinha') {
-    const rate = priceProfile === 'WOODGRAIN' ? 2500 : 2000
+    const rate = priceProfile === 'WOODGRAIN' ? 2200 : 2000
     return {
       mode: 'AREA_M2',
       rate,
