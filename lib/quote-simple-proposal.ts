@@ -8,9 +8,11 @@ import { moneyValue, numberValue, type NumericValue } from '@/lib/money'
 import {
   getQuotePaymentDetails,
   QUOTE_DIFFICULTY_LABELS,
+  QUOTE_PRICE_PROFILE_LABELS,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
   safeQuoteDifficulty,
+  safeQuotePriceProfile,
 } from '@/lib/quotes'
 
 type ProposalQuote = Quote & {
@@ -93,7 +95,7 @@ export function renderSimpleQuoteProposal({
       return `
         <tr>
           <td class="number">${serviceIndex}</td>
-          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
+          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)], item.finish || 'Interno não informado'].join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
           <td class="quantity">${item.quantity}</td>
           <td class="money">${formatCurrency(item.quantity > 0 ? moneyValue(item.total) / item.quantity : item.total)}</td>
           <td class="money">${formatCurrency(item.total)}</td>

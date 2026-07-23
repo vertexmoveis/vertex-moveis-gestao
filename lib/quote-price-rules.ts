@@ -29,11 +29,11 @@ type PriceRuleStore = Pick<PrismaClient, 'quotePriceRule'>
 
 const DEFAULT_PRICE_RULES: Omit<QuotePriceRule, 'id' | 'validFrom' | 'validUntil' | 'active'>[] = [
   { name: 'Cozinha padrão', environment: 'Cozinha', calculationMode: 'AREA_M2', pricePerM2: 2000, materialCostPerM2: 650 },
-  { name: 'Cozinha madeirada', environment: 'Cozinha', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
-  { name: 'Cozinha provençal', environment: 'Cozinha', priceProfile: 'PROVENCAL', calculationMode: 'AREA_M2', pricePerM2: 3800, materialCostPerM2: 1000 },
+  { name: 'Cozinha madeirada externa', environment: 'Cozinha', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
+  { name: 'Cozinha provençal externa', environment: 'Cozinha', priceProfile: 'PROVENCAL', calculationMode: 'AREA_M2', pricePerM2: 3800, materialCostPerM2: 1000 },
   { name: 'Cozinha com laca externa', environment: 'Cozinha', priceProfile: 'EXTERNAL_LACQUER', calculationMode: 'AREA_M2', pricePerM2: 4800, materialCostPerM2: 1100 },
   { name: 'Armário de quarto com portas', environment: 'Dormitório', furnitureType: 'Guarda-roupa', calculationMode: 'AREA_M2', pricePerM2: 1800, materialCostPerM2: 650 },
-  { name: 'Armário de quarto madeirado', environment: 'Dormitório', furnitureType: 'Guarda-roupa', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
+  { name: 'Armário de quarto madeirado externo', environment: 'Dormitório', furnitureType: 'Guarda-roupa', priceProfile: 'WOODGRAIN', calculationMode: 'AREA_M2', pricePerM2: 2200, materialCostPerM2: 750 },
   { name: 'Closet sem portas', environment: 'Closet', calculationMode: 'AREA_M2', pricePerM2: 1600, materialCostPerM2: 600 },
   { name: 'Closet com portas', environment: 'Closet', furnitureModel: 'Closet com portas', calculationMode: 'AREA_M2', pricePerM2: 1800, materialCostPerM2: 650 },
   { name: 'Gabinete de banheiro', environment: 'Banheiro', furnitureType: 'Gabinete', calculationMode: 'AREA_M2', pricePerM2: 2800, materialCostPerM2: 800 },
@@ -98,8 +98,8 @@ export async function ensureDefaultQuoteSettings(db: PriceRuleStore & Pick<Prism
   if (materialCount === 0) {
     await db.materialCatalogItem.createMany({
       data: [
-        { name: 'MDF', category: 'Painel', defaultFinish: 'Branco TX', unit: 'm2', unitCost: 650, supplier: null, active: true },
-        { name: 'MDF madeirado', category: 'Painel', defaultFinish: 'Madeirado', unit: 'm2', unitCost: 750, supplier: null, active: true },
+        { name: 'MDF', category: 'Painel', defaultFinish: 'Branco interno', unit: 'm2', unitCost: 650, supplier: null, active: true },
+        { name: 'MDF madeirado', category: 'Painel', defaultFinish: 'Madeirado interno', unit: 'm2', unitCost: 750, supplier: null, active: true },
         { name: 'Fita de borda', category: 'Acabamento', defaultFinish: null, unit: 'metro', unitCost: 0, supplier: null, active: true },
         { name: 'Ferragens', category: 'Ferragens', defaultFinish: null, unit: 'unidade', unitCost: 0, supplier: null, active: true },
       ],

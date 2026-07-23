@@ -7,8 +7,10 @@ import { formatDateOnly, isDateOnlyExpired } from '@/lib/date-only'
 import {
   getQuoteInstallmentGridColumns,
   getQuotePaymentDetails,
+  QUOTE_PRICE_PROFILE_LABELS,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
+  safeQuotePriceProfile,
 } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
 import { buildQuoteApprovalSnapshot, parseQuoteApprovalSnapshot } from '@/lib/quote-approval'
@@ -128,7 +130,8 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
                       <div>
                         <p className="font-semibold text-[#121212]">{item.description}</p>
                         <p className="mt-1 text-sm leading-5 text-[#777]">
-                          {item.material || 'MDF'}{item.finish ? ` · ${item.finish}` : ''}{item.quantity > 1 ? ` · Quantidade ${item.quantity}` : ''}
+                          {[item.material || 'MDF', item.priceProfile ? QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)] : 'Externo não informado', item.finish || 'Interno não informado'].join(' · ')}
+                          {item.quantity > 1 ? ` · Quantidade ${item.quantity}` : ''}
                         </p>
                         {item.notes ? <p className="mt-1 text-sm leading-5 text-[#777]">{item.notes}</p> : null}
                       </div>

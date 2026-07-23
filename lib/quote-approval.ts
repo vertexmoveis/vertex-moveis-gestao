@@ -10,6 +10,7 @@ type QuoteApprovalItemSource = {
   description: string
   material?: string | null
   finish?: string | null
+  priceProfile?: string | null
   width: number
   height: number
   quantity: number
@@ -90,6 +91,7 @@ export type QuoteApprovalSnapshot = {
       description: string
       material: string | null
       finish: string | null
+      priceProfile?: string | null
       width: number
       height: number
       quantity: number
@@ -146,6 +148,7 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
         description: item.description,
         material: item.material || null,
         finish: item.finish || null,
+        priceProfile: item.priceProfile || null,
         width: item.width,
         height: item.height,
         quantity: item.quantity,

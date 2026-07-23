@@ -4,9 +4,9 @@ import { findQuotePriceRule, type QuotePriceRule } from '@/lib/quote-price-rules
 export type QuotePriceProfile = 'STANDARD' | 'WOODGRAIN' | 'PROVENCAL' | 'EXTERNAL_LACQUER'
 
 export const QUOTE_PRICE_PROFILE_LABELS: Record<QuotePriceProfile, string> = {
-  STANDARD: 'Padrão',
-  WOODGRAIN: 'Madeirado',
-  PROVENCAL: 'Provençal',
+  STANDARD: 'Padrão externo',
+  WOODGRAIN: 'Madeirado externo',
+  PROVENCAL: 'Provençal externo',
   EXTERNAL_LACQUER: 'Laca externa',
 }
 
@@ -16,6 +16,12 @@ export const QUOTE_PRICE_PROFILES: QuotePriceProfile[] = [
   'PROVENCAL',
   'EXTERNAL_LACQUER',
 ]
+
+export const DEFAULT_QUOTE_INTERNAL_FINISH = 'Branco interno'
+export const QUOTE_INTERNAL_FINISHES = [
+  DEFAULT_QUOTE_INTERNAL_FINISH,
+  'Madeirado interno',
+] as const
 
 type QuotePricingRuleInput = {
   environment?: string | null
@@ -78,7 +84,7 @@ export function getQuoteAutomaticPricing(
     return { mode: 'AREA_M2', rate: 2600, label: 'Porta de giro', overridesSuggestedMode: true }
   }
   if (environment === 'cozinha' && priceProfile === 'PROVENCAL') {
-    return { mode: 'AREA_M2', rate: 3800, label: 'Cozinha provençal', overridesSuggestedMode: false }
+    return { mode: 'AREA_M2', rate: 3800, label: 'Cozinha provençal externa', overridesSuggestedMode: false }
   }
   if (environment === 'cozinha' && priceProfile === 'EXTERNAL_LACQUER') {
     return { mode: 'AREA_M2', rate: 4800, label: 'Cozinha com laca externa', overridesSuggestedMode: false }
@@ -97,7 +103,7 @@ export function getQuoteAutomaticPricing(
     return {
       mode: 'AREA_M2',
       rate,
-      label: priceProfile === 'WOODGRAIN' ? 'Armário de quarto madeirado' : 'Armário de quarto com portas',
+      label: priceProfile === 'WOODGRAIN' ? 'Armário de quarto madeirado externo' : 'Armário de quarto com portas',
       overridesSuggestedMode: false,
     }
   }
@@ -115,7 +121,7 @@ export function getQuoteAutomaticPricing(
     return {
       mode: 'AREA_M2',
       rate,
-      label: priceProfile === 'WOODGRAIN' ? 'Cozinha madeirada' : 'Cozinha padrão',
+      label: priceProfile === 'WOODGRAIN' ? 'Cozinha madeirada externa' : 'Cozinha padrão',
       overridesSuggestedMode: false,
     }
   }

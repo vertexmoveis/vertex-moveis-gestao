@@ -22,6 +22,8 @@ export {
 } from '@/lib/quote-catalog'
 export type { QuoteCalculationMode, QuoteEnvironmentTemplate, QuoteFurnitureOption } from '@/lib/quote-catalog'
 export {
+  DEFAULT_QUOTE_INTERNAL_FINISH,
+  QUOTE_INTERNAL_FINISHES,
   QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_PRICE_PROFILES,
   getQuoteAutomaticPricing,

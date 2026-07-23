@@ -73,8 +73,9 @@ O módulo de orçamentos foi feito para acelerar a montagem de propostas de móv
 - Modelos rápidos para inserir conjuntos de móveis comuns.
 - Móveis avulsos e opção de móvel personalizado.
 - Medidas informadas em milímetros.
-- Material, acabamento, acessórios e observações por móvel.
-- Perfis de preço: padrão, madeirado, provençal e laca externa.
+- Material, acabamento interno, acessórios e observações por móvel.
+- Acabamentos externos: padrão, madeirado, provençal e laca.
+- Acabamento interno branco por padrão, com opção de madeirado interno. O acabamento interno não altera o preço automaticamente.
 - Formas de cálculo por metro quadrado, metro linear ou unidade.
 - Preço manual para serviços e itens especiais.
 - Instalação, desconto comercial e custo previsto.
@@ -98,11 +99,11 @@ As regras abaixo são os valores iniciais do sistema. Regras cadastradas em **Co
 | Item ou perfil | Cálculo | Valor padrão |
 | --- | --- | ---: |
 | Cozinha padrão | m² | R$ 2.000,00 |
-| Cozinha madeirada | m² | R$ 2.200,00 |
-| Cozinha provençal | m² | R$ 3.800,00 |
+| Cozinha madeirada externa | m² | R$ 2.200,00 |
+| Cozinha provençal externa | m² | R$ 3.800,00 |
 | Cozinha com laca externa | m² | R$ 4.800,00 |
 | Armário de dormitório com portas | m² | R$ 1.800,00 |
-| Armário de dormitório madeirado | m² | R$ 2.200,00 |
+| Armário de dormitório madeirado externo | m² | R$ 2.200,00 |
 | Closet sem portas | m² | R$ 1.600,00 |
 | Closet com portas | m² | R$ 1.800,00 |
 | Gabinete de banheiro | m² | R$ 2.800,00 |
@@ -279,8 +280,8 @@ Administradores podem gerenciar:
 
 - Dados e logotipo da empresa usados nas propostas.
 - Usuários, funções, senha, ativação e desativação.
-- Regras de preço por ambiente, tipo de móvel, modelo e perfil.
-- Materiais, custos, fornecedores e acabamentos padrão.
+- Regras de preço por ambiente, tipo de móvel, modelo e acabamento externo.
+- Materiais, custos, fornecedores e acabamentos internos padrão.
 - Equipes e veículos.
 - Backup e saúde do sistema.
 - Erros recentes registrados pelo servidor.

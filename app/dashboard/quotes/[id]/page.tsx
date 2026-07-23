@@ -12,6 +12,7 @@ import { QuoteForm, type QuotePayload } from '@/components/quotes/quote-form'
 import {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_DIFFICULTY_LABELS,
+  QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_STATUS_BG,
   QUOTE_STATUS_LABELS,
   getQuoteItemPricePerM2,
@@ -20,6 +21,7 @@ import {
   quoteDisplayCode,
   safeQuoteCalculationMode,
   safeQuoteDifficulty,
+  safeQuotePriceProfile,
   type QuoteStatus,
 } from '@/lib/quotes'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
@@ -590,9 +592,9 @@ export default function QuoteDetailPage() {
                           {' • '}
                           {formatCurrency(calculationPrice)}{calculationUnit}
                         </p>
-                        {(item.material || item.finish) && (
-                          <p className="mt-1 text-xs text-[#777]">{[item.material, item.finish].filter(Boolean).join(' • ')}</p>
-                        )}
+                        <p className="mt-1 text-xs text-[#777]">
+                          {[item.material || 'MDF', QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)], item.finish || 'Interno não informado'].join(' • ')}
+                        </p>
                         <p className="mt-1 text-xs text-[#777]">
                           Dificuldade: {QUOTE_DIFFICULTY_LABELS[safeQuoteDifficulty(item.difficulty)]}
                         </p>

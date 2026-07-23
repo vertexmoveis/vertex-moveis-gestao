@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
-import { QUOTE_CALCULATION_MODE_LABELS, QUOTE_ENVIRONMENT_OPTIONS, QUOTE_PRICE_PROFILE_LABELS, QUOTE_PRICE_PROFILES, type QuoteCalculationMode, type QuotePriceProfile } from '@/lib/quotes'
+import { QUOTE_CALCULATION_MODE_LABELS, QUOTE_ENVIRONMENT_OPTIONS, QUOTE_INTERNAL_FINISHES, QUOTE_PRICE_PROFILE_LABELS, QUOTE_PRICE_PROFILES, type QuoteCalculationMode, type QuotePriceProfile } from '@/lib/quotes'
 import type { QuotePriceRule } from '@/lib/quote-price-rules'
 import { formatCurrency } from '@/lib/utils'
 
@@ -104,6 +104,13 @@ function sortRules(items: QuotePriceRule[]) {
 
 function sortMaterials(items: MaterialCatalogItem[]) {
   return [...items].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'pt-BR'))
+}
+
+function internalFinishOptions(currentValue?: string) {
+  return [...new Set([
+    ...QUOTE_INTERNAL_FINISHES,
+    ...(currentValue?.trim() ? [currentValue.trim()] : []),
+  ])].map((value) => ({ value, label: value }))
 }
 
 export function PricingMaterialsSettings({
@@ -234,7 +241,7 @@ export function PricingMaterialsSettings({
             <Select label="Ambiente" value={priceRuleDraft.environment} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, environment: event.target.value }))} placeholder="Todos" options={QUOTE_ENVIRONMENT_OPTIONS.map((value) => ({ value, label: value }))} />
             <Input label="Tipo de móvel" value={priceRuleDraft.furnitureType} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, furnitureType: event.target.value }))} placeholder="Ex.: Guarda-roupa" />
             <Input label="Modelo" value={priceRuleDraft.furnitureModel} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, furnitureModel: event.target.value }))} placeholder="Ex.: Painel ripado" />
-            <Select label="Padrão" value={priceRuleDraft.priceProfile} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, priceProfile: event.target.value }))} placeholder="Todos" options={QUOTE_PRICE_PROFILES.map((value) => ({ value, label: QUOTE_PRICE_PROFILE_LABELS[value] }))} />
+            <Select label="Acabamento externo" value={priceRuleDraft.priceProfile} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, priceProfile: event.target.value }))} placeholder="Todos" options={QUOTE_PRICE_PROFILES.map((value) => ({ value, label: QUOTE_PRICE_PROFILE_LABELS[value] }))} />
             <Select label="Cálculo" value={priceRuleDraft.calculationMode} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, calculationMode: event.target.value as QuoteCalculationMode }))} options={Object.entries(QUOTE_CALCULATION_MODE_LABELS).map(([value, label]) => ({ value, label }))} />
             <Input label="Preço de venda" inputMode="decimal" value={priceRuleDraft.pricePerM2} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, pricePerM2: event.target.value }))} placeholder="R$ 0,00" />
             <Input label="Custo por m²" inputMode="decimal" value={priceRuleDraft.materialCostPerM2} onChange={(event) => setPriceRuleDraft((current) => ({ ...current, materialCostPerM2: event.target.value }))} placeholder="Opcional" />
@@ -288,7 +295,7 @@ export function PricingMaterialsSettings({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Input label="Material" value={materialDraft.name} onChange={(event) => setMaterialDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: MDF Ultra" />
             <Input label="Categoria" value={materialDraft.category} onChange={(event) => setMaterialDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Ex.: Painel" />
-            <Input label="Acabamento padrão" value={materialDraft.defaultFinish} onChange={(event) => setMaterialDraft((current) => ({ ...current, defaultFinish: event.target.value }))} placeholder="Ex.: Branco TX" />
+            <Select label="Acabamento interno padrão" value={materialDraft.defaultFinish} onChange={(event) => setMaterialDraft((current) => ({ ...current, defaultFinish: event.target.value }))} placeholder="Sem acabamento padrão" options={internalFinishOptions(materialDraft.defaultFinish)} />
             <Select label="Unidade" value={materialDraft.unit} onChange={(event) => setMaterialDraft((current) => ({ ...current, unit: event.target.value }))} options={[{ value: 'm2', label: 'm²' }, { value: 'metro', label: 'metro' }, { value: 'unidade', label: 'unidade' }]} />
             <Input label="Custo unitário" inputMode="decimal" value={materialDraft.unitCost} onChange={(event) => setMaterialDraft((current) => ({ ...current, unitCost: event.target.value }))} placeholder="R$ 0,00" />
             <Input label="Fornecedor" value={materialDraft.supplier} onChange={(event) => setMaterialDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Opcional" />

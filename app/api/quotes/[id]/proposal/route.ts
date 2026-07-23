@@ -14,6 +14,7 @@ import {
   buildQuoteWhatsAppMessage,
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_DIFFICULTY_LABELS,
+  QUOTE_PRICE_PROFILE_LABELS,
   getQuoteAutomaticPricing,
   getQuoteInstallmentGridColumns,
   getQuotePaymentDetails,
@@ -22,6 +23,7 @@ import {
   quoteDisplayCode,
   safeQuoteCalculationMode,
   safeQuoteDifficulty,
+  safeQuotePriceProfile,
 } from '@/lib/quotes'
 
 function escapeHtml(value: unknown) {
@@ -339,7 +341,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 ${difficulty !== 'NORMAL' ? `<span class="difficulty">${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}</span>` : ''}
               </div>
               <div class="item-detail"><span>Medidas</span><strong>${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm</strong></div>
-              <div class="item-detail"><span>${escapeHtml(`${automaticPricing.label} · ${QUOTE_CALCULATION_MODE_LABELS[calculationMode]}`)}</span><strong>${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}</strong></div>
+              <div class="item-detail"><span>${escapeHtml(`${automaticPricing.label} · ${QUOTE_CALCULATION_MODE_LABELS[calculationMode]}`)}</span><strong>${escapeHtml([item.material || 'MDF', QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)], item.finish || 'Interno não informado'].join(' · '))}</strong></div>
               <div class="item-price">${formatCurrency(item.total)}<span>${item.quantity} × ${formatCurrency(unitTotal)}</span></div>
             </div>
           `}).join('')}

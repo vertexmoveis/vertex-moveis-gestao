@@ -17,6 +17,7 @@ import { Input, Select, Textarea } from '@/components/ui/input'
 import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import { FurniturePicker, type RecentFurnitureSelection } from '@/components/quotes/furniture-picker'
 import {
+  DEFAULT_QUOTE_INTERNAL_FINISH,
   DEFAULT_QUOTE_MATERIAL,
   DEFAULT_QUOTE_PRICING,
   QUOTE_CALCULATION_MODE_LABELS,
@@ -24,6 +25,7 @@ import {
   QUOTE_DIFFICULTY_LABELS,
   QUOTE_DIFFICULTY_MULTIPLIER,
   QUOTE_ENVIRONMENT_OPTIONS,
+  QUOTE_INTERNAL_FINISHES,
   QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_PRICE_PROFILES,
   QUOTE_PAYMENT_METHOD_LABELS,
@@ -222,6 +224,13 @@ function getAvailablePriceProfiles(environment: string) {
   return QUOTE_PRICE_PROFILES.filter((profile) => profile === 'STANDARD')
 }
 
+function getInternalFinishOptions(values: Array<string | null | undefined> = []) {
+  return [...new Set([
+    ...QUOTE_INTERNAL_FINISHES,
+    ...values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)),
+  ])].map((value) => ({ value, label: value }))
+}
+
 function getSuggestedCalculation(
   environment: string,
   furnitureType: string,
@@ -271,7 +280,7 @@ function itemToDraft(item?: QuoteItemData, draftId = 'initial-item-1'): DraftIte
     priceProfile: safeQuotePriceProfile(item?.priceProfile),
     manualPrice: moneyToString(item?.manualPrice),
     accessories: item?.accessories || [],
-    finish: item?.finish || '',
+    finish: item ? item.finish || '' : DEFAULT_QUOTE_INTERNAL_FINISH,
     notes: item?.notes || '',
     material: item?.material || DEFAULT_QUOTE_MATERIAL,
   }
@@ -1050,18 +1059,19 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                         value={materialsInGroup.length === 1 ? materialsInGroup[0] : ''}
                         placeholder={materialsInGroup.length > 1 ? 'Vários materiais' : 'Selecione'}
                         onChange={(event) => applyEnvironmentMaterial(environmentGroup.key, event.target.value)}
-                        options={(materials.length ? materials : [{ id: 'default-mdf', name: DEFAULT_QUOTE_MATERIAL, defaultFinish: null, unitCost: DEFAULT_QUOTE_PRICING.materialCostPerM2, active: true }]).map((option) => ({ value: option.name, label: option.name }))}
-                      />
-                      <Input
-                        label="Acabamento do ambiente"
-                        value={finishesInGroup.length === 1 ? finishesInGroup[0] : ''}
-                        onChange={(event) => applyEnvironmentFinish(environmentGroup.key, event.target.value)}
-                        placeholder={finishesInGroup.length > 1 ? 'Vários acabamentos' : 'Ex.: Branco TX'}
+                        options={(materials.length ? materials : [{ id: 'default-mdf', name: DEFAULT_QUOTE_MATERIAL, defaultFinish: DEFAULT_QUOTE_INTERNAL_FINISH, unitCost: DEFAULT_QUOTE_PRICING.materialCostPerM2, active: true }]).map((option) => ({ value: option.name, label: option.name }))}
                       />
                       <Select
-                        label="Padrão do ambiente"
+                        label="Acabamento interno"
+                        value={finishesInGroup.length === 1 ? finishesInGroup[0] : ''}
+                        onChange={(event) => applyEnvironmentFinish(environmentGroup.key, event.target.value)}
+                        placeholder={finishesInGroup.length > 1 ? 'Vários acabamentos internos' : 'Selecione'}
+                        options={getInternalFinishOptions(finishesInGroup)}
+                      />
+                      <Select
+                        label="Acabamento externo"
                         value={profilesInGroup.length === 1 ? profilesInGroup[0] : ''}
-                        placeholder={profilesInGroup.length > 1 ? 'Vários padrões' : 'Selecione'}
+                        placeholder={profilesInGroup.length > 1 ? 'Vários acabamentos externos' : 'Selecione'}
                         onChange={(event) => applyEnvironmentPriceProfile(environmentGroup.key, event.target.value as QuotePriceProfile)}
                         options={getAvailablePriceProfiles(environmentGroup.environment).map((value) => ({ value, label: QUOTE_PRICE_PROFILE_LABELS[value] }))}
                       />
@@ -1147,7 +1157,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                             {expanded ? (
                               <div className="mt-4 space-y-4 border-t border-[#ECECEC] pt-4">
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                                  <Select label="Padrão de preço" value={item.priceProfile} onChange={(event) => updateItemPriceProfile(index, event.target.value as QuotePriceProfile)} options={getAvailablePriceProfiles(item.environment).map((value) => ({ value, label: QUOTE_PRICE_PROFILE_LABELS[value] }))} />
+                                  <Select label="Acabamento externo" value={item.priceProfile} onChange={(event) => updateItemPriceProfile(index, event.target.value as QuotePriceProfile)} options={getAvailablePriceProfiles(item.environment).map((value) => ({ value, label: QUOTE_PRICE_PROFILE_LABELS[value] }))} />
                                   <Select
                                     label="Forma de cálculo"
                                     value={item.calculationMode}
@@ -1172,9 +1182,9 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                                       updateItem(index, 'material', event.target.value)
                                       if (!item.finish && material?.defaultFinish) updateItem(index, 'finish', material.defaultFinish)
                                     }}
-                                    options={(materials.length ? materials : [{ id: 'default-mdf', name: DEFAULT_QUOTE_MATERIAL, defaultFinish: null, unitCost: DEFAULT_QUOTE_PRICING.materialCostPerM2, active: true }]).map((option) => ({ value: option.name, label: option.name }))}
+                                    options={(materials.length ? materials : [{ id: 'default-mdf', name: DEFAULT_QUOTE_MATERIAL, defaultFinish: DEFAULT_QUOTE_INTERNAL_FINISH, unitCost: DEFAULT_QUOTE_PRICING.materialCostPerM2, active: true }]).map((option) => ({ value: option.name, label: option.name }))}
                                   />
-                                  <Input label="Acabamento deste móvel" value={item.finish} onChange={(event) => updateItem(index, 'finish', event.target.value)} placeholder="Branco TX" />
+                                  <Select label="Acabamento interno" value={item.finish} onChange={(event) => updateItem(index, 'finish', event.target.value)} placeholder="Selecione" options={getInternalFinishOptions([item.finish])} />
                                 </div>
 
                                 <fieldset className="border-t border-[#F0F0F0] pt-3">
