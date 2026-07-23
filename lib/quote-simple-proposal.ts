@@ -4,6 +4,7 @@ import type { CompanyProfileData } from '@/lib/company-profile'
 import { formatCompanyAddress } from '@/lib/company-profile'
 import { formatDateOnly } from '@/lib/date-only'
 import { formatClientAddress } from '@/lib/address'
+import { moneyValue, numberValue, type NumericValue } from '@/lib/money'
 import {
   getQuotePaymentDetails,
   QUOTE_DIFFICULTY_LABELS,
@@ -27,8 +28,8 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#039;')
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0)
+function formatCurrency(value: NumericValue) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue(value))
 }
 
 function formatMeasure(value: number) {
@@ -56,7 +57,7 @@ export function renderSimpleQuoteProposal({
   const companyAddress = formatCompanyAddress(company)
   const clientAddress = formatClientAddress(quote.client)
   const deliveryForecast = addBusinessDays(quote.approvedAt || quote.createdAt, quote.deliveryBusinessDays)
-  const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
+  const itemSubtotal = quote.items.reduce((sum, item) => sum + moneyValue(item.total), 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
   const groupedItems = quote.items.reduce<Record<string, QuoteItem[]>>((groups, item) => {
     const environmentName = item.environmentName || item.environment
@@ -85,7 +86,7 @@ export function renderSimpleQuoteProposal({
       }]
   let serviceIndex = 0
   const serviceRows = Object.entries(groupedItems).map(([environmentName, items]) => `
-    <tr class="environment-row"><td colspan="4">${escapeHtml(environmentName)}</td><td class="money">${formatCurrency(items.reduce((sum, item) => sum + item.total, 0))}</td></tr>
+    <tr class="environment-row"><td colspan="4">${escapeHtml(environmentName)}</td><td class="money">${formatCurrency(items.reduce((sum, item) => sum + moneyValue(item.total), 0))}</td></tr>
     ${items.map((item) => {
       serviceIndex += 1
       const difficulty = safeQuoteDifficulty(item.difficulty)
@@ -94,7 +95,7 @@ export function renderSimpleQuoteProposal({
           <td class="number">${serviceIndex}</td>
           <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', item.finish].filter(Boolean).join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
           <td class="quantity">${item.quantity}</td>
-          <td class="money">${formatCurrency(item.quantity > 0 ? item.total / item.quantity : item.total)}</td>
+          <td class="money">${formatCurrency(item.quantity > 0 ? moneyValue(item.total) / item.quantity : item.total)}</td>
           <td class="money">${formatCurrency(item.total)}</td>
         </tr>
       `
@@ -211,9 +212,9 @@ export function renderSimpleQuoteProposal({
 
     <table class="totals" aria-label="Resumo financeiro">
       <tbody>
-        ${quote.installationFee > 0 ? `<tr><td>Instalação</td><td class="money">${formatCurrency(quote.installationFee)}</td></tr>` : ''}
-        ${quote.manualDiscount > 0 ? `<tr><td>Desconto comercial</td><td class="money">- ${formatCurrency(quote.manualDiscount)}</td></tr>` : ''}
-        ${quote.paymentDiscount > 0 ? `<tr><td>Desconto Pix</td><td class="money">- ${formatCurrency(quote.paymentDiscount)}</td></tr>` : ''}
+        ${moneyValue(quote.installationFee) > 0 ? `<tr><td>Instalação</td><td class="money">${formatCurrency(quote.installationFee)}</td></tr>` : ''}
+        ${moneyValue(quote.manualDiscount) > 0 ? `<tr><td>Desconto comercial</td><td class="money">- ${formatCurrency(quote.manualDiscount)}</td></tr>` : ''}
+        ${moneyValue(quote.paymentDiscount) > 0 ? `<tr><td>Desconto Pix</td><td class="money">- ${formatCurrency(quote.paymentDiscount)}</td></tr>` : ''}
         <tr><td>TOTAL DA PROPOSTA</td><td class="money">${formatCurrency(quote.total)}</td></tr>
       </tbody>
     </table>

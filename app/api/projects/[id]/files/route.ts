@@ -36,7 +36,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!isProjectBlobUrl(parsed.data.url, id)) return badRequest('O arquivo não pertence a este projeto.')
 
   try {
-    const project = await prisma.project.findUnique({ where: { id }, select: { managerId: true } })
+    const project = await prisma.project.findFirst({
+      where: { id, archivedAt: null },
+      select: { managerId: true },
+    })
     if (!project) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 })
     if (!canAccessProject(auth.user, project.managerId)) return forbidden()
 

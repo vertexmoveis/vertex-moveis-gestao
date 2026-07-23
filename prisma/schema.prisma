@@ -9,24 +9,27 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  name           String
-  email          String           @unique
-  password       String
-  role           String           @default("MANAGER")
-  active         Boolean          @default(true)
-  sessionVersion Int              @default(1)
-  lastLoginAt    DateTime?
+  id                String           @id @default(cuid())
+  name              String
+  email             String           @unique
+  password          String
+  role              String           @default("MANAGER")
+  active            Boolean          @default(true)
+  sessionVersion    Int              @default(1)
+  lastLoginAt       DateTime?
   passwordChangedAt DateTime?
-  avatar         String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  projects       Project[]
-  quotes         Quote[]
-  notes          Note[]
-  activities     ActivityLog[]
-  paymentHistory PaymentHistory[]
-  expensesCreated ProjectExpense[] @relation("ExpenseCreatedBy")
+  twoFactorEnabled  Boolean          @default(false)
+  twoFactorSecret   String?
+  avatar            String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  projects          Project[]
+  quotes            Quote[]
+  notes             Note[]
+  activities        ActivityLog[]
+  paymentHistory    PaymentHistory[]
+  expensesCreated   ProjectExpense[] @relation("ExpenseCreatedBy")
+  loginEvents       LoginEvent[]
 }
 
 model Client {
@@ -47,6 +50,7 @@ model Client {
   longitude    Float?
   geocodedAt   DateTime?
   notes        String?
+  archivedAt   DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   projects     Project[]
@@ -55,6 +59,7 @@ model Client {
   @@index([name])
   @@index([city])
   @@index([zipCode])
+  @@index([archivedAt])
 }
 
 model Project {
@@ -74,16 +79,20 @@ model Project {
   startDate                      DateTime?
   estimatedEndDate               DateTime?
   actualEndDate                  DateTime?
-  value                          Float?
-  productionCost                 Float?                 @default(0)
-  downPayment                    Float?                 @default(0)
+  value                          Decimal?               @db.Decimal(14, 2)
+  productionCost                 Decimal?               @default(0) @db.Decimal(14, 2)
+  downPayment                    Decimal?               @default(0) @db.Decimal(14, 2)
   downPaymentDate                DateTime?
   installmentCount               Int                    @default(0)
-  installmentValue               Float?                 @default(0)
+  installmentValue               Decimal?               @default(0) @db.Decimal(14, 2)
   firstInstallmentDate           DateTime?
   managerId                      String?
   manager                        User?                  @relation(fields: [managerId], references: [id])
   internalNotes                  String?
+  productionBlockedAt            DateTime?
+  productionBlockReason          String?
+  stageDeadlineDate              DateTime?
+  archivedAt                     DateTime?
   createdAt                      DateTime               @default(now())
   updatedAt                      DateTime               @updatedAt
   notes                          Note[]
@@ -97,6 +106,7 @@ model Project {
   materials                      ProjectMaterial[]
   expenses                       ProjectExpense[]
   installationSchedules          InstallationSchedule[]
+  portalAccesses                 ProjectPortalAccess[]
   postSaleFollowUpAt             DateTime?
   postSaleContactedAt            DateTime?
   warrantyEndsAt                 DateTime?
@@ -111,6 +121,9 @@ model Project {
   @@index([productionStartReminderDate])
   @@index([stage, postSaleFollowUpAt])
   @@index([createdAt])
+  @@index([archivedAt])
+  @@index([productionBlockedAt])
+  @@index([stageDeadlineDate])
 }
 
 model Quote {
@@ -127,21 +140,21 @@ model Quote {
   validUntil           DateTime?
   deliveryBusinessDays Int                    @default(30)
   firstInstallmentDate DateTime?
-  pricePerM2           Float                  @default(1250)
-  materialCostPerM2    Float                  @default(650)
-  installationFee      Float                  @default(0)
+  pricePerM2           Decimal                @default(1250) @db.Decimal(14, 2)
+  materialCostPerM2    Decimal                @default(650) @db.Decimal(14, 2)
+  installationFee      Decimal                @default(0) @db.Decimal(14, 2)
   marginPercent        Float                  @default(35)
-  discount             Float                  @default(0)
-  manualDiscount       Float                  @default(0)
-  paymentDiscount      Float                  @default(0)
+  discount             Decimal                @default(0) @db.Decimal(14, 2)
+  manualDiscount       Decimal                @default(0) @db.Decimal(14, 2)
+  paymentDiscount      Decimal                @default(0) @db.Decimal(14, 2)
   paymentMethod        String                 @default("TO_DEFINE")
   cardInstallments     Int                    @default(1)
-  cardDownPayment      Float                  @default(0)
+  cardDownPayment      Decimal                @default(0) @db.Decimal(14, 2)
   cardFeePercent       Float                  @default(0)
-  cardFeeAmount        Float                  @default(0)
-  subtotal             Float                  @default(0)
-  costTotal            Float                  @default(0)
-  total                Float                  @default(0)
+  cardFeeAmount        Decimal                @default(0) @db.Decimal(14, 2)
+  subtotal             Decimal                @default(0) @db.Decimal(14, 2)
+  costTotal            Decimal                @default(0) @db.Decimal(14, 2)
+  total                Decimal                @default(0) @db.Decimal(14, 2)
   notes                String?
   customerNotes        String?
   lossReason           String?
@@ -149,6 +162,7 @@ model Quote {
   approvedAt           DateTime?
   soldAt               DateTime?
   lostAt               DateTime?
+  archivedAt           DateTime?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   items                QuoteItem[]
@@ -161,6 +175,7 @@ model Quote {
   @@index([validUntil])
   @@index([createdAt])
   @@index([createdById, status, createdAt])
+  @@index([archivedAt])
 }
 
 model CompanyProfile {
@@ -199,13 +214,13 @@ model QuoteItem {
   difficulty      String   @default("NORMAL")
   calculationMode String   @default("AREA_M2")
   priceProfile    String   @default("STANDARD")
-  manualPrice     Float?
+  manualPrice     Decimal? @db.Decimal(14, 2)
   accessories     String?
   quantity        Int      @default(1)
   areaM2          Float    @default(0)
-  unitPrice       Float    @default(0)
-  cost            Float    @default(0)
-  total           Float    @default(0)
+  unitPrice       Decimal  @default(0) @db.Decimal(14, 2)
+  cost            Decimal  @default(0) @db.Decimal(14, 2)
+  total           Decimal  @default(0) @db.Decimal(14, 2)
   notes           String?
   position        Int
   createdAt       DateTime @default(now())
@@ -235,8 +250,8 @@ model QuotePriceRule {
   furnitureModel    String?
   priceProfile      String?
   calculationMode   String    @default("AREA_M2")
-  pricePerM2        Float
-  materialCostPerM2 Float?
+  pricePerM2        Decimal   @db.Decimal(14, 2)
+  materialCostPerM2 Decimal?  @db.Decimal(14, 2)
   validFrom         DateTime  @default(now())
   validUntil        DateTime?
   active            Boolean   @default(true)
@@ -253,7 +268,7 @@ model MaterialCatalogItem {
   category         String?
   defaultFinish    String?
   unit             String            @default("m2")
-  unitCost         Float             @default(0)
+  unitCost         Decimal           @default(0) @db.Decimal(14, 2)
   supplier         String?
   active           Boolean           @default(true)
   createdAt        DateTime          @default(now())
@@ -275,8 +290,8 @@ model ProjectMaterial {
   unit              String               @default("m2")
   estimatedQuantity Float                @default(0)
   purchasedQuantity Float                @default(0)
-  estimatedCost     Float                @default(0)
-  actualCost        Float?
+  estimatedCost     Decimal              @default(0) @db.Decimal(14, 2)
+  actualCost        Decimal?             @db.Decimal(14, 2)
   supplier          String?
   status            String               @default("PENDING")
   notes             String?
@@ -294,7 +309,7 @@ model ProjectExpense {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   category    String
   description String
-  amount      Float
+  amount      Decimal  @db.Decimal(14, 2)
   incurredAt  DateTime
   supplier    String?
   notes       String?
@@ -405,7 +420,7 @@ model ProjectPayment {
   project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   installmentNumber Int
   type              String
-  amount            Float
+  amount            Decimal          @db.Decimal(14, 2)
   dueDate           DateTime
   paidAt            DateTime?
   paymentMethod     String?
@@ -428,7 +443,7 @@ model PaymentHistory {
   user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
   method    String?
-  amount    Float
+  amount    Decimal        @db.Decimal(14, 2)
   createdAt DateTime       @default(now())
 
   @@index([paymentId])
@@ -517,4 +532,37 @@ model SystemEvent {
 
   @@index([type, createdAt])
   @@index([severity, createdAt])
+}
+
+model LoginEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  success   Boolean
+  reason    String?
+  ipHash    String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([success, createdAt])
+}
+
+model ProjectPortalAccess {
+  id           String    @id @default(cuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  tokenEncrypted String
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  lastViewedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }

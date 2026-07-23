@@ -37,8 +37,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const [quote, companyProfile] = await Promise.all([
-    prisma.quote.findUnique({
-      where: { id },
+    prisma.quote.findFirst({
+      where: { id, archivedAt: null },
       include: {
         client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
         items: { orderBy: { position: 'asc' } },

@@ -58,7 +58,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           throw new Error('Destino de arquivo inválido.')
         }
 
-        const project = await prisma.project.findUnique({ where: { id }, select: { managerId: true } })
+        const project = await prisma.project.findFirst({
+          where: { id, archivedAt: null },
+          select: { managerId: true },
+        })
         if (!project) throw new Error('Projeto não encontrado.')
         if (!canAccessProject(auth.user, project.managerId)) throw new Error('Você não tem acesso a este projeto.')
 

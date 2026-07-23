@@ -80,12 +80,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
 
   const { id } = await params
-  const existing = await prisma.installationSchedule.findUnique({ where: { id }, include: { project: { select: { managerId: true } } } })
+  const existing = await prisma.installationSchedule.findFirst({
+    where: { id, project: { archivedAt: null } },
+    include: { project: { select: { managerId: true } } },
+  })
   if (!existing) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
   if (!canAccessProject(auth.user, existing.project.managerId)) return forbidden()
 
-  const targetProject = await prisma.project.findUnique({
-    where: { id: parsed.data.projectId },
+  const targetProject = await prisma.project.findFirst({
+    where: { id: parsed.data.projectId, archivedAt: null },
     select: {
       id: true,
       managerId: true,
@@ -216,7 +219,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!auth.ok) return auth.response
 
   const { id } = await params
-  const existing = await prisma.installationSchedule.findUnique({ where: { id }, include: { project: { select: { managerId: true } } } })
+  const existing = await prisma.installationSchedule.findFirst({
+    where: { id, project: { archivedAt: null } },
+    include: { project: { select: { managerId: true } } },
+  })
   if (!existing) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
   if (!canAccessProject(auth.user, existing.project.managerId)) return forbidden()
 

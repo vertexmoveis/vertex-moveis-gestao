@@ -28,8 +28,8 @@ export async function PATCH(
   const completed = typeof body === 'object' && body !== null && 'completed' in body ? Boolean(body.completed) : null
   if (completed === null) return badRequest()
 
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const project = await prisma.project.findFirst({
+    where: { id, archivedAt: null },
     select: { managerId: true },
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })

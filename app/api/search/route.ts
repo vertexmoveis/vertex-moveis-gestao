@@ -38,14 +38,15 @@ export async function GET(req: NextRequest) {
   }
 
   const isAdmin = auth.user.role === 'ADMIN'
-  const projectAccess = isAdmin ? null : { managerId: auth.user.id }
-  const quoteAccess = isAdmin ? null : { createdById: auth.user.id }
+  const projectAccess = isAdmin ? { archivedAt: null } : { archivedAt: null, managerId: auth.user.id }
+  const quoteAccess = isAdmin ? { archivedAt: null } : { archivedAt: null, createdById: auth.user.id }
   const clientAccess = isAdmin
-    ? null
+    ? { archivedAt: null }
     : {
+        archivedAt: null,
         OR: [
-          { projects: { some: { managerId: auth.user.id } } },
-          { quotes: { some: { createdById: auth.user.id } } },
+          { projects: { some: { managerId: auth.user.id, archivedAt: null } } },
+          { quotes: { some: { createdById: auth.user.id, archivedAt: null } } },
         ],
       }
 

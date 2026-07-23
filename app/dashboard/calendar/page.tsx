@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { Header } from '@/components/layout/header'
 import { CalendarView, type CalendarEvent } from '@/components/calendar/calendar-view'
 import { OperationsSchedule } from '@/components/calendar/operations-schedule'
+import { numberValue } from '@/lib/money'
 import type { ProjectStatus } from '@/types'
 
 type DashboardUser = { id?: string; role?: string }
@@ -42,7 +43,7 @@ function isInRange(value: Date | null, start: Date, end: Date) {
 
 async function getCalendarEvents(user: DashboardUser, range: ReturnType<typeof parseMonth>) {
   const isAdmin = user.role === 'ADMIN'
-  const projectAccess = isAdmin ? {} : { managerId: user.id }
+  const projectAccess = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id }) }
 
   const [projects, installationSchedules] = await Promise.all([
     prisma.project.findMany({
@@ -136,6 +137,7 @@ async function getCalendarEvents(user: DashboardUser, range: ReturnType<typeof p
       where: {
         paidAt: null,
         dueDate: { gte: range.dueStart, lt: range.dueEnd },
+        project: { archivedAt: null },
       },
       select: {
         id: true,
@@ -166,7 +168,7 @@ async function getCalendarEvents(user: DashboardUser, range: ReturnType<typeof p
         type: 'finance',
         status: payment.project.status as ProjectStatus,
         stage: payment.project.stage,
-        amount: payment.amount,
+        amount: numberValue(payment.amount),
       })
     }
   }

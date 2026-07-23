@@ -27,7 +27,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!parsed.success) return badRequest()
 
   try {
-    const project = await prisma.project.findUnique({ where: { id }, select: { managerId: true } })
+    const project = await prisma.project.findFirst({
+      where: { id, archivedAt: null },
+      select: { managerId: true },
+    })
     if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!canAccessProject(auth.user, project.managerId)) return forbidden()
 

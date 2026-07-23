@@ -1,4 +1,5 @@
 import { roundCurrency } from '@/lib/payments'
+import { numberValue, type NumericValue } from '@/lib/money'
 
 type QuoteItemForMaterials = {
   material: string | null
@@ -7,7 +8,7 @@ type QuoteItemForMaterials = {
   areaM2: number
   width: number
   quantity: number
-  cost: number
+  cost: NumericValue
 }
 
 export type ProjectMaterialDraft = {
@@ -43,7 +44,7 @@ export function buildProjectMaterialsFromQuoteItems(items: QuoteItemForMaterials
 
     if (existing) {
       existing.estimatedQuantity = roundCurrency(existing.estimatedQuantity + quantity)
-      existing.estimatedCost = roundCurrency(existing.estimatedCost + Math.max(item.cost || 0, 0))
+      existing.estimatedCost = roundCurrency(existing.estimatedCost + Math.max(numberValue(item.cost), 0))
       continue
     }
 
@@ -52,7 +53,7 @@ export function buildProjectMaterialsFromQuoteItems(items: QuoteItemForMaterials
       finish,
       unit,
       estimatedQuantity: roundCurrency(quantity),
-      estimatedCost: roundCurrency(Math.max(item.cost || 0, 0)),
+      estimatedCost: roundCurrency(Math.max(numberValue(item.cost), 0)),
     })
   }
 

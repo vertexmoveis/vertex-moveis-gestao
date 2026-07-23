@@ -8,6 +8,7 @@ import { normalizeEnvironmentNames, serializeEnvironment, summarizeEnvironments 
 import { badRequest, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { normalizeProductionStage, type ProductionStage } from '@/types'
+import { optionalMoneyValue } from '@/lib/money'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -28,7 +29,10 @@ export async function GET(req: NextRequest) {
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 20), 1), 100)
 
-  const where: Record<string, unknown> = auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }
+  const where: Record<string, unknown> = {
+    archivedAt: null,
+    ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
+  }
 
   if (q) {
     where.OR = [
@@ -70,6 +74,9 @@ export async function GET(req: NextRequest) {
       installmentValue: auth.user.role === 'ADMIN',
       firstInstallmentDate: auth.user.role === 'ADMIN',
       internalNotes: false,
+      productionBlockedAt: true,
+      productionBlockReason: true,
+      stageDeadlineDate: true,
       environments: {
         select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true },
         orderBy: { position: 'asc' },
@@ -85,6 +92,13 @@ export async function GET(req: NextRequest) {
 
   const items = projects.map((p) => ({
       ...p,
+      productionBlockedAt: p.productionBlockedAt?.toISOString() || null,
+      productionBlockReason: p.productionBlockReason,
+      stageDeadlineDate: p.stageDeadlineDate?.toISOString() || null,
+      value: optionalMoneyValue(p.value),
+      productionCost: optionalMoneyValue(p.productionCost),
+      downPayment: optionalMoneyValue(p.downPayment),
+      installmentValue: optionalMoneyValue(p.installmentValue),
       approvalDate: p.approvalDate?.toISOString() || null,
       paymentConfirmedAt: p.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: p.deliveryDeadlineDate?.toISOString() || null,

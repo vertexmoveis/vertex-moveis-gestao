@@ -1,4 +1,5 @@
 import { parseQuoteAccessories } from './quotes'
+import { moneyValue, type NumericValue } from './money'
 
 export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
 
@@ -12,7 +13,7 @@ type QuoteApprovalItemSource = {
   width: number
   height: number
   quantity: number
-  total: number
+  total: NumericValue
   notes?: string | null
   accessories?: string[] | string | null
 }
@@ -25,14 +26,14 @@ export type QuoteApprovalSource = {
   validUntil?: Date | string | null
   deliveryBusinessDays?: number | null
   firstInstallmentDate?: Date | string | null
-  installationFee: number
-  manualDiscount: number
-  paymentDiscount: number
+  installationFee: NumericValue
+  manualDiscount: NumericValue
+  paymentDiscount: NumericValue
   paymentMethod: string
   cardInstallments: number
-  cardDownPayment: number
-  subtotal: number
-  total: number
+  cardDownPayment: NumericValue
+  subtotal: NumericValue
+  total: NumericValue
   customerNotes?: string | null
   client: {
     name: string
@@ -116,14 +117,14 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
       validUntil: dateToIso(quote.validUntil),
       deliveryBusinessDays: quote.deliveryBusinessDays || 30,
       firstInstallmentDate: dateToIso(quote.firstInstallmentDate),
-      installationFee: quote.installationFee,
-      manualDiscount: quote.manualDiscount,
-      paymentDiscount: quote.paymentDiscount,
+      installationFee: moneyValue(quote.installationFee),
+      manualDiscount: moneyValue(quote.manualDiscount),
+      paymentDiscount: moneyValue(quote.paymentDiscount),
       paymentMethod: quote.paymentMethod,
       cardInstallments: quote.cardInstallments,
-      cardDownPayment: quote.cardDownPayment,
-      subtotal: quote.subtotal,
-      total: quote.total,
+      cardDownPayment: moneyValue(quote.cardDownPayment),
+      subtotal: moneyValue(quote.subtotal),
+      total: moneyValue(quote.total),
       customerNotes: quote.customerNotes || null,
       client: {
         name: quote.client.name,
@@ -148,7 +149,7 @@ export function buildQuoteApprovalSnapshot(quote: QuoteApprovalSource) {
         width: item.width,
         height: item.height,
         quantity: item.quantity,
-        total: item.total,
+        total: moneyValue(item.total),
         notes: item.notes || null,
         accessories: parseQuoteAccessories(item.accessories),
       })),

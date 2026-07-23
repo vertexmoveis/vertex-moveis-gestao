@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/header'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { moneyValue } from '@/lib/money'
 import { QUOTE_STATUS_BG, QUOTE_STATUS_LABELS, QUOTE_STATUSES, type QuoteStatus } from '@/lib/quotes'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 
@@ -30,9 +31,12 @@ function getMonthRange(value?: string) {
 
 async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMonthRange>, requestedSeller?: string) {
   const isAdmin = user.role === 'ADMIN'
-  const sellerScope: Prisma.QuoteWhereInput = isAdmin
-    ? requestedSeller ? { createdById: requestedSeller } : {}
-    : { createdById: user.id || '__sem_usuario__' }
+  const sellerScope: Prisma.QuoteWhereInput = {
+    archivedAt: null,
+    ...(isAdmin
+      ? requestedSeller ? { createdById: requestedSeller } : {}
+      : { createdById: user.id || '__sem_usuario__' }),
+  }
 
   const [funnelRows, soldTotals, lostTotals, waitingQuotes, sellerRows, sellers] = await Promise.all([
     prisma.quote.groupBy({
@@ -97,7 +101,7 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
     const status = row.status as QuoteStatus
     if (!QUOTE_STATUSES.includes(status)) continue
     counts[status] = row._count._all
-    amounts[status] = row._sum.total || 0
+    amounts[status] = moneyValue(row._sum.total)
   }
 
   const sellerNames = new Map(sellers.map((seller) => [seller.id, seller.name]))
@@ -105,7 +109,7 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
     id: row.createdById || 'sem-vendedor',
     name: row.createdById ? sellerNames.get(row.createdById) || 'Vendedor removido' : 'Sem vendedor',
     count: row._count._all,
-    total: row._sum.total || 0,
+    total: moneyValue(row._sum.total),
   }))
   const totalCreated = Object.values(counts).reduce((total, count) => total + count, 0)
   const closedCount = soldTotals._count._all + lostTotals._count._all
@@ -117,8 +121,8 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
     amounts,
     totalCreated,
     soldCount: soldTotals._count._all,
-    soldTotal: soldTotals._sum.total || 0,
-    soldCost: soldTotals._sum.costTotal || 0,
+    soldTotal: moneyValue(soldTotals._sum.total),
+    soldCost: moneyValue(soldTotals._sum.costTotal),
     lostCount: lostTotals._count._all,
     conversion: closedCount > 0 ? Math.round((soldTotals._count._all / closedCount) * 100) : 0,
     waitingQuotes: waitingQuotes.map((quote) => ({

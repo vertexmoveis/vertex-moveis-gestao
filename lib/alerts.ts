@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { addBusinessDays } from '@/lib/business-days'
+import { unstable_cache } from 'next/cache'
 
 export type AlertTone = 'danger' | 'warning' | 'info'
 
@@ -39,10 +40,10 @@ function addDays(date: Date, days: number) {
   return copy
 }
 
-export async function getAppAlerts(user: AlertUser): Promise<AppAlert[]> {
+async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
   const isAdmin = user.role === 'ADMIN'
-  const projectScope = isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }
-  const quoteScope = isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }
+  const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }) }
+  const quoteScope = { archivedAt: null, ...(isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }) }
   const todayStart = startOfDay()
   const todayEnd = endOfDay()
   const nextWeek = addDays(todayStart, 7)
@@ -61,12 +62,12 @@ export async function getAppAlerts(user: AlertUser): Promise<AppAlert[]> {
   ] = await Promise.all([
     isAdmin
       ? prisma.projectPayment.count({
-          where: { paidAt: null, dueDate: { lt: todayStart } },
+          where: { paidAt: null, dueDate: { lt: todayStart }, project: { archivedAt: null } },
         })
       : Promise.resolve(0),
     isAdmin
       ? prisma.projectPayment.count({
-          where: { paidAt: null, dueDate: { gte: todayStart, lte: nextWeek } },
+          where: { paidAt: null, dueDate: { gte: todayStart, lte: nextWeek }, project: { archivedAt: null } },
         })
       : Promise.resolve(0),
     prisma.project.count({
@@ -201,4 +202,14 @@ export async function getAppAlerts(user: AlertUser): Promise<AppAlert[]> {
       tone: 'info',
     },
   ] satisfies AppAlert[]).filter((item) => item.count > 0)
+}
+
+const getCachedAppAlerts = unstable_cache(
+  async (id: string, role: string) => getAppAlertsUncached({ id, role }),
+  ['app-alerts-v2'],
+  { revalidate: 30 },
+)
+
+export function getAppAlerts(user: AlertUser): Promise<AppAlert[]> {
+  return getCachedAppAlerts(user.id || '__sem_usuario__', user.role || 'MANAGER')
 }

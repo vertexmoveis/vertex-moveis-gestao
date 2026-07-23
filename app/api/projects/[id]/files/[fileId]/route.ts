@@ -6,7 +6,7 @@ import { canAccessProject, forbidden, requireAuth, serverError } from '@/lib/sec
 
 async function getFileWithAccess(projectId: string, fileId: string) {
   return prisma.projectFile.findFirst({
-    where: { id: fileId, projectId },
+    where: { id: fileId, projectId, project: { archivedAt: null } },
     include: { project: { select: { managerId: true } } },
   })
 }

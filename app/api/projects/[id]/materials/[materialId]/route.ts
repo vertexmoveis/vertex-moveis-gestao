@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { badRequest, requireRole } from '@/lib/security'
+import { moneyValue, numberValue, optionalMoneyValue, type NumericValue } from '@/lib/money'
 
 const optionalText = (max: number) => z.preprocess(
   (value) => value === '' ? null : value,
@@ -36,14 +37,19 @@ function serializeMaterial(material: {
   unit: string
   estimatedQuantity: number
   purchasedQuantity: number
-  estimatedCost: number
-  actualCost: number | null
+  estimatedCost: NumericValue
+  actualCost: NumericValue
   supplier: string | null
   status: string
   notes: string | null
   updatedAt: Date
 }) {
-  return { ...material, updatedAt: material.updatedAt.toISOString() }
+  return {
+    ...material,
+    estimatedCost: moneyValue(material.estimatedCost),
+    actualCost: optionalMoneyValue(material.actualCost),
+    updatedAt: material.updatedAt.toISOString(),
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; materialId: string }> }) {
@@ -62,7 +68,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id, materialId } = await params
   try {
     const existing = await prisma.projectMaterial.findFirst({
-      where: { id: materialId, projectId: id },
+      where: { id: materialId, projectId: id, project: { archivedAt: null } },
       include: { project: { select: { name: true } } },
     })
     if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
@@ -81,7 +87,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           },
         })
       }
-      if (existing.actualCost !== updated.actualCost) {
+      if (numberValue(existing.actualCost) !== numberValue(updated.actualCost)) {
         await tx.timelineEvent.create({
           data: {
             projectId: id,
@@ -105,7 +111,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id, materialId } = await params
   try {
-    const existing = await prisma.projectMaterial.findFirst({ where: { id: materialId, projectId: id } })
+    const existing = await prisma.projectMaterial.findFirst({
+      where: { id: materialId, projectId: id, project: { archivedAt: null } },
+    })
     if (!existing) return NextResponse.json({ error: 'Material não encontrado' }, { status: 404 })
     await prisma.$transaction(async (tx) => {
       await tx.projectMaterial.delete({ where: { id: materialId } })

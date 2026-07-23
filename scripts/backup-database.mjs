@@ -14,12 +14,14 @@ const backupPattern = /^vertex-postgres-\d{14}-\d{3}\.json(?:\.enc)?$/
 const backupKeyFile = path.resolve(process.env.BACKUP_KEY_FILE || path.join(backupDir, '.vertex-backup.key'))
 const tableOrder = [
   'User',
+  'LoginEvent',
   'Client',
   'CompanyProfile',
   'MaterialCatalogItem',
   'QuotePriceRule',
   'OperationalResource',
   'Project',
+  'ProjectPortalAccess',
   'Quote',
   'QuoteItem',
   'QuoteRevision',
@@ -244,8 +246,13 @@ async function createBackup() {
   try {
     await source.connect()
     for (const table of tableOrder) {
-      const result = await source.query(`SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`)
-      tables[table] = result.rows
+      try {
+        const result = await source.query(`SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`)
+        tables[table] = result.rows
+      } catch (error) {
+        if (error?.code !== '42P01') throw error
+        tables[table] = []
+      }
     }
 
     const migrationResult = await source.query(

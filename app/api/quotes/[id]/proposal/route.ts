@@ -7,6 +7,7 @@ import { addBusinessDays } from '@/lib/business-days'
 import { COMPANY_PROFILE_ID, formatCompanyAddress, serializeCompanyProfile } from '@/lib/company-profile'
 import { formatDateOnly } from '@/lib/date-only'
 import { renderSimpleQuoteProposal } from '@/lib/quote-simple-proposal'
+import { numberValue, type NumericValue } from '@/lib/money'
 import { forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import {
@@ -32,8 +33,8 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#039;')
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0)
+function formatCurrency(value: NumericValue) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue(value))
 }
 
 function formatDate(value: Date | null) {
@@ -57,8 +58,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const [quote, storedCompanyProfile] = await Promise.all([
-    prisma.quote.findUnique({
-      where: { id },
+    prisma.quote.findFirst({
+      where: { id, archivedAt: null },
       include: {
         client: true,
         createdBy: { select: { name: true, email: true } },
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return acc
   }, {})
   const environments = Object.entries(grouped)
-  const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
+  const itemSubtotal = quote.items.reduce((sum, item) => sum + numberValue(item.total), 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
   const payment = getQuotePaymentDetails(quote)
   const company = serializeCompanyProfile(storedCompanyProfile)
@@ -320,14 +321,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         <article class="environment">
           <div class="environment-header">
             <span class="environment-title">${escapeHtml(environment)}</span>
-            <span class="environment-summary"><strong class="environment-subtotal">${formatCurrency(items.reduce((sum, item) => sum + item.total, 0))}</strong><span class="environment-count">${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</span></span>
+            <span class="environment-summary"><strong class="environment-subtotal">${formatCurrency(items.reduce((sum, item) => sum + numberValue(item.total), 0))}</strong><span class="environment-count">${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'móvel' : 'móveis'}</span></span>
           </div>
           ${items.map((item) => {
             const accessories = parseQuoteAccessories(item.accessories)
             const calculationMode = safeQuoteCalculationMode(item.calculationMode)
             const difficulty = safeQuoteDifficulty(item.difficulty)
             const automaticPricing = getQuoteAutomaticPricing(item)
-            const unitTotal = item.quantity > 0 ? item.total / item.quantity : item.total
+            const itemTotal = numberValue(item.total)
+            const unitTotal = item.quantity > 0 ? itemTotal / item.quantity : itemTotal
             return `
             <div class="item">
               <div class="item-main">
@@ -399,9 +401,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="summary">
         <div class="summary-title">Resumo do investimento</div>
         <div class="summary-row"><span>Móveis planejados</span><strong>${formatCurrency(itemSubtotal)}</strong></div>
-        ${quote.installationFee > 0 ? `<div class="summary-row"><span>Instalação</span><strong>${formatCurrency(quote.installationFee)}</strong></div>` : ''}
-        ${quote.manualDiscount > 0 ? `<div class="summary-row"><span>Desconto comercial</span><strong>− ${formatCurrency(quote.manualDiscount)}</strong></div>` : ''}
-        ${quote.paymentDiscount > 0 ? `<div class="summary-row"><span>Desconto Pix (3%)</span><strong>− ${formatCurrency(quote.paymentDiscount)}</strong></div>` : ''}
+        ${numberValue(quote.installationFee) > 0 ? `<div class="summary-row"><span>Instalação</span><strong>${formatCurrency(quote.installationFee)}</strong></div>` : ''}
+        ${numberValue(quote.manualDiscount) > 0 ? `<div class="summary-row"><span>Desconto comercial</span><strong>− ${formatCurrency(quote.manualDiscount)}</strong></div>` : ''}
+        ${numberValue(quote.paymentDiscount) > 0 ? `<div class="summary-row"><span>Desconto Pix (3%)</span><strong>− ${formatCurrency(quote.paymentDiscount)}</strong></div>` : ''}
         <div class="summary-total"><span>Total</span><strong>${formatCurrency(quote.total)}</strong></div>
       </div>
     </section>

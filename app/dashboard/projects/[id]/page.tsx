@@ -13,6 +13,8 @@ import { ProjectForm } from '@/components/projects/project-form'
 import { ProjectFilesCard, type ProjectFile } from '@/components/projects/project-files-card'
 import { ProjectMaterialsCard } from '@/components/projects/project-materials-card'
 import { ProjectExpensesCard } from '@/components/projects/project-expenses-card'
+import { ProjectPortalCard } from '@/components/projects/project-portal-card'
+import { ProjectProductionControl } from '@/components/projects/project-production-control'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
@@ -65,6 +67,9 @@ interface ProjectDetail {
   installmentValue: number | null
   firstInstallmentDate: string | null
   internalNotes: string | null
+  productionBlockedAt: string | null
+  productionBlockReason: string | null
+  stageDeadlineDate: string | null
   environments: {
     id: string
     name: string
@@ -319,7 +324,7 @@ export default function ProjectDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!confirm('Excluir este projeto? Esta ação não pode ser desfeita.')) return
+    if (!confirm('Mover este projeto para a lixeira? Você poderá restaurá-lo nas Configurações.')) return
     const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
@@ -795,6 +800,22 @@ export default function ProjectDetailPage() {
                 </div>
               </CardBody>
             </Card>
+
+            <ProjectPortalCard
+              projectId={project.id}
+              clientName={project.client.name}
+              whatsapp={project.client.whatsapp || project.client.phone}
+            />
+
+            <ProjectProductionControl
+              projectId={project.id}
+              value={{
+                productionBlockedAt: project.productionBlockedAt,
+                productionBlockReason: project.productionBlockReason,
+                stageDeadlineDate: project.stageDeadlineDate,
+              }}
+              onChange={(control) => setProject((current) => current ? { ...current, ...control } : current)}
+            />
 
             {(project.postSaleFollowUpAt || project.stage === 'COMPLETED') && (
               <Card id="pos-venda" className="scroll-mt-28">

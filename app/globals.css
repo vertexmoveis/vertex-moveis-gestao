@@ -26,6 +26,15 @@
     font-family: var(--font-sans);
     background-color: #F5F5F5;
     color: #121212;
+    min-height: 100dvh;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
   }
 
   ::-webkit-scrollbar { width: 6px; height: 6px; }

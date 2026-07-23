@@ -4,12 +4,13 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Lock, Mail, AlertCircle } from 'lucide-react'
+import { Lock, Mail, AlertCircle, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -22,6 +23,7 @@ export default function LoginPage() {
     const result = await signIn('credentials', {
       email,
       password,
+      otp,
       redirect: false,
     })
 
@@ -92,6 +94,18 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="w-full pl-9 pr-4 py-2.5 text-sm border border-[#D9D9D9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6B00] focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div className="relative">
+                <ShieldCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="Código do autenticador, se ativado"
+                  value={otp}
+                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full rounded-lg border border-[#D9D9D9] py-2.5 pl-9 pr-4 text-sm transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
                 />
               </div>
 

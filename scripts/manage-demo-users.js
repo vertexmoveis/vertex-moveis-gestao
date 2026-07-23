@@ -3,14 +3,13 @@ const bcrypt = require('bcryptjs')
 const { randomBytes } = require('node:crypto')
 const { PrismaClient } = require('@prisma/client')
 
-const prisma = new PrismaClient()
+let prisma
 
 const suspiciousEmails = [
   'admin@demo.com',
   'demo@demo.com',
   'test@test.com',
   'admin@example.com',
-  'admin@vertexmoveis.com.br',
   'carlos@vertexmoveis.com.br',
   'ana@vertexmoveis.com.br',
 ]
@@ -28,6 +27,7 @@ function randomPassword() {
 async function findSuspiciousUsers() {
   return prisma.user.findMany({
     where: {
+      role: { not: 'ADMIN' },
       OR: [
         { email: { in: suspiciousEmails } },
         { name: { contains: 'demo' } },
@@ -44,6 +44,10 @@ async function findSuspiciousUsers() {
 }
 
 async function main() {
+  const { loadDatabaseEnv } = await import('./database-env.mjs')
+  loadDatabaseEnv()
+  prisma = new PrismaClient()
+
   const action = process.argv.find((arg) => arg.startsWith('--action='))?.split('=')[1] || 'list'
   const users = await findSuspiciousUsers()
 
@@ -97,4 +101,4 @@ main()
     console.error(error.message)
     process.exitCode = 1
   })
-  .finally(() => prisma.$disconnect())
+  .finally(() => prisma?.$disconnect())

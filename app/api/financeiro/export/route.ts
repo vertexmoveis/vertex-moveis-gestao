@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { moneyValue } from '@/lib/money'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { formatDateOnly } from '@/lib/date-only'
 
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
     formatDateOnly(payment.dueDate),
     payment.paidAt?.toLocaleDateString('pt-BR') || '',
     paymentMethodLabel(payment.paymentMethod),
-    payment.amount.toFixed(2).replace('.', ','),
+    moneyValue(payment.amount).toFixed(2).replace('.', ','),
   ])
 
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n')

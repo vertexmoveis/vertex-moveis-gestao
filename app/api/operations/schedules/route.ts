@@ -99,7 +99,10 @@ export async function POST(req: NextRequest) {
   const scheduledEnd = new Date(parsed.data.scheduledEnd)
   if (scheduledEnd <= scheduledStart) return badRequest('O fim da instalação deve ser posterior ao início')
 
-  const project = await prisma.project.findUnique({ where: { id: parsed.data.projectId }, select: { managerId: true } })
+  const project = await prisma.project.findFirst({
+    where: { id: parsed.data.projectId, archivedAt: null },
+    select: { managerId: true },
+  })
   if (!project) return NextResponse.json({ error: 'Projeto não encontrado' }, { status: 404 })
   if (!canAccessProject(auth.user, project.managerId)) return forbidden()
 

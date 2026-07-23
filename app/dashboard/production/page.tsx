@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/header'
 import { KanbanBoard } from '@/components/kanban/kanban-board'
 import type { ProjectData } from '@/types'
 import { serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
+import { optionalMoneyValue } from '@/lib/money'
 
 type DashboardUser = { id?: string; role?: string }
 
@@ -18,6 +19,7 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
 
   const projects = await prisma.project.findMany({
     where: {
+      archivedAt: null,
       ...(isAdmin ? {} : { managerId: user.id }),
       OR: [
         { stage: { not: 'COMPLETED' } },
@@ -54,6 +56,9 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
       installmentValue: isAdmin,
       firstInstallmentDate: isAdmin,
       internalNotes: false,
+      productionBlockedAt: true,
+      productionBlockReason: true,
+      stageDeadlineDate: true,
       environments: {
         select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true },
         orderBy: { position: 'asc' },
@@ -70,12 +75,15 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
     projects: projects.slice(0, PRODUCTION_PROJECT_LIMIT).map((p) => ({
     ...p,
     internalNotes: null,
-    value: isAdmin ? p.value : null,
-    productionCost: isAdmin ? p.productionCost : null,
-    downPayment: isAdmin ? p.downPayment : null,
+    productionBlockedAt: p.productionBlockedAt?.toISOString() || null,
+    productionBlockReason: p.productionBlockReason,
+    stageDeadlineDate: p.stageDeadlineDate?.toISOString() || null,
+    value: isAdmin ? optionalMoneyValue(p.value) : null,
+    productionCost: isAdmin ? optionalMoneyValue(p.productionCost) : null,
+    downPayment: isAdmin ? optionalMoneyValue(p.downPayment) : null,
     downPaymentDate: isAdmin ? p.downPaymentDate?.toISOString() || null : null,
     installmentCount: isAdmin ? p.installmentCount : 0,
-    installmentValue: isAdmin ? p.installmentValue : null,
+    installmentValue: isAdmin ? optionalMoneyValue(p.installmentValue) : null,
     firstInstallmentDate: isAdmin ? p.firstInstallmentDate?.toISOString() || null : null,
     environments: p.environments.map(serializeEnvironment),
     environmentSummary: summarizeEnvironments(p.environments),

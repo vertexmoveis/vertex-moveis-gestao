@@ -3,7 +3,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
-import { Calendar, DollarSign } from 'lucide-react'
+import { Calendar, DollarSign, LockKeyhole } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -81,6 +81,12 @@ export function KanbanCard({ project, isDragging }: KanbanCardProps) {
         {project.room && (
           <p className="text-xs text-[#BDBDBD] truncate">{project.room}</p>
         )}
+        {project.productionBlockedAt ? (
+          <div className="mt-2 border-l-4 border-red-500 bg-red-50 px-2 py-1.5">
+            <p className="flex items-center gap-1 text-[10px] font-bold text-red-700"><LockKeyhole size={11} /> Produção bloqueada</p>
+            <p className="mt-1 line-clamp-2 text-[10px] text-red-700">{project.productionBlockReason || 'Motivo não informado'}</p>
+          </div>
+        ) : null}
         {environmentSummary && environmentSummary.total > 0 && (
           <div className="mt-2 rounded-md bg-[#FAFAFA] px-2 py-1.5">
             <div className="flex items-center justify-between text-[10px]">
@@ -106,6 +112,12 @@ export function KanbanCard({ project, isDragging }: KanbanCardProps) {
               {formatDate(project.estimatedEndDate)}
             </div>
           )}
+          {project.stageDeadlineDate ? (
+            <div className="flex items-center gap-1 text-[10px] text-[#9E9E9E]">
+              <Calendar size={10} />
+              Etapa: {formatDate(project.stageDeadlineDate)}
+            </div>
+          ) : null}
           {project.value && (
             <div className="flex items-center gap-1 text-[10px] text-[#9E9E9E] ml-auto">
               <DollarSign size={10} />

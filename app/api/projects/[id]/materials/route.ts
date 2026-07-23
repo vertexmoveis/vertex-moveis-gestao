@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { badRequest, canAccessProject, forbidden, requireAuth, requireRole, type AuthenticatedUser } from '@/lib/security'
+import { moneyValue, optionalMoneyValue, type NumericValue } from '@/lib/money'
 
 const optionalText = (max: number) => z.preprocess(
   (value) => value === '' ? null : value,
@@ -30,18 +31,26 @@ function serializeMaterial(material: {
   unit: string
   estimatedQuantity: number
   purchasedQuantity: number
-  estimatedCost: number
-  actualCost: number | null
+  estimatedCost: NumericValue
+  actualCost: NumericValue
   supplier: string | null
   status: string
   notes: string | null
   updatedAt: Date
 }) {
-  return { ...material, updatedAt: material.updatedAt.toISOString() }
+  return {
+    ...material,
+    estimatedCost: moneyValue(material.estimatedCost),
+    actualCost: optionalMoneyValue(material.actualCost),
+    updatedAt: material.updatedAt.toISOString(),
+  }
 }
 
 async function checkAccess(projectId: string, user: AuthenticatedUser) {
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { managerId: true } })
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, archivedAt: null },
+    select: { managerId: true },
+  })
   if (!project) return { ok: false as const, missing: true }
   return { ok: canAccessProject(user, project.managerId), missing: false }
 }
@@ -81,7 +90,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const parsed = projectMaterialSchema.safeParse(body)
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
 
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true } })
+  const project = await prisma.project.findFirst({
+    where: { id, archivedAt: null },
+    select: { id: true },
+  })
   if (!project) return NextResponse.json({ error: 'Projeto não encontrado' }, { status: 404 })
 
   try {

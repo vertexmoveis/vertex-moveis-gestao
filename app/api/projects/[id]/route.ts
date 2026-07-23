@@ -28,6 +28,7 @@ import {
 } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
+import { moneyValue, optionalMoneyValue } from '@/lib/money'
 
 function addCalendarDays(date: Date, days: number) {
   const result = new Date(date)
@@ -53,12 +54,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-  const access = await prisma.project.findUnique({ where: { id }, select: { managerId: true } })
+  const access = await prisma.project.findFirst({ where: { id, archivedAt: null }, select: { managerId: true } })
   if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canAccessProject(auth.user, access.managerId)) return forbidden()
 
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const project = await prisma.project.findFirst({
+    where: { id, archivedAt: null },
     select: {
       id: true,
       name: true,
@@ -85,6 +86,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       installmentValue: auth.user.role === 'ADMIN',
       firstInstallmentDate: auth.user.role === 'ADMIN',
       internalNotes: auth.user.role === 'ADMIN',
+      productionBlockedAt: true,
+      productionBlockReason: true,
+      stageDeadlineDate: true,
       createdAt: true,
       updatedAt: true,
       client: {
@@ -165,6 +169,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     ...project,
+    value: 'value' in project ? optionalMoneyValue(project.value) : null,
+    productionCost: 'productionCost' in project ? optionalMoneyValue(project.productionCost) : null,
+    downPayment: 'downPayment' in project ? optionalMoneyValue(project.downPayment) : null,
+    installmentValue: 'installmentValue' in project ? optionalMoneyValue(project.installmentValue) : null,
     approvalDate: project.approvalDate?.toISOString() || null,
     paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
     deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
@@ -175,6 +183,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     postSaleFollowUpAt: project.postSaleFollowUpAt?.toISOString() || null,
     postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
     warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
+    productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
+    stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
     downPaymentDate: 'downPaymentDate' in project && project.downPaymentDate ? project.downPaymentDate.toISOString() : null,
     firstInstallmentDate: 'firstInstallmentDate' in project && project.firstInstallmentDate ? project.firstInstallmentDate.toISOString() : null,
     createdAt: project.createdAt.toISOString(),
@@ -189,10 +199,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     payments: 'payments' in project && Array.isArray(project.payments)
       ? project.payments.map((payment) => ({
           ...payment,
+          amount: moneyValue(payment.amount),
           dueDate: payment.dueDate.toISOString(),
           paidAt: payment.paidAt?.toISOString() || null,
           history: ('history' in payment && Array.isArray(payment.history) ? payment.history : []).map((history) => ({
               ...history,
+              amount: moneyValue(history.amount),
               createdAt: history.createdAt.toISOString(),
             })),
           createdAt: payment.createdAt.toISOString(),
@@ -242,8 +254,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const input = parsed.data
     const stage = normalizeProductionStage(input.stage as ProductionStage)
     const project = await prisma.$transaction(async (tx) => {
-      const existing = await tx.project.findUnique({
-        where: { id },
+      const existing = await tx.project.findFirst({
+        where: { id, archivedAt: null },
         include: {
           payments: {
             select: {
@@ -369,6 +381,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({
       ...project,
+      value: optionalMoneyValue(project.value),
+      productionCost: optionalMoneyValue(project.productionCost),
+      downPayment: optionalMoneyValue(project.downPayment),
+      installmentValue: optionalMoneyValue(project.installmentValue),
       approvalDate: project.approvalDate?.toISOString() || null,
       paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
@@ -418,9 +434,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) return badRequest()
 
   try {
-    const existing = await prisma.project.findUnique({
-      where: { id },
-      select: { managerId: true, stage: true, actualEndDate: true, postSaleFollowUpAt: true, warrantyEndsAt: true },
+    const existing = await prisma.project.findFirst({
+      where: { id, archivedAt: null },
+      select: {
+        managerId: true,
+        stage: true,
+        actualEndDate: true,
+        postSaleFollowUpAt: true,
+        warrantyEndsAt: true,
+        productionBlockedAt: true,
+      },
     })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!canAccessProject(auth.user, existing.managerId)) return forbidden()
@@ -434,14 +457,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         : nextStage
           ? parsed.data.actualEndDate ?? null
           : parsed.data.actualEndDate
+    const { productionBlocked, ...patchData } = parsed.data
     const data = {
-      ...parsed.data,
+      ...patchData,
       ...(nextStage ? { stage: nextStage } : {}),
       status:
         nextStage && !parsed.data.status
           ? PRODUCTION_STAGE_STATUS[nextStage]
           : parsed.data.status,
       actualEndDate,
+      ...(productionBlocked === undefined
+        ? {}
+        : productionBlocked
+          ? { productionBlockedAt: existing.productionBlockedAt || new Date() }
+          : { productionBlockedAt: null, productionBlockReason: null }),
+      ...(nextStage && nextStage !== existing.stage && productionBlocked === undefined
+        ? { productionBlockedAt: null, productionBlockReason: null }
+        : {}),
       ...(nextStage === 'COMPLETED'
         ? {
             postSaleFollowUpAt: existing.postSaleFollowUpAt || addCalendarDays(actualEndDate || new Date(), 30),
@@ -453,7 +485,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const project = await prisma.project.update({
       where: { id },
       data,
-      select: { stage: true, status: true, actualEndDate: true, postSaleFollowUpAt: true, postSaleContactedAt: true, warrantyEndsAt: true },
+      select: {
+        stage: true,
+        status: true,
+        actualEndDate: true,
+        postSaleFollowUpAt: true,
+        postSaleContactedAt: true,
+        warrantyEndsAt: true,
+        productionBlockedAt: true,
+        productionBlockReason: true,
+        stageDeadlineDate: true,
+      },
     })
 
     if (nextStage === 'COMPLETED' && existing.stage !== 'COMPLETED') {
@@ -483,6 +525,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       postSaleFollowUpAt: project.postSaleFollowUpAt?.toISOString() || null,
       postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
       warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
+      productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
+      productionBlockReason: project.productionBlockReason,
+      stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
     })
   } catch {
     return serverError()
@@ -502,10 +547,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   try {
-    await prisma.project.delete({ where: { id } })
+    await prisma.$transaction(async (tx) => {
+      const project = await tx.project.update({
+        where: { id },
+        data: { archivedAt: new Date() },
+        select: { name: true },
+      })
+      await tx.activityLog.create({
+        data: {
+          userId: auth.user.id,
+          projectId: id,
+          action: 'Projeto movido para a lixeira',
+          details: `Projeto "${project.name}" arquivado pelo administrador`,
+        },
+      })
+    })
   } catch {
     return serverError()
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, archived: true })
 }

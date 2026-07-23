@@ -4,9 +4,10 @@ import { toDateOnlyUtc } from '@/lib/date-only'
 import { badRequest, getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { expenseSchema } from '../route'
+import { moneyValue, type NumericValue } from '@/lib/money'
 
-function serializeExpense<T extends { incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {
-  return { ...expense, incurredAt: expense.incurredAt.toISOString(), createdAt: expense.createdAt.toISOString(), updatedAt: expense.updatedAt.toISOString() }
+function serializeExpense<T extends { amount: NumericValue; incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {
+  return { ...expense, amount: moneyValue(expense.amount), incurredAt: expense.incurredAt.toISOString(), createdAt: expense.createdAt.toISOString(), updatedAt: expense.updatedAt.toISOString() }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; expenseId: string }> }) {
@@ -21,7 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um momento.' }, { status: 429 })
   const parsed = expenseSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos.')
-  const existing = await prisma.projectExpense.findFirst({ where: { id: expenseId, projectId: id }, select: { id: true } })
+  const existing = await prisma.projectExpense.findFirst({
+    where: { id: expenseId, projectId: id, project: { archivedAt: null } },
+    select: { id: true },
+  })
   if (!existing) return NextResponse.json({ error: 'Despesa não encontrada.' }, { status: 404 })
 
   const expense = await prisma.projectExpense.update({
@@ -48,7 +52,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   })
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um momento.' }, { status: 429 })
-  const existing = await prisma.projectExpense.findFirst({ where: { id: expenseId, projectId: id }, select: { id: true, description: true } })
+  const existing = await prisma.projectExpense.findFirst({
+    where: { id: expenseId, projectId: id, project: { archivedAt: null } },
+    select: { id: true, description: true },
+  })
   if (!existing) return NextResponse.json({ error: 'Despesa não encontrada.' }, { status: 404 })
   await prisma.$transaction([
     prisma.projectExpense.delete({ where: { id: expenseId } }),

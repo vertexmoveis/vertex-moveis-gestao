@@ -1,15 +1,16 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { numberValue, type NumericValue } from '@/lib/money'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: NumericValue): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(value)
+  }).format(numberValue(value))
 }
 
 export function formatDate(date: Date | string | null): string {

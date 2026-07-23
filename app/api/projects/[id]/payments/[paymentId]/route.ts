@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { badRequest, getClientIp, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { moneyValue } from '@/lib/money'
 import { isPaymentMethod } from '@/lib/payment-methods'
 
 export async function PATCH(
@@ -33,7 +34,7 @@ export async function PATCH(
 
   try {
     const payment = await prisma.projectPayment.findFirst({
-      where: { id: paymentId, projectId: id },
+      where: { id: paymentId, projectId: id, project: { archivedAt: null } },
       select: { id: true },
     })
     if (!payment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -72,7 +73,7 @@ export async function PATCH(
         userId: auth.user.id,
         projectId: id,
         action: paid ? 'Pagamento recebido' : 'Pagamento reaberto',
-        details: `Parcela ${updated.installmentNumber || 'entrada'} - R$ ${updated.amount.toFixed(2)}`,
+        details: `Parcela ${updated.installmentNumber || 'entrada'} - R$ ${moneyValue(updated.amount).toFixed(2)}`,
       },
     })
 

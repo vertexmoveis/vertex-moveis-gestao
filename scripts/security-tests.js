@@ -17,6 +17,7 @@ let databaseUrl = ''
 let directDatabaseUrl = ''
 let testSchema = ''
 let createdTestEnvironmentFile = false
+let originalTestEnvironmentFile = null
 
 function command(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name
@@ -53,7 +54,7 @@ function testServerEnvironment() {
 
 function createTestEnvironmentFile() {
   if (fs.existsSync(testEnvironmentFile)) {
-    throw new Error('O arquivo .env.production.local ja existe e nao sera substituido pelo teste de seguranca.')
+    originalTestEnvironmentFile = fs.readFileSync(testEnvironmentFile)
   }
 
   const content = [
@@ -71,8 +72,13 @@ function createTestEnvironmentFile() {
 
 function removeTestEnvironmentFile() {
   if (!createdTestEnvironmentFile) return
-  fs.rmSync(testEnvironmentFile, { force: true })
+  if (originalTestEnvironmentFile) {
+    fs.writeFileSync(testEnvironmentFile, originalTestEnvironmentFile, { mode: 0o600 })
+  } else {
+    fs.rmSync(testEnvironmentFile, { force: true })
+  }
   createdTestEnvironmentFile = false
+  originalTestEnvironmentFile = null
 }
 
 function pushTestSchema() {

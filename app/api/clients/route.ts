@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 24), 1), 100)
 
-  const where: Prisma.ClientWhereInput | undefined = q
-    ? {
+  const where: Prisma.ClientWhereInput = {
+    archivedAt: null,
+    ...(q
+      ? {
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { document: { contains: q, mode: 'insensitive' } },
@@ -37,7 +39,8 @@ export async function GET(req: NextRequest) {
           { zipCode: { contains: q, mode: 'insensitive' } },
         ],
       }
-    : undefined
+      : {}),
+  }
 
   if (optionsOnly) {
     const matches = await prisma.client.findMany({
@@ -47,7 +50,7 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true },
     })
     const selected = selectedId && !matches.some((client) => client.id === selectedId)
-      ? await prisma.client.findUnique({ where: { id: selectedId }, select: { id: true, name: true } })
+      ? await prisma.client.findFirst({ where: { id: selectedId, archivedAt: null }, select: { id: true, name: true } })
       : null
     return NextResponse.json(selected ? [selected, ...matches] : matches, {
       headers: { 'Cache-Control': 'private, max-age=15' },
@@ -56,9 +59,7 @@ export async function GET(req: NextRequest) {
 
   const [clients, total] = await Promise.all([
     prisma.client.findMany({
-    where: q
-      ? where
-      : undefined,
+    where,
     orderBy: { createdAt: 'desc' },
     skip: paged ? (page - 1) * pageSize : undefined,
     take: paged ? pageSize : undefined,
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       notes: false,
       createdAt: true,
       updatedAt: true,
-      _count: { select: { projects: true } },
+      _count: { select: { projects: { where: { archivedAt: null } } } },
     },
     }),
     paged ? prisma.client.count({ where }) : Promise.resolve(0),

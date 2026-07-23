@@ -1,8 +1,36 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
+import { createHmac } from 'node:crypto'
 import { prisma } from './db'
 import { rateLimit, RateLimitUnavailableError } from './rate-limit'
+import { verifyTwoFactorCode } from './two-factor'
+
+function hashLoginIp(ip: string) {
+  return createHmac('sha256', process.env.NEXTAUTH_SECRET || 'vertex-login-audit')
+    .update(ip)
+    .digest('hex')
+}
+
+async function recordLoginEvent(input: {
+  userId?: string
+  email: string
+  success: boolean
+  reason?: string
+  ip: string
+  userAgent?: string
+}) {
+  await prisma.loginEvent.create({
+    data: {
+      userId: input.userId,
+      email: input.email,
+      success: input.success,
+      reason: input.reason,
+      ipHash: hashLoginIp(input.ip),
+      userAgent: input.userAgent?.slice(0, 500),
+    },
+  }).catch(() => undefined)
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -11,6 +39,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Senha', type: 'password' },
+        otp: { label: 'Código do autenticador', type: 'text' },
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null
@@ -20,11 +49,18 @@ export const authOptions: NextAuthOptions = {
           (req.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
           (req.headers?.['x-real-ip'] as string | undefined) ||
           'unknown'
+        const userAgent = req.headers?.['user-agent'] as string | undefined
         try {
           const limited = await rateLimit(`login:${ip}:${email}`, 5, 15 * 60 * 1000)
-          if (!limited.allowed) return null
+          if (!limited.allowed) {
+            await recordLoginEvent({ email, success: false, reason: 'RATE_LIMITED', ip, userAgent })
+            return null
+          }
         } catch (error) {
-          if (error instanceof RateLimitUnavailableError) return null
+          if (error instanceof RateLimitUnavailableError) {
+            await recordLoginEvent({ email, success: false, reason: 'RATE_LIMIT_UNAVAILABLE', ip, userAgent })
+            return null
+          }
           throw error
         }
 
@@ -32,12 +68,45 @@ export const authOptions: NextAuthOptions = {
           where: { email },
         })
 
-        if (!user || !user.active) return null
+        if (!user || !user.active) {
+          await recordLoginEvent({
+            userId: user?.id,
+            email,
+            success: false,
+            reason: user ? 'USER_INACTIVE' : 'INVALID_CREDENTIALS',
+            ip,
+            userAgent,
+          })
+          return null
+        }
 
         const isValid = await bcrypt.compare(credentials.password, user.password)
-        if (!isValid) return null
+        if (!isValid) {
+          await recordLoginEvent({ userId: user.id, email, success: false, reason: 'INVALID_CREDENTIALS', ip, userAgent })
+          return null
+        }
+
+        if (user.twoFactorEnabled) {
+          const otpValid = Boolean(
+            user.twoFactorSecret &&
+            credentials.otp &&
+            await verifyTwoFactorCode(user.twoFactorSecret, credentials.otp),
+          )
+          if (!otpValid) {
+            await recordLoginEvent({
+              userId: user.id,
+              email,
+              success: false,
+              reason: credentials.otp ? 'INVALID_OTP' : 'OTP_REQUIRED',
+              ip,
+              userAgent,
+            })
+            return null
+          }
+        }
 
         await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+        await recordLoginEvent({ userId: user.id, email, success: true, reason: 'LOGIN_SUCCESS', ip, userAgent })
 
         return {
           id: user.id,

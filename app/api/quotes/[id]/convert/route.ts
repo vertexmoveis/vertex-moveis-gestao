@@ -7,6 +7,7 @@ import { dateOnlyKey, dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-on
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { normalizeEnvironmentNames } from '@/lib/project-environments'
 import { buildProjectMaterialsFromQuoteItems } from '@/lib/project-materials'
+import { numberValue } from '@/lib/money'
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 
@@ -41,8 +42,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const quote = await tx.quote.findUnique({
-        where: { id },
+      const quote = await tx.quote.findFirst({
+        where: { id, archivedAt: null },
         include: {
           client: true,
           items: { orderBy: { position: 'asc' } },
@@ -76,12 +77,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         quote.title
       )
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
-      const requestedDownPayment = Number(parsed.data.downPayment ?? quote.cardDownPayment)
-      if (quote.paymentMethod === 'CARD' && requestedDownPayment > quote.total) throw new Error('DOWN_PAYMENT_EXCEEDS_TOTAL')
+      const quoteTotal = numberValue(quote.total)
+      const quoteCostTotal = numberValue(quote.costTotal)
+      const requestedDownPayment = numberValue(parsed.data.downPayment ?? quote.cardDownPayment)
+      if (quote.paymentMethod === 'CARD' && requestedDownPayment > quoteTotal) throw new Error('DOWN_PAYMENT_EXCEEDS_TOTAL')
       const downPayment = quote.paymentMethod === 'PIX'
-        ? quote.total
-        : Math.min(Math.max(requestedDownPayment, 0), quote.total)
-      const remainingBalance = Math.max(quote.total - downPayment, 0)
+        ? quoteTotal
+        : Math.min(Math.max(requestedDownPayment, 0), quoteTotal)
+      const remainingBalance = Math.max(quoteTotal - downPayment, 0)
       const requestedInstallments = Math.max(Math.floor(Number(parsed.data.installmentCount ?? quote.cardInstallments)), 0)
       const installmentCount = remainingBalance > 0 ? requestedInstallments : 0
       if (remainingBalance > 0 && installmentCount < 1) throw new Error('INSTALLMENTS_REQUIRED')
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (installmentCount > 0 && !firstInstallmentDate) throw new Error('FIRST_INSTALLMENT_REQUIRED')
       const downPaymentDate = parsed.data.downPaymentDate ? toDateOnlyUtc(parsed.data.downPaymentDate) : paymentConfirmedAt
       const schedule = buildPaymentSchedule({
-        value: quote.total,
+        value: quoteTotal,
         downPayment,
         downPaymentDate,
         installmentCount,
@@ -127,8 +130,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           productionStartReminderDate: productionDates.productionStartReminderDate,
           startDate: paymentConfirmedAt,
           estimatedEndDate: productionDates.deliveryDeadlineDate,
-          value: quote.total,
-          productionCost: quote.costTotal,
+          value: quoteTotal,
+          productionCost: quoteCostTotal,
           downPayment: schedule.terms.downPayment,
           downPaymentDate: schedule.terms.downPayment > 0 ? downPaymentDate : null,
           installmentCount: schedule.terms.installmentCount,

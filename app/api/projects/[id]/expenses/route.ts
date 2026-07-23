@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { badRequest, getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { moneyValue, type NumericValue } from '@/lib/money'
 
 export const expenseSchema = z.object({
   category: z.enum(['LABOR', 'FREIGHT', 'INSTALLATION', 'CONSUMABLES', 'REWORK', 'OTHER']),
@@ -14,9 +15,10 @@ export const expenseSchema = z.object({
   notes: z.string().trim().max(500).nullable().optional(),
 }).strict()
 
-function serializeExpense<T extends { incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {
+function serializeExpense<T extends { amount: NumericValue; incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {
   return {
     ...expense,
+    amount: moneyValue(expense.amount),
     incurredAt: expense.incurredAt.toISOString(),
     createdAt: expense.createdAt.toISOString(),
     updatedAt: expense.updatedAt.toISOString(),
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um momento.' }, { status: 429 })
 
   const expenses = await prisma.projectExpense.findMany({
-    where: { projectId: id },
+    where: { projectId: id, project: { archivedAt: null } },
     orderBy: [{ incurredAt: 'desc' }, { createdAt: 'desc' }],
   })
   return NextResponse.json(expenses.map(serializeExpense))
@@ -54,7 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const parsed = expenseSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos.')
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true, name: true } })
+  const project = await prisma.project.findFirst({
+    where: { id, archivedAt: null },
+    select: { id: true, name: true },
+  })
   if (!project) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 })
 
   const expense = await prisma.projectExpense.create({
@@ -70,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   })
   await prisma.activityLog.create({
-    data: { userId: auth.user.id, projectId: id, action: 'Despesa registrada', details: `${expense.description}: R$ ${expense.amount.toFixed(2)}` },
+    data: { userId: auth.user.id, projectId: id, action: 'Despesa registrada', details: `${expense.description}: R$ ${moneyValue(expense.amount).toFixed(2)}` },
   })
   return NextResponse.json(serializeExpense(expense), { status: 201 })
 }

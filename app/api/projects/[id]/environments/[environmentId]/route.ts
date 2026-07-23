@@ -37,8 +37,8 @@ export async function PATCH(
   if (!parsed.success) return badRequest()
 
   try {
-    const environment = await prisma.projectEnvironment.findUnique({
-      where: { id: environmentId },
+    const environment = await prisma.projectEnvironment.findFirst({
+      where: { id: environmentId, project: { archivedAt: null } },
       include: { project: { select: { id: true, managerId: true, name: true } } },
     })
     if (!environment || environment.project.id !== id) return NextResponse.json({ error: 'Not found' }, { status: 404 })

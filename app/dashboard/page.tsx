@@ -34,8 +34,11 @@ type DashboardUser = { id?: string; role?: string }
 
 async function getDashboardData(user: DashboardUser) {
   const isAdmin = user.role === 'ADMIN'
-  const projectScope = isAdmin ? {} : { managerId: user.id }
-  const clientScope = isAdmin ? {} : { projects: { some: { managerId: user.id } } }
+  const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id }) }
+  const clientScope = {
+    archivedAt: null,
+    ...(isAdmin ? {} : { projects: { some: { managerId: user.id, archivedAt: null } } }),
+  }
   const today = new Date()
   today.setHours(23, 59, 59, 999)
 
@@ -67,7 +70,7 @@ async function getDashboardData(user: DashboardUser) {
         },
       }),
       prisma.activityLog.findMany({
-        where: isAdmin ? undefined : { project: { managerId: user.id } },
+        where: { project: { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id }) } },
         take: 7,
         orderBy: { createdAt: 'desc' },
         include: {

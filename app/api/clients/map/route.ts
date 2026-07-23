@@ -16,9 +16,12 @@ export async function GET(req: NextRequest) {
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const clients = await prisma.client.findMany({
-    where: auth.user.role === 'ADMIN'
-      ? undefined
-      : { projects: { some: { managerId: auth.user.id } } },
+    where: {
+      archivedAt: null,
+      ...(auth.user.role === 'ADMIN'
+        ? {}
+        : { projects: { some: { managerId: auth.user.id, archivedAt: null } } }),
+    },
     orderBy: { createdAt: 'desc' },
     take: 60,
     select: {
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
       zipCode: true,
       latitude: true,
       longitude: true,
-      _count: { select: { projects: true } },
+      _count: { select: { projects: { where: { archivedAt: null } } } },
     },
   })
 

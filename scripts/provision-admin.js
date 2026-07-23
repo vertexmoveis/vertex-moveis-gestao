@@ -4,7 +4,7 @@ const { PrismaClient } = require('@prisma/client')
 const readline = require('node:readline/promises')
 const { stdin: input, stdout: output } = require('node:process')
 
-const prisma = new PrismaClient()
+let prisma
 
 function isStrongPassword(password) {
   return (
@@ -26,6 +26,10 @@ async function promptMissing() {
 }
 
 async function main() {
+  const { loadDatabaseEnv } = await import('./database-env.mjs')
+  loadDatabaseEnv()
+  prisma = new PrismaClient()
+
   const { email, password } = await promptMissing()
 
   if (!email || !email.includes('@')) {
@@ -82,4 +86,4 @@ main()
     console.error(error.message)
     process.exitCode = 1
   })
-  .finally(() => prisma.$disconnect())
+  .finally(() => prisma?.$disconnect())

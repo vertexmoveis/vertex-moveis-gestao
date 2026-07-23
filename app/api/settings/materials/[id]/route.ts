@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { badRequest, requireRole } from '@/lib/security'
+import { moneyValue, type NumericValue } from '@/lib/money'
 
 const optionalText = (max: number) => z.preprocess(
   (value) => value === '' ? null : value,
@@ -24,12 +25,12 @@ function serializeMaterial(material: {
   category: string | null
   defaultFinish: string | null
   unit: string
-  unitCost: number
+  unitCost: NumericValue
   supplier: string | null
   active: boolean
   updatedAt: Date
 }) {
-  return { ...material, updatedAt: material.updatedAt.toISOString() }
+  return { ...material, unitCost: moneyValue(material.unitCost), updatedAt: material.updatedAt.toISOString() }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

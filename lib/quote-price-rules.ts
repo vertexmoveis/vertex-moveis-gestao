@@ -1,5 +1,6 @@
 import type { PrismaClient, QuotePriceRule as PrismaQuotePriceRule } from '@prisma/client'
 import type { QuoteCalculationMode } from '@/lib/quote-catalog'
+import { numberValue, optionalMoneyValue } from '@/lib/money'
 
 export type QuotePriceRule = {
   id?: string
@@ -74,8 +75,8 @@ export function serializeQuotePriceRule(rule: PrismaQuotePriceRule): QuotePriceR
     furnitureModel: rule.furnitureModel,
     priceProfile: rule.priceProfile,
     calculationMode: rule.calculationMode as QuoteCalculationMode,
-    pricePerM2: rule.pricePerM2,
-    materialCostPerM2: rule.materialCostPerM2,
+    pricePerM2: numberValue(rule.pricePerM2),
+    materialCostPerM2: optionalMoneyValue(rule.materialCostPerM2),
     validFrom: rule.validFrom.toISOString(),
     validUntil: rule.validUntil?.toISOString() || null,
     active: rule.active,

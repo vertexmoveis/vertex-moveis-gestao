@@ -169,6 +169,9 @@ export interface ProjectData {
   installmentValue: number | null
   firstInstallmentDate: string | null
   internalNotes: string | null
+  productionBlockedAt?: string | null
+  productionBlockReason?: string | null
+  stageDeadlineDate?: string | null
   environments?: ProjectEnvironmentData[]
   environmentSummary?: { total: number; completed: number }
   createdAt: string

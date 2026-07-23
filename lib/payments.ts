@@ -1,4 +1,5 @@
 import { dateOnlyKey, toDateOnlyUtc } from '@/lib/date-only'
+import { numberValue, type NumericValue } from '@/lib/money'
 
 export const PAYMENT_TYPE_DOWN_PAYMENT = 'DOWN_PAYMENT'
 export const PAYMENT_TYPE_INSTALLMENT = 'INSTALLMENT'
@@ -90,7 +91,7 @@ export type ExistingProjectPayment = {
   id: string
   installmentNumber: number
   type: string
-  amount: number
+  amount: NumericValue
   dueDate: Date
   paidAt: Date | null
 }
@@ -105,8 +106,8 @@ function paymentKey(payment: Pick<ExistingProjectPayment, 'type' | 'installmentN
 
 export function financialScheduleChanged(
   existing: {
-    value: number | null
-    downPayment: number | null
+    value: NumericValue
+    downPayment: NumericValue
     downPaymentDate: Date | null
     installmentCount: number
     firstInstallmentDate: Date | null
@@ -114,8 +115,8 @@ export function financialScheduleChanged(
   },
   next: PaymentScheduleInput & { startDate?: Date | null }
 ) {
-  const sameMoney = (left: number | null | undefined, right: number | null | undefined) =>
-    roundCurrency(left || 0) === roundCurrency(right || 0)
+  const sameMoney = (left: NumericValue, right: NumericValue) =>
+    roundCurrency(numberValue(left)) === roundCurrency(numberValue(right))
 
   return (
     !sameMoney(existing.value, next.value) ||
@@ -142,7 +143,7 @@ export function reconcilePaymentSchedule(
   )
 
   if (paidDownPayment) {
-    if (!desiredDownPayment || roundCurrency(paidDownPayment.amount) !== roundCurrency(desiredDownPayment.amount)) {
+    if (!desiredDownPayment || roundCurrency(numberValue(paidDownPayment.amount)) !== roundCurrency(desiredDownPayment.amount)) {
       throw new PaymentScheduleConflictError(
         'A entrada já foi recebida. Reabra o pagamento antes de alterar o valor da entrada.'
       )
@@ -162,7 +163,7 @@ export function reconcilePaymentSchedule(
   }
 
   const paidInstallmentTotal = roundCurrency(
-    paidInstallments.reduce((sum, payment) => sum + payment.amount, 0)
+    paidInstallments.reduce((sum, payment) => sum + numberValue(payment.amount), 0)
   )
   const installmentBalance = roundCurrency(
     schedule.terms.totalValue - schedule.terms.downPayment - paidInstallmentTotal

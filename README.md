@@ -45,6 +45,7 @@ O painel principal apresenta uma visão rápida da operação:
 - Busca global por clientes, orçamentos e projetos.
 - Central de notificações com contador de pendências.
 - Mapa de clientes carregado somente quando solicitado, para não deixar o Dashboard pesado.
+- Alertas e próximas ações com cache curto para reduzir consultas repetidas sem exibir dados antigos por muito tempo.
 
 ### Clientes
 
@@ -169,6 +170,9 @@ Um orçamento vendido pode ser convertido em projeto sem digitar novamente os da
 - Mensagens prontas para pedir ou cobrar a aprovação do projeto pelo WhatsApp.
 - Agenda de instalação.
 - Acompanhamento de pós-venda e garantia.
+- Link privado de acompanhamento para o cliente, com andamento, ambientes e previsão de instalação.
+- Bloqueio de produção com motivo obrigatório e prazo por etapa.
+- Lixeira para recuperar projetos apagados por engano.
 
 #### Prazo operacional
 
@@ -209,6 +213,8 @@ O Kanban mostra o andamento operacional:
 7. Pronto.
 
 Os cartões podem ser arrastados entre as colunas. A navegação horizontal permite visualizar todas as etapas em telas menores. Projetos concluídos permanecem visíveis por 7 dias e depois saem do Kanban, mas continuam salvos no histórico e podem ser encontrados em **Projetos**.
+
+Projetos bloqueados exibem o motivo diretamente no cartão. Também é possível definir um prazo para a etapa atual, facilitando a cobrança antes do atraso da entrega final.
 
 ### Calendário e instalações
 
@@ -278,6 +284,24 @@ Administradores podem gerenciar:
 - Equipes e veículos.
 - Backup e saúde do sistema.
 - Erros recentes registrados pelo servidor.
+- Autenticação em duas etapas com aplicativo autenticador.
+- Histórico recente de tentativas de login.
+- Lixeira de clientes, orçamentos e projetos, com restauração ou exclusão definitiva.
+
+### Portal de acompanhamento
+
+Cada projeto pode gerar um link exclusivo para o cliente:
+
+- Não exige conta ou senha.
+- Mostra somente informações operacionais seguras.
+- Exibe etapa atual, progresso, ambientes, prazo e instalação.
+- Não mostra custos, lucro, pagamentos, observações internas ou arquivos privados.
+- Pode ser revogado e recriado a qualquer momento.
+- Expira automaticamente e registra a última visualização.
+
+### Lembretes automáticos
+
+Uma rotina diária cria alertas para produção parada, prazos de etapa, entregas, parcelas vencidas e orçamentos sem resposta. Os alertas aparecem no CRM e podem ser enviados a uma integração externa por webhook.
 
 ## Usuários e permissões
 
@@ -292,6 +316,7 @@ Contas desativadas perdem o acesso. A versão da sessão permite encerrar sessõ
 ## Segurança
 
 - Autenticação com NextAuth e senha protegida por bcrypt.
+- Autenticação em duas etapas opcional por TOTP.
 - Sessão JWT com duração máxima de 12 horas.
 - Limite de 5 tentativas de login a cada 15 minutos por IP e e-mail.
 - Limites de requisição nas APIs.
@@ -299,11 +324,15 @@ Contas desativadas perdem o acesso. A versão da sessão permite encerrar sessõ
 - Verificação de função e propriedade dos projetos no servidor.
 - Perfil de consulta bloqueado para qualquer alteração.
 - Tokens aleatórios e com validade para aprovação pública.
+- Tokens do portal armazenados com hash e cópia criptografada para permitir revogação e compartilhamento controlado.
 - IP armazenado como hash no registro de aprovação.
 - Cabeçalhos de segurança, CSP, HSTS em produção e proteção contra abertura em iframe.
 - Validação de dados com Zod.
 - Arquivos de ambiente, bancos locais, logs e backups ignorados pelo Git.
 - Registro de atividades, pagamentos, aprovações, backups e erros importantes.
+- Registro de sucesso e falha de login sem guardar o endereço IP em texto aberto.
+- Valores financeiros armazenados em `Decimal(14,2)` para preservar os centavos.
+- Exclusão lógica de clientes, orçamentos e projetos antes da remoção definitiva.
 
 Nunca envie `.env.local`, senhas, tokens, arquivos de backup ou a chave de criptografia para o GitHub.
 
@@ -325,6 +354,7 @@ Nunca envie `.env.local`, senhas, tokens, arquivos de backup ou a chave de cript
 
 ```text
 app/
+  acompanhar/           Portal público de andamento do projeto
   api/                 APIs autenticadas e públicas
   dashboard/           Telas internas do CRM
   login/               Entrada no sistema
@@ -343,6 +373,7 @@ prisma/
   schema.prisma        Modelo de dados
 scripts/               Backup, migração, segurança e tarefas do Windows
 tests/                 Testes automatizados
+e2e/                   Testes de navegador em computador e celular
 ```
 
 ## Requisitos para desenvolvimento
@@ -363,6 +394,8 @@ NEXTAUTH_SECRET="uma-chave-longa-e-aleatoria"
 NEXTAUTH_URL="http://localhost:3000"
 BLOB_READ_WRITE_TOKEN="vercel_blob_..."
 NEXT_PUBLIC_VERTEX_ADDRESS="Rua Saturno 6, Cotia, SP, 06702-170"
+CRON_SECRET="uma-chave-longa-e-aleatoria"
+BACKUP_ENCRYPTION_KEY="outra-chave-longa-e-aleatoria"
 ```
 
 Variáveis opcionais:
@@ -376,6 +409,9 @@ Variáveis opcionais:
 | `BACKUP_RETENTION_DAYS` | Retenção, com padrão de 30 dias |
 | `BACKUP_ENCRYPTION_KEY` | Chave externa para criptografar e recuperar backups |
 | `BACKUP_KEY_FILE` | Caminho alternativo do arquivo local da chave |
+| `CRON_SECRET` | Protege as rotinas automáticas da Vercel |
+| `REMINDER_WEBHOOK_URL` | Endpoint HTTPS opcional para enviar lembretes externos |
+| `REMINDER_WEBHOOK_SECRET` | Segredo opcional enviado no webhook de lembretes |
 | `ADMIN_NAME` | Nome usado ao provisionar o primeiro administrador |
 | `ADMIN_EMAIL` | E-mail usado ao provisionar o primeiro administrador |
 | `ADMIN_PASSWORD` | Senha usada ao provisionar o primeiro administrador |
@@ -419,6 +455,7 @@ Remove-Item Env:ADMIN_NAME,Env:ADMIN_EMAIL,Env:ADMIN_PASSWORD
 | `npm run start` | Inicia o build na porta 3000 |
 | `npm run lint` | Executa o ESLint |
 | `npm test` | Executa os testes automatizados |
+| `npm run test:e2e` | Testa login, proteção do painel e PWA em desktop e celular |
 | `npm run prisma:generate` | Gera o Prisma Client |
 | `npm run db:deploy` | Aplica migrações pendentes |
 | `npm run admin:provision` | Cria ou atualiza o primeiro administrador |
@@ -431,7 +468,7 @@ Remove-Item Env:ADMIN_NAME,Env:ADMIN_EMAIL,Env:ADMIN_PASSWORD
 
 ## Backup
 
-O backup é executado por um computador confiável da Vertex, não pelo sistema de arquivos temporário da Vercel.
+O CRM possui duas formas de backup: uma cópia local executada por um computador confiável e uma cópia privada diária no Vercel Blob.
 
 ```powershell
 npm run backup:db
@@ -449,6 +486,8 @@ O processo:
 8. Cria uma segunda cópia quando `BACKUP_SECONDARY_DIR` está configurada.
 9. Registra sucesso ou falha na saúde do sistema.
 
+Na produção, `/api/cron/backup` executa diariamente às 18h no horário de São Paulo. A cópia em nuvem também é criptografada, verificada e mantém 30 dias de histórico. A chave de criptografia não deve ser perdida, pois ela é necessária para restaurar os dados.
+
 Para cadastrar a tarefa diária das 18h no Windows:
 
 ```powershell
@@ -464,12 +503,13 @@ Antes de enviar uma alteração:
 ```powershell
 npm run lint
 npm test
+npm run test:e2e
 npm run build
-npm audit --omit=dev
+npm audit --audit-level=moderate
 npm run test:security
 ```
 
-O teste de segurança cria temporariamente `.env.production.local` e, por proteção, não substitui um arquivo existente. Execute `npm run test:security` em um checkout limpo ou em CI quando esse arquivo já estiver sendo usado pela instalação local.
+O teste de segurança usa um schema isolado do PostgreSQL, guarda temporariamente o arquivo `.env.production.local` existente e o restaura ao final, mesmo quando ocorre uma falha.
 
 Os testes atuais cobrem:
 
@@ -481,6 +521,12 @@ Os testes atuais cobrem:
 - Cálculo de custo real do projeto.
 - Segurança do upload para o Vercel Blob.
 - Cobertura de todas as tabelas no backup.
+- Precisão de valores em centavos.
+- Criptografia e integridade do backup.
+- Token e criptografia do portal de acompanhamento.
+- Autenticação em duas etapas.
+- Login, redirecionamento protegido e manifesto PWA em desktop e celular.
+- Permissões entre administradores, gerentes e usuários de consulta.
 
 ## Publicação
 
@@ -502,14 +548,13 @@ npx vercel --prod
 
 Prioridades sugeridas para as próximas versões:
 
-1. **Proteger a chave da segunda cópia do backup.** Guardar a chave fora do computador e testar a recuperação a partir somente da cópia externa.
-2. **Criar testes completos no navegador.** Automatizar login, orçamento, aprovação, conversão em projeto, pagamento, recibo, upload e conclusão.
-3. **Monitorar uploads e desempenho.** Medir tempo e falhas do Vercel Blob, banco e páginas, com aviso externo quando houver erro repetido.
-4. **Enviar WhatsApp automaticamente.** Integrar um provedor oficial para lembretes de aprovação, cobrança, instalação e pós-venda, mantendo o envio manual como alternativa.
-5. **Criar um portal do cliente.** Reunir proposta, aprovação, andamento, documentos e data de instalação em um único link seguro.
-6. **Escalar produção e compras.** Adicionar filtros e carregamento progressivo quando o Kanban ultrapassar 250 projetos ou a lista de compras crescer muito.
-7. **Verificar arquivos enviados.** Adicionar varredura de malware e regras de retenção para PDFs e imagens.
-8. **Revisar acessibilidade e celular.** Completar testes de teclado, contraste, leitores de tela e telas pequenas nos fluxos mais usados.
+1. **Testar uma restauração externa completa.** Recuperar o CRM em outro banco usando somente a cópia em nuvem e a chave guardada fora da Vercel.
+2. **Integrar WhatsApp oficial.** Enviar lembretes de aprovação, cobrança, instalação e pós-venda sem depender da abertura manual da conversa.
+3. **Ampliar os testes de navegador autenticados.** Cobrir orçamento, aprovação, conversão em projeto, pagamento, recibo, upload e conclusão com uma conta exclusiva de testes.
+4. **Monitorar desempenho e uploads.** Medir tempo e falhas do Vercel Blob, banco e páginas, com aviso externo quando houver erro repetido.
+5. **Escalar produção e compras.** Adicionar carregamento progressivo quando o Kanban ultrapassar 250 projetos ou a lista de compras crescer muito.
+6. **Verificar arquivos enviados.** Adicionar varredura de malware e regras de retenção para PDFs e imagens.
+7. **Completar a acessibilidade.** Testar todos os fluxos por teclado, contraste e leitores de tela.
 
 ---
 

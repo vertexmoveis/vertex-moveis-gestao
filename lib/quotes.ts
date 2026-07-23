@@ -4,6 +4,7 @@ import { roundCurrency } from '@/lib/payments'
 import type { QuoteCalculationMode } from '@/lib/quote-catalog'
 import { getQuoteAutomaticPricing, safeQuotePriceProfile, type QuotePriceProfile } from '@/lib/quote-pricing'
 import type { QuotePriceRule } from '@/lib/quote-price-rules'
+import { moneyValue, numberValue, optionalMoneyValue, type NumericValue } from '@/lib/money'
 
 export {
   QUOTE_CALCULATION_MODE_LABELS,
@@ -161,7 +162,7 @@ export type QuotePricingInput = {
   cardDownPayment?: number | null
   cardFeePercent?: number | null
   priceRules?: QuotePriceRule[]
-  materialCosts?: { name: string; unitCost: number; active?: boolean }[]
+  materialCosts?: { name: string; unitCost: NumericValue; active?: boolean }[]
 }
 
 export function safeQuoteStatus(value: string): QuoteStatus {
@@ -178,7 +179,7 @@ export function safeQuoteCardInstallments(value?: number | null) {
   return Math.min(Math.max(Math.floor(Number(value) || 1), 1), 24)
 }
 
-export function safeQuoteCardDownPayment(value: number | null | undefined, total: number) {
+export function safeQuoteCardDownPayment(value: import('@/lib/money').NumericValue, total: number) {
   return roundCurrency(Math.min(Math.max(Number(value) || 0, 0), Math.max(total || 0, 0)))
 }
 
@@ -189,7 +190,7 @@ export function safeQuoteCardFeePercent(value?: number | null) {
 export function getQuoteCardInstallmentPlan(
   total: number,
   installmentCount?: number | null,
-  cardDownPayment?: number | null
+  cardDownPayment?: import('@/lib/money').NumericValue
 ) {
   const count = safeQuoteCardInstallments(installmentCount)
   const downPayment = safeQuoteCardDownPayment(cardDownPayment, total)
@@ -200,16 +201,16 @@ export function getQuoteCardInstallmentPlan(
 }
 
 export function getQuotePaymentSummary(quote: {
-  total: number
+  total: import('@/lib/money').NumericValue
   paymentMethod?: string | null
   cardInstallments?: number | null
-  cardDownPayment?: number | null
+  cardDownPayment?: import('@/lib/money').NumericValue
 }) {
   const paymentMethod = safeQuotePaymentMethod(quote.paymentMethod)
   if (paymentMethod === 'PIX') return 'Pix com 3% de desconto'
   if (paymentMethod !== 'CARD') return 'Pagamento a combinar'
 
-  const plan = getQuoteCardInstallmentPlan(quote.total, quote.cardInstallments, quote.cardDownPayment)
+  const plan = getQuoteCardInstallmentPlan(numberValue(quote.total), quote.cardInstallments, quote.cardDownPayment)
   const format = (value: number) => new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -228,11 +229,11 @@ export function getQuotePaymentSummary(quote: {
 }
 
 export function getQuotePaymentDetails(quote: {
-  total: number
+  total: import('@/lib/money').NumericValue
   paymentMethod?: string | null
-  paymentDiscount?: number | null
+  paymentDiscount?: import('@/lib/money').NumericValue
   cardInstallments?: number | null
-  cardDownPayment?: number | null
+  cardDownPayment?: import('@/lib/money').NumericValue
   firstInstallmentDate?: Date | string | null
 }) {
   const method = safeQuotePaymentMethod(quote.paymentMethod)
@@ -322,7 +323,8 @@ export function calculateQuoteItem(item: QuoteCalculationItemInput, pricing: Quo
   const materialCost = pricing.materialCosts?.find((material) => (
     material.active !== false && normalizeText(material.name) === normalizeText(item.material || DEFAULT_QUOTE_MATERIAL)
   ))?.unitCost
-  const materialCostPerM2 = automaticPricing.materialCostPerM2 ?? materialCost ?? pricing.materialCostPerM2
+  const materialCostPerM2 = automaticPricing.materialCostPerM2
+    ?? (materialCost == null ? pricing.materialCostPerM2 : numberValue(materialCost))
   const cost = roundCurrency(areaM2 * Math.max(materialCostPerM2 || 0, 0))
 
   return {
@@ -395,18 +397,35 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
 export function serializeQuoteItem(item: QuoteItem) {
   return {
     ...item,
+    manualPrice: optionalMoneyValue(item.manualPrice),
+    unitPrice: moneyValue(item.unitPrice),
+    cost: moneyValue(item.cost),
+    total: moneyValue(item.total),
     accessories: parseQuoteAccessories(item.accessories),
-    totalPrice: item.total,
-    costTotal: item.cost,
+    totalPrice: moneyValue(item.total),
+    costTotal: moneyValue(item.cost),
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
   }
 }
 
 export function serializeQuote(quote: Quote & { items?: QuoteItem[]; client?: { id: string; name: string; phone: string | null; whatsapp: string | null; email?: string | null } }) {
+  const total = moneyValue(quote.total)
+  const costTotal = moneyValue(quote.costTotal)
   return {
     ...quote,
-    profit: roundCurrency(quote.total - quote.costTotal),
+    pricePerM2: moneyValue(quote.pricePerM2),
+    materialCostPerM2: moneyValue(quote.materialCostPerM2),
+    installationFee: moneyValue(quote.installationFee),
+    discount: moneyValue(quote.discount),
+    manualDiscount: moneyValue(quote.manualDiscount),
+    paymentDiscount: moneyValue(quote.paymentDiscount),
+    cardDownPayment: moneyValue(quote.cardDownPayment),
+    cardFeeAmount: moneyValue(quote.cardFeeAmount),
+    subtotal: moneyValue(quote.subtotal),
+    costTotal,
+    total,
+    profit: roundCurrency(total - costTotal),
     status: safeQuoteStatus(quote.status),
     validUntil: quote.validUntil?.toISOString() || null,
     firstInstallmentDate: quote.firstInstallmentDate?.toISOString() || null,
@@ -434,23 +453,23 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
     deliveryBusinessDays: quote.deliveryBusinessDays,
     firstInstallmentDate: quote.firstInstallmentDate?.toISOString() || null,
     pricing: {
-      pricePerM2: quote.pricePerM2,
-      materialCostPerM2: quote.materialCostPerM2,
-      installationFee: quote.installationFee,
+      pricePerM2: numberValue(quote.pricePerM2),
+      materialCostPerM2: numberValue(quote.materialCostPerM2),
+      installationFee: numberValue(quote.installationFee),
       marginPercent: quote.marginPercent,
-      discount: quote.discount,
-      manualDiscount: quote.manualDiscount,
-      paymentDiscount: quote.paymentDiscount,
+      discount: numberValue(quote.discount),
+      manualDiscount: numberValue(quote.manualDiscount),
+      paymentDiscount: numberValue(quote.paymentDiscount),
       paymentMethod: quote.paymentMethod,
       cardInstallments: quote.cardInstallments,
-      cardDownPayment: quote.cardDownPayment,
+      cardDownPayment: numberValue(quote.cardDownPayment),
       cardFeePercent: quote.cardFeePercent,
-      cardFeeAmount: quote.cardFeeAmount,
+      cardFeeAmount: numberValue(quote.cardFeeAmount),
     },
     totals: {
-      subtotal: quote.subtotal,
-      costTotal: quote.costTotal,
-      total: quote.total,
+      subtotal: numberValue(quote.subtotal),
+      costTotal: numberValue(quote.costTotal),
+      total: numberValue(quote.total),
     },
     items: quote.items.map((item) => ({
       environment: item.environment,
@@ -466,19 +485,19 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
       difficulty: item.difficulty,
       calculationMode: item.calculationMode,
       priceProfile: item.priceProfile,
-      manualPrice: item.manualPrice,
+      manualPrice: optionalMoneyValue(item.manualPrice),
       accessories: parseQuoteAccessories(item.accessories),
       quantity: item.quantity,
       areaM2: item.areaM2,
-      unitPrice: item.unitPrice,
-      cost: item.cost,
-      total: item.total,
+      unitPrice: moneyValue(item.unitPrice),
+      cost: moneyValue(item.cost),
+      total: moneyValue(item.total),
       notes: item.notes,
     })),
   })
 }
 
-export function buildQuoteWhatsAppMessage(quote: { title: string; total: number; validUntil: Date | string | null; paymentMethod?: string | null; cardInstallments?: number | null; cardDownPayment?: number | null; client?: { name: string } }) {
+export function buildQuoteWhatsAppMessage(quote: { title: string; total: import('@/lib/money').NumericValue; validUntil: Date | string | null; paymentMethod?: string | null; cardInstallments?: number | null; cardDownPayment?: import('@/lib/money').NumericValue; client?: { name: string } }) {
   const validUntil = quote.validUntil ? new Intl.DateTimeFormat('pt-BR').format(new Date(quote.validUntil)) : null
   return [
     `Olá, ${quote.client?.name || 'tudo bem'}!`,
@@ -494,12 +513,12 @@ export function buildQuoteWhatsAppMessage(quote: { title: string; total: number;
 
 type QuoteContactMessage = {
   title: string
-  total: number
+  total: import('@/lib/money').NumericValue
   client?: { name: string }
 }
 
-function formatQuoteCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+function formatQuoteCurrency(value: import('@/lib/money').NumericValue) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue(value))
 }
 
 export function buildQuoteApprovalMessage(quote: QuoteContactMessage, approvalUrl: string) {

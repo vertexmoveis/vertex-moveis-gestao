@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { clientUpdateSchema } from '@/lib/schemas'
 import { badRequest, forbidden, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { optionalMoneyValue } from '@/lib/money'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth()
@@ -18,14 +19,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (auth.user.role !== 'ADMIN') {
     const allowed = await prisma.client.findFirst({
-      where: { id, projects: { some: { managerId: auth.user.id } } },
+      where: { id, archivedAt: null, projects: { some: { managerId: auth.user.id, archivedAt: null } } },
       select: { id: true },
     })
     if (!allowed) return forbidden()
   }
 
-  const client = await prisma.client.findUnique({
-    where: { id },
+  const client = await prisma.client.findFirst({
+    where: { id, archivedAt: null },
     select: {
       id: true,
       name: true,
@@ -44,7 +45,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       createdAt: true,
       updatedAt: true,
       projects: {
-        where: auth.user.role === 'ADMIN' ? undefined : { managerId: auth.user.id },
+        where: {
+          archivedAt: null,
+          ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
+        },
         select: {
           id: true,
           name: true,
@@ -72,6 +76,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     updatedAt: client.updatedAt.toISOString(),
     projects: client.projects.map((p) => ({
       ...p,
+      value: optionalMoneyValue(p.value),
       startDate: p.startDate?.toISOString() || null,
       estimatedEndDate: p.estimatedEndDate?.toISOString() || null,
       actualEndDate: p.actualEndDate?.toISOString() || null,
@@ -136,10 +141,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   try {
-    await prisma.client.delete({ where: { id } })
+    const archivedAt = new Date()
+    await prisma.$transaction([
+      prisma.client.update({ where: { id }, data: { archivedAt } }),
+      prisma.project.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt } }),
+      prisma.quote.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt } }),
+    ])
   } catch {
     return serverError()
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, archived: true })
 }

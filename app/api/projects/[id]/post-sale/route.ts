@@ -28,7 +28,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) return badRequest('Dados inválidos.')
 
   try {
-    const existing = await prisma.project.findUnique({ where: { id }, select: { managerId: true, name: true, stage: true } })
+    const existing = await prisma.project.findFirst({
+      where: { id, archivedAt: null },
+      select: { managerId: true, name: true, stage: true },
+    })
     if (!existing) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 })
     if (!canAccessProject(auth.user, existing.managerId)) return forbidden()
     if (existing.stage !== 'COMPLETED') return badRequest('O pós-venda fica disponível após a conclusão do projeto.')

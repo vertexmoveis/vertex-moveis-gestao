@@ -14,8 +14,8 @@ import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
-  const quote = await prisma.quote.findUnique({
-    where: { id },
+  const quote = await prisma.quote.findFirst({
+    where: { id, archivedAt: null },
     select: { createdById: true },
   })
   if (!quote) return { ok: false as const, status: 404 as const }
@@ -39,8 +39,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
   const [quote, companyProfile] = await Promise.all([
-    prisma.quote.findUnique({
-      where: { id },
+    prisma.quote.findFirst({
+      where: { id, archivedAt: null },
       include: {
         client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
         items: { orderBy: { position: 'asc' } },
@@ -125,8 +125,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         tx.materialCatalogItem.findMany({ where: { active: true }, select: { name: true, unitCost: true, active: true } }),
       ])
       const totals = calculateQuoteTotals(input.items, { ...input, priceRules, materialCosts: materials })
-      const existing = await tx.quote.findUnique({
-        where: { id },
+      const existing = await tx.quote.findFirst({
+        where: { id, archivedAt: null },
         include: {
           client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
@@ -254,7 +254,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
-  const currentQuote = await prisma.quote.findUnique({ where: { id }, select: { status: true, convertedProjectId: true } })
+  const currentQuote = await prisma.quote.findFirst({ where: { id, archivedAt: null }, select: { status: true, convertedProjectId: true } })
   if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
     return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
   }
@@ -306,11 +306,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
-  const currentQuote = await prisma.quote.findUnique({ where: { id }, select: { status: true, convertedProjectId: true } })
+  const currentQuote = await prisma.quote.findFirst({ where: { id, archivedAt: null }, select: { status: true, convertedProjectId: true } })
   if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
     return badRequest('O orçamento vendido faz parte do histórico do projeto e não pode ser excluído.')
   }
 
-  await prisma.quote.delete({ where: { id } })
-  return NextResponse.json({ success: true })
+  await prisma.quote.update({ where: { id }, data: { archivedAt: new Date() } })
+  return NextResponse.json({ success: true, archived: true })
 }

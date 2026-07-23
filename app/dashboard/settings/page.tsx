@@ -9,9 +9,12 @@ import { PricingMaterialsSettings } from '@/components/settings/pricing-material
 import { OperationsResourcesSettings } from '@/components/settings/operations-resources-settings'
 import { CompanyProfileSettings } from '@/components/settings/company-profile-settings'
 import { UserManagementSettings } from '@/components/settings/user-management-settings'
+import { TrashSettings } from '@/components/settings/trash-settings'
+import { TwoFactorSettings } from '@/components/settings/two-factor-settings'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
+import { moneyValue } from '@/lib/money'
 import { CheckCircle2, DatabaseBackup, TriangleAlert } from 'lucide-react'
 
 function formatTimestamp(value: Date) {
@@ -72,6 +75,7 @@ export default async function SettingsPage() {
     ? databaseTime.getTime() - latestBackup.createdAt.getTime() < 36 * 60 * 60 * 1000
     : false
   const secondaryCopied = backupDetails.secondaryCopied === true
+  const backupStorage = backupDetails.storage === 'vercel-blob-private' ? 'Nuvem privada' : 'OneDrive'
   const backupHealthy = latestBackup?.type === 'BACKUP_SUCCESS' && backupRecent && secondaryCopied
 
   return (
@@ -102,6 +106,8 @@ export default async function SettingsPage() {
             </div>
           </CardBody>
         </Card>
+
+        <TwoFactorSettings />
 
         {isAdmin && (
           <Card>
@@ -142,7 +148,7 @@ export default async function SettingsPage() {
                 </div>
                 <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-800">Segunda cópia</p>
-                  <p className="mt-2 text-sm font-bold text-blue-900">{secondaryCopied ? 'OneDrive confirmado' : 'Pendente'}</p>
+                  <p className="mt-2 text-sm font-bold text-blue-900">{secondaryCopied ? `${backupStorage} confirmada` : 'Pendente'}</p>
                   <p className="mt-1 text-xs text-blue-800/70">Retenção de {Number(backupDetails.retentionDays) || 30} dias</p>
                 </div>
                 <div className={`border-l-4 p-3 ${recentErrorCount === 0 ? 'border-emerald-500 bg-emerald-50' : 'border-red-500 bg-red-50'}`}>
@@ -188,7 +194,11 @@ export default async function SettingsPage() {
         {isAdmin && (
           <PricingMaterialsSettings
             initialPriceRules={priceRules.map(serializeQuotePriceRule)}
-            initialMaterials={materials.map((material) => ({ ...material, updatedAt: material.updatedAt.toISOString() }))}
+            initialMaterials={materials.map((material) => ({
+              ...material,
+              unitCost: moneyValue(material.unitCost),
+              updatedAt: material.updatedAt.toISOString(),
+            }))}
           />
         )}
 
@@ -201,6 +211,8 @@ export default async function SettingsPage() {
             ))}
           />
         )}
+
+        {isAdmin && <TrashSettings />}
 
         <Card>
           <CardHeader>

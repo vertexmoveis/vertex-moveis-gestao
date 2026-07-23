@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
+import { unstable_cache } from 'next/cache'
 
 export type NextActionKind = 'quote' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
 
@@ -31,10 +32,10 @@ function monthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
-export async function getDashboardNextActions(user: NextActionUser, limit = 8): Promise<DashboardNextAction[]> {
+async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8): Promise<DashboardNextAction[]> {
   const isAdmin = user.role === 'ADMIN'
-  const projectScope = isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }
-  const quoteScope = isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }
+  const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }) }
+  const quoteScope = { archivedAt: null, ...(isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }) }
   const today = startOfDay()
   const nextWeek = addDays(today, 7)
   const threeDaysAgo = addDays(today, -3)
@@ -108,7 +109,7 @@ export async function getDashboardNextActions(user: NextActionUser, limit = 8): 
       ? prisma.projectMaterial.findMany({
           where: {
             status: { in: ['PENDING', 'ORDERED'] },
-            project: { stage: { not: 'COMPLETED' } },
+            project: { archivedAt: null, stage: { not: 'COMPLETED' } },
           },
           select: {
             id: true,
@@ -194,4 +195,18 @@ export async function getDashboardNextActions(user: NextActionUser, limit = 8): 
   return actions
     .sort((a, b) => a.priority - b.priority || new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
     .slice(0, limit)
+}
+
+const getCachedDashboardNextActions = unstable_cache(
+  async (id: string, role: string, limit: number) => getDashboardNextActionsUncached({ id, role }, limit),
+  ['dashboard-next-actions-v2'],
+  { revalidate: 30 },
+)
+
+export function getDashboardNextActions(user: NextActionUser, limit = 8): Promise<DashboardNextAction[]> {
+  return getCachedDashboardNextActions(
+    user.id || '__sem_usuario__',
+    user.role || 'MANAGER',
+    Math.max(limit, 1),
+  )
 }

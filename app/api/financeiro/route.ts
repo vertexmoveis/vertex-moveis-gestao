@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
+import { moneyValue, numberValue } from '@/lib/money'
 
 function parseMonth(value: string | null) {
   const now = new Date()
@@ -83,12 +84,14 @@ export async function GET(req: NextRequest) {
               : null
   const paymentListWhere: Prisma.ProjectPaymentWhereInput = {
     AND: [
+      { project: { archivedAt: null } },
       paymentWindowWhere,
       ...(paymentSearchWhere ? [paymentSearchWhere] : []),
       ...(statusWhere ? [statusWhere] : []),
     ],
   }
   const soldProjectsWhere: Prisma.ProjectWhereInput = {
+    archivedAt: null,
     OR: [
       { approvalDate: { gte: month.dueStart, lt: month.dueEnd } },
       { startDate: { gte: month.dueStart, lt: month.dueEnd } },
@@ -103,19 +106,19 @@ export async function GET(req: NextRequest) {
 
   const [received, receivable, overdue, future, soldProjects, allPayments, total] = await Promise.all([
     prisma.projectPayment.aggregate({
-      where: { paidAt: { gte: month.paidStart, lt: month.paidEnd } },
+      where: { paidAt: { gte: month.paidStart, lt: month.paidEnd }, project: { archivedAt: null } },
       _sum: { amount: true },
     }),
     prisma.projectPayment.aggregate({
-      where: { paidAt: null, dueDate: { gte: month.dueStart, lt: month.dueEnd } },
+      where: { paidAt: null, dueDate: { gte: month.dueStart, lt: month.dueEnd }, project: { archivedAt: null } },
       _sum: { amount: true },
     }),
     prisma.projectPayment.aggregate({
-      where: { paidAt: null, dueDate: { lt: today } },
+      where: { paidAt: null, dueDate: { lt: today }, project: { archivedAt: null } },
       _sum: { amount: true },
     }),
     prisma.projectPayment.aggregate({
-      where: { dueDate: { gte: month.dueEnd }, paidAt: null },
+      where: { dueDate: { gte: month.dueEnd }, paidAt: null, project: { archivedAt: null } },
       _sum: { amount: true },
     }),
     prisma.project.findMany({
@@ -145,21 +148,21 @@ export async function GET(req: NextRequest) {
     prisma.projectPayment.count({ where: paymentListWhere }),
   ])
 
-  const soldValue = soldProjects.reduce((total, project) => total + (project.value || 0), 0)
-  const estimatedCost = soldProjects.reduce((total, project) => total + Math.max(project.productionCost || 0, 0), 0)
+  const soldValue = soldProjects.reduce((total, project) => total + numberValue(project.value), 0)
+  const estimatedCost = soldProjects.reduce((total, project) => total + Math.max(numberValue(project.productionCost), 0), 0)
   const soldCost = soldProjects.reduce((total, project) => (
     total + calculateProjectCostSummary(project.productionCost, project.materials, project.expenses).adjustedCost
   ), 0)
   const summary = {
-    received: received._sum.amount || 0,
-    receivable: receivable._sum.amount || 0,
-    overdue: overdue._sum.amount || 0,
-    sold: soldValue,
-    cost: soldCost,
-    estimatedCost,
-    estimatedProfit: soldValue - estimatedCost,
-    profit: soldValue - soldCost,
-    future: future._sum.amount || 0,
+    received: moneyValue(received._sum.amount),
+    receivable: moneyValue(receivable._sum.amount),
+    overdue: moneyValue(overdue._sum.amount),
+    sold: moneyValue(soldValue),
+    cost: moneyValue(soldCost),
+    estimatedCost: moneyValue(estimatedCost),
+    estimatedProfit: moneyValue(soldValue - estimatedCost),
+    profit: moneyValue(soldValue - soldCost),
+    future: moneyValue(future._sum.amount),
   }
 
   const payments = allPayments
@@ -170,7 +173,7 @@ export async function GET(req: NextRequest) {
       clientName: payment.project.client.name,
       installmentNumber: payment.installmentNumber,
       type: payment.type,
-      amount: payment.amount,
+      amount: moneyValue(payment.amount),
       dueDate: payment.dueDate.toISOString(),
       paidAt: payment.paidAt?.toISOString() || null,
       paymentMethod: payment.paymentMethod,

@@ -1,10 +1,13 @@
+import type { NumericValue } from '@/lib/money'
+import { numberValue } from '@/lib/money'
+
 export type ProjectMaterialCost = {
-  estimatedCost: number | null
-  actualCost: number | null
+  estimatedCost: NumericValue
+  actualCost: NumericValue
 }
 
 export type ProjectExpenseCost = {
-  amount: number | null
+  amount: NumericValue
 }
 
 export type ProjectCostSummary = {
@@ -24,18 +27,18 @@ function roundCurrency(value: number) {
 }
 
 export function calculateProjectCostSummary(
-  estimatedCost: number | null | undefined,
+  estimatedCost: NumericValue,
   materials: ProjectMaterialCost[],
   expenses: ProjectExpenseCost[] = [],
 ): ProjectCostSummary {
-  const baseCost = Math.max(Number(estimatedCost) || 0, 0)
+  const baseCost = Math.max(numberValue(estimatedCost), 0)
   const tracked = materials.filter((material) => material.actualCost !== null)
   const materialAdjustment = tracked.reduce(
-    (total, material) => total + Math.max(Number(material.actualCost) || 0, 0) - Math.max(Number(material.estimatedCost) || 0, 0),
+    (total, material) => total + Math.max(numberValue(material.actualCost), 0) - Math.max(numberValue(material.estimatedCost), 0),
     0,
   )
   const actualExpenses = expenses.reduce(
-    (total, expense) => total + Math.max(Number(expense.amount) || 0, 0),
+    (total, expense) => total + Math.max(numberValue(expense.amount), 0),
     0,
   )
 
@@ -43,7 +46,7 @@ export function calculateProjectCostSummary(
     estimatedCost: roundCurrency(baseCost),
     adjustedCost: roundCurrency(Math.max(baseCost + materialAdjustment + actualExpenses, 0)),
     materialAdjustment: roundCurrency(materialAdjustment),
-    actualMaterials: roundCurrency(tracked.reduce((total, material) => total + Math.max(Number(material.actualCost) || 0, 0), 0)),
+    actualMaterials: roundCurrency(tracked.reduce((total, material) => total + Math.max(numberValue(material.actualCost), 0), 0)),
     actualExpenses: roundCurrency(actualExpenses),
     totalExpenses: expenses.length,
     trackedMaterials: tracked.length,

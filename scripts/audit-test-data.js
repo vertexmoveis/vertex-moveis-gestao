@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require('@prisma/client')
 
-const prisma = new PrismaClient()
+let prisma
 
 function maskEmail(email) {
   if (!email) return null
@@ -28,10 +28,14 @@ function redactRecord(record) {
 }
 
 async function main() {
+  const { loadDatabaseEnv } = await import('./database-env.mjs')
+  loadDatabaseEnv()
+  prisma = new PrismaClient()
+
   const userMatches = await prisma.user.findMany({
     where: {
       OR: [
-        { email: { in: ['admin@demo.com', 'demo@demo.com', 'test@test.com', 'admin@example.com', 'admin@vertexmoveis.com.br', 'carlos@vertexmoveis.com.br', 'ana@vertexmoveis.com.br'] } },
+        { email: { in: ['admin@demo.com', 'demo@demo.com', 'test@test.com', 'admin@example.com', 'carlos@vertexmoveis.com.br', 'ana@vertexmoveis.com.br'] } },
         { email: { contains: 'example' } },
         { name: { contains: 'demo' } },
         { name: { contains: 'Demo' } },
@@ -93,4 +97,4 @@ main()
     console.error(error.message)
     process.exitCode = 1
   })
-  .finally(() => prisma.$disconnect())
+  .finally(() => prisma?.$disconnect())

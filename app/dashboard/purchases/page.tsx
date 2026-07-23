@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/header'
 import { PurchasesBoard, type PurchaseMaterial } from '@/components/purchases/purchases-board'
 import { prisma } from '@/lib/db'
 import { authOptions } from '@/lib/auth'
+import { moneyValue } from '@/lib/money'
 
 const PURCHASE_LIMIT = 160
 
@@ -15,7 +16,7 @@ export default async function PurchasesPage() {
   const materials = await prisma.projectMaterial.findMany({
     where: {
       status: { in: ['PENDING', 'ORDERED'] },
-      project: { stage: { not: 'COMPLETED' } },
+      project: { archivedAt: null, stage: { not: 'COMPLETED' } },
     },
     include: {
       project: { select: { id: true, name: true, room: true, client: { select: { name: true } } } },
@@ -36,8 +37,8 @@ export default async function PurchasesPage() {
           unit: material.unit,
           estimatedQuantity: material.estimatedQuantity,
           purchasedQuantity: material.purchasedQuantity,
-          estimatedCost: material.estimatedCost,
-          actualCost: material.actualCost,
+          estimatedCost: moneyValue(material.estimatedCost),
+          actualCost: moneyValue(material.actualCost),
           supplier: material.supplier,
           status: material.status === 'ORDERED' ? 'ORDERED' : 'PENDING',
           notes: material.notes,

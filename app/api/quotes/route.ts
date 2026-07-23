@@ -31,7 +31,10 @@ export async function GET(req: NextRequest) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const baseWhere: Prisma.QuoteWhereInput = auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }
+  const baseWhere: Prisma.QuoteWhereInput = {
+    archivedAt: null,
+    ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
+  }
 
   if (q) {
     baseWhere.OR = [

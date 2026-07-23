@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { moneyValue } from '@/lib/money'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { formatDateOnly } from '@/lib/date-only'
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const payment = await prisma.projectPayment.findFirst({
-    where: { id: paymentId, projectId: id },
+    where: { id: paymentId, projectId: id, project: { archivedAt: null } },
     include: {
       project: {
         select: {
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div><div class="label">Pago em</div><div class="value">${payment.paidAt?.toLocaleDateString('pt-BR') || 'Em aberto'}</div></div>
     </div>
     <div class="row">
-      <div><div class="label">Valor recebido</div><div class="value total">${payment.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div></div>
+      <div><div class="label">Valor recebido</div><div class="value total">${moneyValue(payment.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div></div>
     </div>
     <p class="muted">Documento gerado pelo sistema Vertex Móveis em ${new Date().toLocaleString('pt-BR')}.</p>
     <div class="actions"><button type="button" onclick="window.print()">Imprimir / salvar PDF</button></div>

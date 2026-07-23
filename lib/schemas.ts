@@ -123,7 +123,14 @@ export const projectPatchSchema = z.object({
   status: z.enum(projectStatuses).optional(),
   stage: z.enum(productionStages).optional(),
   actualEndDate: dateField.optional(),
+  productionBlocked: z.boolean().optional(),
+  productionBlockReason: nullableString(500).optional(),
+  stageDeadlineDate: dateField.optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, 'No fields to update')
+  .refine((value) => value.productionBlocked !== true || Boolean(value.productionBlockReason?.trim()), {
+    message: 'Informe o motivo do bloqueio.',
+    path: ['productionBlockReason'],
+  })
 
 export const noteCreateSchema = z.object({
   content: z.string().trim().min(1).max(2000),

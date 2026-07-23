@@ -1,4 +1,5 @@
 import { isDateOnlyExpired } from './date-only'
+import type { NumericValue } from './money'
 
 export type QuoteReadinessIssue = {
   key: string
@@ -37,7 +38,7 @@ type ReadinessCompany = {
 
 export type QuoteReadinessSource = {
   title?: string | null
-  total?: number | null
+  total?: NumericValue
   validUntil?: Date | string | null
   deliveryBusinessDays?: number | null
   firstInstallmentDate?: Date | string | null
