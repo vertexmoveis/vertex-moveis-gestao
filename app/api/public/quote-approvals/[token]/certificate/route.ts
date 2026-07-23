@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, formatCompanyAddress, withCompanyProfileDefaults } from '@/lib/company-profile'
 import { formatDateOnly } from '@/lib/date-only'
-import { parseQuoteApprovalSnapshot } from '@/lib/quote-approval'
+import {
+  parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalSnapshot,
+} from '@/lib/quote-approval'
 import { quoteDisplayCode } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
 
@@ -47,14 +50,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const company = withCompanyProfileDefaults(rawCompany)
   const quote = request.quote
+  const approvedBundle = parseQuoteApprovalBundleSnapshot(request.snapshot)
   const approvedSnapshot = parseQuoteApprovalSnapshot(request.snapshot)
-  const approvedQuote = approvedSnapshot?.quote
+  const approvedQuote = approvedBundle?.quotes.find((option) => option.id === request.selectedQuoteId)
+    || approvedSnapshot?.quote
   const approvedClient = approvedQuote?.client || quote.client
   const approvedItems = approvedQuote?.items || quote.items
   const approvedTotal = approvedQuote?.total ?? quote.total
   const approvedValidity = approvedQuote?.validUntil || quote.validUntil
   const approvedTitle = approvedQuote?.title || quote.title
-  const code = quoteDisplayCode(quote)
+  const code = quoteDisplayCode(approvedQuote || quote)
   const certificateCode = `VERTEX-${code}-${request.id.slice(-8).toUpperCase()}`
   const snapshotHash = createHash('sha256').update(request.snapshot || '').digest('hex')
   const clientAddress = approvedClient.address || [

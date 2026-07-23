@@ -57,6 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             acceptedTermsAt: true,
             invalidatedAt: true,
             revisionVersion: true,
+            selectedQuoteId: true,
           },
         },
         convertedProject: { select: { id: true, name: true } },
@@ -67,6 +68,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const { approvalRequests, ...quoteWithoutApprovalRequests } = quote
+  const candidateAccess = auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }
+  const [comparisonCandidates, activeApprovalRequest] = await Promise.all([
+    prisma.quote.findMany({
+      where: {
+        ...candidateAccess,
+        id: { not: quote.id },
+        clientId: quote.clientId,
+        archivedAt: null,
+        convertedProjectId: null,
+        status: { in: ['DRAFT', 'SENT', 'WAITING_APPROVAL'] },
+      },
+      orderBy: [{ number: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, number: true, title: true, total: true, status: true },
+    }),
+    prisma.quoteApprovalRequest.findFirst({
+      where: {
+        OR: [{ quoteId: quote.id }, { comparisonQuoteId: quote.id }],
+        approvedAt: null,
+        rejectedAt: null,
+        invalidatedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { token: true, quoteId: true, comparisonQuoteId: true, sentAt: true },
+    }),
+  ])
 
   return NextResponse.json({
     ...serializeQuote(quoteWithoutApprovalRequests),
@@ -80,6 +106,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           approvedAt: approvalRequests[0].approvedAt?.toISOString() || null,
           acceptedTermsAt: approvalRequests[0].acceptedTermsAt?.toISOString() || null,
           invalidatedAt: approvalRequests[0].invalidatedAt?.toISOString() || null,
+        }
+      : null,
+    comparisonCandidates: comparisonCandidates.map((candidate) => ({
+      ...candidate,
+      total: Number(candidate.total),
+    })),
+    activeApprovalRequest: activeApprovalRequest
+      ? {
+          ...activeApprovalRequest,
+          sentAt: activeApprovalRequest.sentAt.toISOString(),
         }
       : null,
     revisions: quote.revisions.map((revision) => ({
@@ -130,18 +166,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         include: {
           client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
-          approvalRequests: {
-            where: { invalidatedAt: null },
-            select: { id: true, approvedAt: true, rejectedAt: true },
-          },
         },
       })
       if (!existing) throw new Error('Not found')
+      const approvalRequests = await tx.quoteApprovalRequest.findMany({
+        where: {
+          OR: [{ quoteId: id }, { comparisonQuoteId: id }],
+          invalidatedAt: null,
+        },
+        select: {
+          id: true,
+          quoteId: true,
+          comparisonQuoteId: true,
+          approvedAt: true,
+          rejectedAt: true,
+        },
+      })
       if (existing.convertedProjectId || existing.status === 'SOLD') throw new Error('Quote locked')
       if (input.status === 'SOLD') throw new Error('Invalid manual status')
       if (
         input.status === 'APPROVED' &&
-        (existing.status !== 'APPROVED' || !existing.approvalRequests.some((request) => Boolean(request.approvedAt)))
+        (existing.status !== 'APPROVED' || !approvalRequests.some((request) => Boolean(request.approvedAt)))
       ) {
         throw new Error('Invalid manual status')
       }
@@ -189,14 +234,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       })
 
       const approvalTermsChanged = previousApprovalSnapshot !== buildQuoteApprovalSnapshot(updated)
-      const hasApprovalState = existing.status === 'APPROVED' || existing.approvalRequests.length > 0
+      const hasApprovalState = existing.status === 'APPROVED' || approvalRequests.length > 0
       const approvalReset = approvalTermsChanged && hasApprovalState
 
       if (approvalReset) {
         await tx.quoteApprovalRequest.updateMany({
-          where: { quoteId: id, invalidatedAt: null },
+          where: { id: { in: approvalRequests.map((request) => request.id) }, invalidatedAt: null },
           data: { invalidatedAt: new Date() },
         })
+        const relatedQuoteIds = approvalRequests
+          .flatMap((request) => [request.quoteId, request.comparisonQuoteId])
+          .filter((quoteId): quoteId is string => Boolean(quoteId) && quoteId !== id)
+        if (relatedQuoteIds.length > 0) {
+          await tx.quote.updateMany({
+            where: { id: { in: relatedQuoteIds }, status: 'WAITING_APPROVAL' },
+            data: { status: 'SENT' },
+          })
+        }
         updated = await tx.quote.update({
           where: { id },
           data: { status: 'DRAFT', approvedAt: null, sentAt: null, lostAt: null, lossReason: null },

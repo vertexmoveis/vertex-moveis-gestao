@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Header } from '@/components/layout/header'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input, Select } from '@/components/ui/input'
 import { QuoteForm, type QuotePayload } from '@/components/quotes/quote-form'
 import {
   QUOTE_CALCULATION_MODE_LABELS,
@@ -56,11 +56,29 @@ export default function QuoteDetailPage() {
   const [approvalUrl, setApprovalUrl] = useState('')
   const [approvalMessage, setApprovalMessage] = useState('')
   const [approvalFeedback, setApprovalFeedback] = useState('')
+  const [comparisonQuoteId, setComparisonQuoteId] = useState('')
   const [convertOpen, setConvertOpen] = useState(false)
   const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
   const [conversionDownPayment, setConversionDownPayment] = useState('0')
   const [conversionInstallmentCount, setConversionInstallmentCount] = useState('0')
   const [conversionFirstInstallmentDate, setConversionFirstInstallmentDate] = useState('')
+
+  const applyLoadedQuote = useCallback((data: QuoteData) => {
+    setQuote(data)
+    const candidates = data.comparisonCandidates || []
+    const activeRequest = data.activeApprovalRequest
+    const linkedQuoteId = activeRequest
+      ? (activeRequest.quoteId === data.id ? activeRequest.comparisonQuoteId : activeRequest.quoteId)
+      : null
+    setComparisonQuoteId((current) => {
+      if (linkedQuoteId && candidates.some((candidate) => candidate.id === linkedQuoteId)) return linkedQuoteId
+      if (current && candidates.some((candidate) => candidate.id === current)) return current
+      return candidates.length === 1 ? candidates[0].id : ''
+    })
+    if (activeRequest?.token) {
+      setApprovalUrl(`${window.location.origin}/proposta/${activeRequest.token}`)
+    }
+  }, [])
 
   const loadQuote = useCallback(async () => {
     setLoading(true)
@@ -69,14 +87,14 @@ export default function QuoteDetailPage() {
       const response = await fetch(`/api/quotes/${params.id}`)
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.id) throw new Error(data?.error || 'Orçamento não encontrado.')
-      setQuote(data)
+      applyLoadedQuote(data)
     } catch (loadError) {
       setQuote(null)
       setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o orçamento.')
     } finally {
       setLoading(false)
     }
-  }, [params.id])
+  }, [applyLoadedQuote, params.id])
 
   useEffect(() => {
     let active = true
@@ -89,7 +107,7 @@ export default function QuoteDetailPage() {
           setError(data?.error || 'Orçamento não encontrado.')
           return
         }
-        setQuote(data)
+        applyLoadedQuote(data)
       })
       .catch(() => {
         if (!active) return
@@ -100,7 +118,7 @@ export default function QuoteDetailPage() {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [params.id])
+  }, [applyLoadedQuote, params.id])
 
   const openEdit = async () => {
     setModalOpen(true)
@@ -135,7 +153,7 @@ export default function QuoteDetailPage() {
     if (!response.ok) {
       throw new Error(data?.error || 'Não foi possível salvar o orçamento.')
     }
-    setQuote(data)
+        applyLoadedQuote(data)
     if (data.approvalReset) {
       setApprovalUrl('')
       setApprovalMessage('')
@@ -231,7 +249,10 @@ export default function QuoteDetailPage() {
     const response = await fetch(`/api/quotes/${params.id}/approval-request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reminder }),
+      body: JSON.stringify({
+        reminder,
+        ...(comparisonQuoteId ? { comparisonQuoteId } : {}),
+      }),
     })
     const data = await response.json().catch(() => ({}))
     setSaving(false)
@@ -335,6 +356,12 @@ export default function QuoteDetailPage() {
 
   const paymentSummary = getQuotePaymentSummary(quote)
   const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
+  const selectedComparison = quote.comparisonCandidates?.find((candidate) => candidate.id === comparisonQuoteId)
+  const approvalActionLabel = quote.status === 'WAITING_APPROVAL'
+    ? 'Pedir retorno do cliente'
+    : selectedComparison
+      ? 'Enviar 2 propostas'
+      : 'Enviar para aprovação'
 
   return (
     <div className="flex h-full flex-col">
@@ -371,7 +398,7 @@ export default function QuoteDetailPage() {
             ) : null}
             <Button variant="outline" loading={saving} disabled={quoteLocked} onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}>
               <Send size={16} />
-              {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
+              {approvalActionLabel}
             </Button>
             {whatsappUrl && (
               <Button variant="outline" onClick={() => window.open(whatsappUrl, '_blank')}>
@@ -497,6 +524,26 @@ export default function QuoteDetailPage() {
                     </ul>
                   </div>
                 ) : null}
+                {quote.comparisonCandidates?.length ? (
+                  <div className="space-y-2">
+                    <Select
+                      label="Enviar junto com"
+                      value={comparisonQuoteId}
+                      onChange={(event) => setComparisonQuoteId(event.target.value)}
+                      placeholder="Somente este orçamento"
+                      disabled={saving}
+                      options={quote.comparisonCandidates.map((candidate) => ({
+                        value: candidate.id,
+                        label: `${candidate.title} · ${formatCurrency(candidate.total)}`,
+                      }))}
+                    />
+                    {selectedComparison ? (
+                      <p className="rounded-lg border border-[#FFD6B8] bg-[#FFF7F1] px-3 py-2 text-xs leading-5 text-[#8F3B00]">
+                        A cliente receberá um único link para comparar esta proposta com “{selectedComparison.title}” e escolher qual deseja aprovar.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   className="w-full justify-start"
@@ -505,7 +552,7 @@ export default function QuoteDetailPage() {
                   onClick={() => void sendApprovalRequest(quote.status === 'WAITING_APPROVAL')}
                 >
                   <Send size={16} />
-                  {quote.status === 'WAITING_APPROVAL' ? 'Pedir retorno do cliente' : 'Enviar para aprovação'}
+                  {approvalActionLabel}
                 </Button>
                 {approvalFeedback && <p className="rounded-lg bg-[#FFF3EA] px-3 py-2 text-xs text-[#A64200]">{approvalFeedback}</p>}
                 {approvalMessage && (

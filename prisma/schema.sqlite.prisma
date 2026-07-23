@@ -138,7 +138,9 @@ model Quote {
   updatedAt          DateTime        @updatedAt
   items              QuoteItem[]
   revisions          QuoteRevision[]
-  approvalRequests   QuoteApprovalRequest[]
+  approvalRequests           QuoteApprovalRequest[] @relation("QuoteApprovalPrimary")
+  comparisonApprovalRequests QuoteApprovalRequest[] @relation("QuoteApprovalComparison")
+  selectedApprovalRequests   QuoteApprovalRequest[] @relation("QuoteApprovalSelected")
 
   @@index([clientId])
   @@index([createdById])
@@ -289,21 +291,28 @@ model InstallationSchedule {
 }
 
 model QuoteApprovalRequest {
-  id             String   @id @default(cuid())
-  quoteId        String
-  quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  token          String   @unique
-  sentAt         DateTime @default(now())
-  reminderCount  Int      @default(0)
-  lastReminderAt DateTime?
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-  expiresAt      DateTime?
-  message        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  quoteId                   String
+  quote                     Quote    @relation("QuoteApprovalPrimary", fields: [quoteId], references: [id], onDelete: Cascade)
+  comparisonQuoteId         String?
+  comparisonQuote           Quote?   @relation("QuoteApprovalComparison", fields: [comparisonQuoteId], references: [id], onDelete: SetNull)
+  selectedQuoteId           String?
+  selectedQuote             Quote?   @relation("QuoteApprovalSelected", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
+  token                     String   @unique
+  sentAt                    DateTime @default(now())
+  reminderCount             Int      @default(0)
+  lastReminderAt            DateTime?
+  approvedAt                DateTime?
+  rejectedAt                DateTime?
+  expiresAt                 DateTime?
+  comparisonRevisionVersion Int?
+  message                   String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   @@index([quoteId])
+  @@index([comparisonQuoteId])
+  @@index([selectedQuoteId])
   @@index([expiresAt])
   @@index([sentAt])
 }

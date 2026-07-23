@@ -3,7 +3,22 @@
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { useState } from 'react'
 
-export function PublicApprovalActions({ token, clientName }: { token: string; clientName?: string }) {
+export type PublicApprovalOption = {
+  id: string
+  title: string
+  totalLabel: string
+  paymentLabel: string
+}
+
+export function PublicApprovalActions({
+  token,
+  clientName,
+  options = [],
+}: {
+  token: string
+  clientName?: string
+  options?: PublicApprovalOption[]
+}) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'approved' | 'rejected' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [note, setNote] = useState('')
@@ -11,8 +26,14 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
   const [respondentDocument, setRespondentDocument] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [certificateUrl, setCertificateUrl] = useState('')
+  const [selectedQuoteId, setSelectedQuoteId] = useState(options.length === 1 ? options[0].id : '')
 
   const respond = async (decision: 'APPROVE' | 'REJECT') => {
+    if (decision === 'APPROVE' && options.length > 1 && !selectedQuoteId) {
+      setMessage('Escolha uma das duas propostas antes de aprovar.')
+      setStatus('error')
+      return
+    }
     if (respondentName.trim().length < 3) {
       setMessage('Informe o nome completo de quem está respondendo.')
       setStatus('error')
@@ -33,6 +54,7 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
           respondentName: respondentName.trim(),
           ...(decision === 'APPROVE'
             ? {
+                ...(selectedQuoteId ? { selectedQuoteId } : {}),
                 ...(respondentDocument.trim() ? { respondentDocument: respondentDocument.trim() } : {}),
                 acceptedTerms,
               }
@@ -47,7 +69,7 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
         return
       }
       setMessage(decision === 'APPROVE'
-        ? 'Aprovação registrada. A Vertex Móveis entrará em contato para os próximos passos.'
+        ? `Aprovação registrada${data?.selectedQuoteTitle ? ` para "${data.selectedQuoteTitle}"` : ''}. A Vertex Móveis entrará em contato para os próximos passos.`
         : 'Pedido de ajuste registrado. A Vertex Móveis entrará em contato.')
       setCertificateUrl(data?.certificateUrl || '')
       setStatus(decision === 'APPROVE' ? 'approved' : 'rejected')
@@ -74,6 +96,39 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
   return (
     <div className="space-y-3">
       {status === 'error' ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{message}</p> : null}
+      {options.length > 1 ? (
+        <fieldset>
+          <legend className="mb-2 text-sm font-semibold text-[#121212]">Qual proposta você deseja aprovar?</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {options.map((option) => {
+              const selected = selectedQuoteId === option.id
+              return (
+                <label
+                  key={option.id}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                    selected ? 'border-[#FF6B00] bg-[#FFF4EC]' : 'border-[#D9D9D9] bg-white hover:border-[#FFB47D]'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="selected-quote"
+                    value={option.id}
+                    checked={selected}
+                    onChange={() => setSelectedQuoteId(option.id)}
+                    disabled={status === 'loading'}
+                    className="mt-1 h-4 w-4 accent-[#FF6B00]"
+                  />
+                  <span className="min-w-0">
+                    <strong className="block text-sm text-[#121212]">{option.title}</strong>
+                    <span className="mt-1 block text-sm font-bold text-[#FF6B00]">{option.totalLabel}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-[#666]">{option.paymentLabel}</span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="approval-name" className="mb-1.5 block text-sm font-medium text-[#121212]">Nome completo</label>
@@ -123,10 +178,10 @@ export function PublicApprovalActions({ token, clientName }: { token: string; cl
           disabled={status === 'loading'}
           className="mt-0.5 h-4 w-4 accent-[#FF6B00]"
         />
-        <span>Li a proposta, conferi os móveis, valores, pagamento e prazo, e concordo com estas condições para aprovar o orçamento.</span>
+        <span>Li {options.length > 1 ? 'as duas propostas, escolhi a opção acima e conferi' : 'a proposta e conferi'} os móveis, valores, pagamento e prazo. Concordo com estas condições para aprovar o orçamento.</span>
       </label>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <button type="button" disabled={status === 'loading'} onClick={() => void respond('APPROVE')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#E05A00] disabled:opacity-50"><CheckCircle2 size={16} /> Aprovar orçamento</button>
+        <button type="button" disabled={status === 'loading'} onClick={() => void respond('APPROVE')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#E05A00] disabled:opacity-50"><CheckCircle2 size={16} /> {options.length > 1 ? 'Aprovar opção escolhida' : 'Aprovar orçamento'}</button>
         <button type="button" disabled={status === 'loading'} onClick={() => void respond('REJECT')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] transition-colors hover:bg-[#F5F5F5] disabled:opacity-50"><XCircle size={16} /> Solicitar ajuste</button>
       </div>
     </div>

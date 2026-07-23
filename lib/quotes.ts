@@ -547,3 +547,30 @@ export function buildQuoteFollowUpMessage(quote: QuoteContactMessage, approvalUr
     'Fico à disposição.',
   ].join('\n')
 }
+
+export function buildQuoteComparisonApprovalMessage(
+  quotes: [QuoteContactMessage, QuoteContactMessage],
+  approvalUrl: string,
+  reminder = false,
+) {
+  const clientName = quotes[0].client?.name || quotes[1].client?.name || 'tudo bem'
+  const options = quotes.map((quote, index) => (
+    `${index + 1}. ${quote.title}: ${formatQuoteCurrency(quote.total)}`
+  ))
+
+  return [
+    reminder ? `Olá, ${clientName}! Tudo certo?` : `Olá, ${clientName}!`,
+    '',
+    reminder
+      ? 'Queria saber o que você achou das duas opções que preparamos para o seu projeto:'
+      : 'Preparamos duas opções para o seu projeto:',
+    ...options,
+    '',
+    reminder
+      ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
+      : 'No mesmo link você pode comparar os móveis, acabamentos, valores e formas de pagamento.',
+    `Veja as duas propostas e escolha a sua preferida aqui: ${approvalUrl}`,
+    '',
+    'Qualquer dúvida, pode me responder por aqui.',
+  ].join('\n')
+}

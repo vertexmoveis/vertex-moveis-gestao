@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { calculateQuoteTotals, getQuoteCardInstallmentPlan, getQuotePaymentDetails } from '@/lib/quotes'
 import { formatDateOnly } from '@/lib/date-only'
-import { buildQuoteApprovalSnapshot, parseQuoteApprovalSnapshot } from '@/lib/quote-approval'
+import {
+  buildQuoteApprovalBundleSnapshot,
+  buildQuoteApprovalSnapshot,
+  parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalSnapshot,
+} from '@/lib/quote-approval'
 
 const item = {
   environment: 'Cozinha',
@@ -124,4 +129,44 @@ test('a aprovação guarda somente os termos enviados ao cliente', () => {
   assert.equal(snapshot.includes('costTotal'), false)
   assert.equal(snapshot, buildQuoteApprovalSnapshot({ ...quote, items: [{ ...quote.items[0], id: 'novo-id-interno' }] }))
   assert.notEqual(snapshot, buildQuoteApprovalSnapshot({ ...quote, total: 5200 }))
+})
+
+test('a comparação guarda duas propostas separadas e em ordem estável', () => {
+  const baseQuote = {
+    id: 'quote-madeirado',
+    number: 9,
+    title: 'Cozinha Planejada - Madeirado',
+    createdAt: '2026-07-23T12:00:00.000Z',
+    validUntil: '2026-08-01T12:00:00.000Z',
+    deliveryBusinessDays: 30,
+    firstInstallmentDate: '2026-07-30T12:00:00.000Z',
+    installationFee: 0,
+    manualDiscount: 0,
+    paymentDiscount: 0,
+    paymentMethod: 'CARD',
+    cardInstallments: 10,
+    cardDownPayment: 0,
+    subtotal: 14784,
+    total: 14784,
+    customerNotes: null,
+    client: { name: 'Flavia Macedo' },
+    items: [{ ...item, id: 'madeirado-1', total: 14784 }],
+  }
+  const alternative = {
+    ...baseQuote,
+    id: 'quote-provencal',
+    number: 11,
+    title: 'Cozinha Planejada - Provençal',
+    subtotal: 25536,
+    total: 25536,
+    items: [{ ...item, id: 'provencal-1', total: 25536 }],
+  }
+
+  const snapshot = buildQuoteApprovalBundleSnapshot([alternative, baseQuote])
+  const parsed = parseQuoteApprovalBundleSnapshot(snapshot)
+
+  assert.deepEqual(parsed?.quotes.map((quote) => quote.id), ['quote-madeirado', 'quote-provencal'])
+  assert.deepEqual(parsed?.quotes.map((quote) => quote.total), [14784, 25536])
+  assert.equal(snapshot, buildQuoteApprovalBundleSnapshot([baseQuote, alternative]))
+  assert.equal(parseQuoteApprovalSnapshot(snapshot), null)
 })

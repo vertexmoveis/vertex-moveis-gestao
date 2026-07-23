@@ -86,5 +86,19 @@ export type QuoteData = {
     acceptedTermsAt: string | null
     invalidatedAt: string | null
     revisionVersion: number | null
+    selectedQuoteId?: string | null
+  } | null
+  comparisonCandidates?: Array<{
+    id: string
+    number: number
+    title: string
+    total: number
+    status: QuoteStatus
+  }>
+  activeApprovalRequest?: {
+    token: string
+    quoteId: string
+    comparisonQuoteId: string | null
+    sentAt: string
   } | null
 }
