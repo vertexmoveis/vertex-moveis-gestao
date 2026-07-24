@@ -52,6 +52,16 @@ import {
   type QuoteStatus,
 } from '@/lib/quotes'
 import type { QuotePriceRule } from '@/lib/quote-price-rules'
+import { getQuotePlacementSuggestions } from '@/lib/quote-placements'
+import {
+  DEFAULT_QUOTE_VARIATIONS,
+  QUOTE_VARIATION_LABELS,
+  quoteVariationDefaultName,
+  quoteVariationPriceProfile,
+  safeQuoteVariationType,
+  type QuoteVariationInput,
+  type QuoteVariationType,
+} from '@/lib/quote-variations'
 import { formatCurrency } from '@/lib/utils'
 import type { QuoteData, QuoteItemData } from '@/types/quotes'
 
@@ -72,6 +82,10 @@ type QuoteFormProps = {
 export type QuotePayload = {
   clientId?: string
   title: string
+  variationType: QuoteVariationType
+  variationName: string
+  variations?: QuoteVariationInput[]
+  syncScope?: 'CURRENT' | 'GROUP'
   status: QuoteStatus
   pricePerM2: number
   materialCostPerM2: number
@@ -96,6 +110,8 @@ type QuoteItemPayload = {
   description: string
   furnitureType?: string
   furnitureModel?: string
+  placement?: string
+  sourceItemKey?: string
   width: number
   height: number
   depth?: number | null
@@ -117,6 +133,8 @@ type DraftItem = {
   furnitureType: string
   furnitureModel: string
   customFurniture: string
+  placement: string
+  sourceItemKey: string
   widthMm: string
   heightMm: string
   quantity: string
@@ -154,6 +172,8 @@ type SavedQuoteDraft = {
   data: {
     clientId: string
     title: string
+    variations: QuoteVariationInput[]
+    syncScope: 'CURRENT' | 'GROUP'
     status: QuoteStatus
     installationFee: string
     discount: string
@@ -217,11 +237,8 @@ function getDimensionWarnings(item: DraftItem) {
 }
 
 function getAvailablePriceProfiles(environment: string) {
-  if (environment === 'Cozinha') return QUOTE_PRICE_PROFILES
-  if (['Dormitório', 'Suíte', 'Quarto infantil', 'Quarto de bebê'].includes(environment)) {
-    return QUOTE_PRICE_PROFILES.filter((profile) => ['STANDARD', 'WOODGRAIN'].includes(profile))
-  }
-  return QUOTE_PRICE_PROFILES.filter((profile) => profile === 'STANDARD')
+  void environment
+  return QUOTE_PRICE_PROFILES
 }
 
 function getInternalFinishOptions(values: Array<string | null | undefined> = []) {
@@ -272,6 +289,8 @@ function itemToDraft(item?: QuoteItemData, draftId = 'initial-item-1'): DraftIte
     environment,
     environmentName: item?.environmentName?.trim() || environment,
     ...resolved,
+    placement: item?.placement || '',
+    sourceItemKey: item?.sourceItemKey || draftId,
     widthMm: item?.width ? String(quoteCentimetersToMillimeters(item.width)) : '',
     heightMm: item?.height ? String(quoteCentimetersToMillimeters(item.height)) : '',
     quantity: item?.quantity ? String(item.quantity) : '1',
@@ -313,6 +332,8 @@ function toCalculationItem(item: DraftItem) {
     description: itemDescription(item),
     furnitureType: item.furnitureType,
     furnitureModel: item.furnitureModel,
+    placement: item.placement,
+    sourceItemKey: item.sourceItemKey || item.draftId,
     width: quoteMillimetersToCentimeters(parseNumber(item.widthMm)),
     height: quoteMillimetersToCentimeters(parseNumber(item.heightMm)),
     depth: null,
@@ -331,6 +352,14 @@ function toCalculationItem(item: DraftItem) {
 export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFormProps) {
   const [clientId, setClientId] = useState(initialData?.client?.id || '')
   const [title, setTitle] = useState(initialData?.title || '')
+  const [variations, setVariations] = useState<QuoteVariationInput[]>(() => {
+    const type = safeQuoteVariationType(initialData?.variationType)
+    return [{
+      type,
+      name: initialData?.variationName || quoteVariationDefaultName(type),
+    }]
+  })
+  const [syncScope, setSyncScope] = useState<'CURRENT' | 'GROUP'>('CURRENT')
   const [status, setStatus] = useState<QuoteStatus>(initialData?.status || 'DRAFT')
   const [installationFee, setInstallationFee] = useState(moneyToString(initialData?.installationFee) || '0')
   const [discount, setDiscount] = useState(moneyToString(initialData?.manualDiscount ?? initialData?.discount) || '0')
@@ -370,6 +399,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const currentDraftData = useMemo<SavedQuoteDraft['data']>(() => ({
     clientId,
     title,
+    variations,
+    syncScope,
     status,
     installationFee,
     discount,
@@ -397,8 +428,10 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     notes,
     paymentMethod,
     status,
+    syncScope,
     title,
     validUntil,
+    variations,
   ])
   const initialDraftSignature = useRef<string | null>(null)
   if (initialDraftSignature.current === null) initialDraftSignature.current = JSON.stringify(currentDraftData)
@@ -480,6 +513,78 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     }
   ), [cardDownPayment, cardFeePercent, cardInstallments, discount, installationFee, initialData?.materialCostPerM2, items, materials, paymentMethod, priceRules])
 
+  const variationPreviews = useMemo(() => variations.map((variation) => {
+    const profile = quoteVariationPriceProfile(variation.type)
+    const variationItems = items.map((item) => ({
+      ...toCalculationItem(item),
+      priceProfile: profile || item.priceProfile,
+    }))
+    return {
+      ...variation,
+      totals: calculateQuoteTotals(variationItems, {
+        pricePerM2: DEFAULT_QUOTE_PRICING.pricePerM2,
+        materialCostPerM2: initialData?.materialCostPerM2 || DEFAULT_QUOTE_PRICING.materialCostPerM2,
+        priceRules,
+        materialCosts: materials,
+        installationFee: parseNumber(installationFee),
+        marginPercent: DEFAULT_QUOTE_PRICING.marginPercent,
+        discount: parseNumber(discount),
+        paymentMethod,
+        cardInstallments: Math.min(Math.max(Math.round(parseNumber(cardInstallments) || 1), 1), 24),
+        cardDownPayment: parseNumber(cardDownPayment),
+        cardFeePercent: parseNumber(cardFeePercent),
+      }),
+    }
+  }), [
+    cardDownPayment,
+    cardFeePercent,
+    cardInstallments,
+    discount,
+    initialData?.materialCostPerM2,
+    installationFee,
+    items,
+    materials,
+    paymentMethod,
+    priceRules,
+    variations,
+  ])
+  const displayedTotals = initialData ? calculated : variationPreviews[0]?.totals || calculated
+
+  const updateSingleVariationType = (type: QuoteVariationType) => {
+    const previous = variations[0]
+    const previousDefaultName = previous ? quoteVariationDefaultName(previous.type) : ''
+    setVariations([{
+      type,
+      name: !previous?.name || previous.name === previousDefaultName
+        ? quoteVariationDefaultName(type)
+        : previous.name,
+    }])
+    const profile = quoteVariationPriceProfile(type)
+    if (!profile) return
+    setItems((current) => current.map((item) => ({
+      ...item,
+      priceProfile: profile,
+      ...getSuggestedCalculation(item.environment, item.furnitureType, item.furnitureModel, profile, priceRules),
+    })))
+  }
+
+  const toggleNewVariation = (type: QuoteVariationType) => {
+    setVariations((current) => {
+      const exists = current.some((variation) => variation.type === type)
+      if (exists) {
+        return current.length > 1 ? current.filter((variation) => variation.type !== type) : current
+      }
+      if (current.length >= 3) return current
+      return [...current, { type, name: quoteVariationDefaultName(type) }]
+    })
+  }
+
+  const updateVariationName = (type: QuoteVariationType, name: string) => {
+    setVariations((current) => current.map((variation) => (
+      variation.type === type ? { ...variation, name } : variation
+    )))
+  }
+
   const environmentGroups = useMemo(() => {
     const groups = new Map<string, {
       key: string
@@ -534,6 +639,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     const draft = recoverableDraft.data
     setClientId(draft.clientId)
     setTitle(draft.title)
+    setVariations(draft.variations?.length ? draft.variations : variations)
+    setSyncScope(draft.syncScope || 'CURRENT')
     setStatus(draft.status)
     setInstallationFee(draft.installationFee)
     setDiscount(draft.discount)
@@ -550,6 +657,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       ...item,
       draftId: item.draftId || clientDraftId(),
       environmentName: item.environmentName?.trim() || item.environment,
+      placement: item.placement || '',
+      sourceItemKey: item.sourceItemKey || item.draftId || clientDraftId(),
     })))
     setRecoverableDraft(null)
     setDraftSavedAt(recoverableDraft.savedAt)
@@ -653,7 +762,11 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const addEnvironment = () => {
     setItems((current) => {
       const environmentName = uniqueEnvironmentName(newEnvironmentType, current)
-      return [...current, emptyItem(newEnvironmentType, environmentName, clientDraftId(), priceRules)]
+      const draftId = clientDraftId()
+      return [...current, {
+        ...emptyItem(newEnvironmentType, environmentName, draftId, priceRules),
+        sourceItemKey: draftId,
+      }]
     })
   }
 
@@ -662,8 +775,10 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       const groupIndexes = current.flatMap((item, index) => environmentGroupKey(item) === groupKey ? [index] : [])
       const source = current[groupIndexes[0]]
       if (!source) return current
+      const draftId = clientDraftId()
       const nextItem = {
-        ...emptyItem(source.environment, source.environmentName, clientDraftId(), priceRules),
+        ...emptyItem(source.environment, source.environmentName, draftId, priceRules),
+        sourceItemKey: draftId,
         material: source.material,
         finish: source.finish,
         priceProfile: source.priceProfile,
@@ -679,7 +794,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       const source = current[index]
       if (!source || current.length >= 80) return current
       const next = [...current]
-      next.splice(index + 1, 0, { ...source, draftId: clientDraftId() })
+      const draftId = clientDraftId()
+      next.splice(index + 1, 0, { ...source, draftId, sourceItemKey: draftId })
       return next
     })
   }
@@ -707,7 +823,10 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       const environmentName = uniqueEnvironmentName(groupItems[0].environment, current)
       return [
         ...current,
-        ...groupItems.map((item) => ({ ...item, draftId: clientDraftId(), environmentName })),
+        ...groupItems.map((item) => {
+          const draftId = clientDraftId()
+          return { ...item, draftId, sourceItemKey: draftId, environmentName }
+        }),
       ]
     })
   }
@@ -731,15 +850,19 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       const existing = new Set(groupIndexes.map((index) => `${current[index].furnitureType}::${current[index].furnitureModel}`))
       const templateItems = template.items
         .filter((item) => !existing.has(`${item.type}::${item.model}`))
-        .map((templateItem) => ({
-          ...emptyItem(source.environment, source.environmentName, clientDraftId(), priceRules),
-          furnitureType: templateItem.type,
-          furnitureModel: templateItem.model,
-          material: source.material,
-          finish: source.finish,
-          priceProfile: source.priceProfile,
-          ...getSuggestedCalculation(source.environment, templateItem.type, templateItem.model, source.priceProfile, priceRules),
-        }))
+        .map((templateItem) => {
+          const draftId = clientDraftId()
+          return {
+            ...emptyItem(source.environment, source.environmentName, draftId, priceRules),
+            sourceItemKey: draftId,
+            furnitureType: templateItem.type,
+            furnitureModel: templateItem.model,
+            material: source.material,
+            finish: source.finish,
+            priceProfile: source.priceProfile,
+            ...getSuggestedCalculation(source.environment, templateItem.type, templateItem.model, source.priceProfile, priceRules),
+          }
+        })
       if (!templateItems.length) return current
 
       const replaceEmptyItem = groupIndexes.length === 1 && !source.widthMm && !source.heightMm
@@ -799,6 +922,19 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       setError('Selecione o cliente do orçamento.')
       return
     }
+    if (!variations.length || variations.length > 3) {
+      setError('Selecione de uma a três variações para o orçamento.')
+      return
+    }
+    if (variations.some((variation) => !variation.name.trim())) {
+      setError('Informe o nome de todas as variações.')
+      return
+    }
+    const normalizedVariationNames = variations.map((variation) => variation.name.trim().toLocaleLowerCase('pt-BR'))
+    if (new Set(normalizedVariationNames).size !== normalizedVariationNames.length) {
+      setError('Use um nome diferente para cada variação.')
+      return
+    }
     const environmentNames = environmentGroups.map((group) => group.name.trim())
     if (environmentNames.some((name) => !name)) {
       setError('Informe o nome de todos os ambientes.')
@@ -810,14 +946,21 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       return
     }
     const enteredCardDownPayment = paymentMethod === 'CARD' ? parseNumber(cardDownPayment) : 0
-    if (enteredCardDownPayment > calculated.total) {
-      setError(`A entrada não pode ser maior que o total de ${formatCurrency(calculated.total)}.`)
+    const minimumVariationTotal = Math.min(...variationPreviews.map((variation) => variation.totals.total))
+    if (enteredCardDownPayment > minimumVariationTotal) {
+      setError(`A entrada não pode ser maior que o menor total, de ${formatCurrency(minimumVariationTotal)}.`)
       return
     }
 
     const payload: QuotePayload = {
       clientId: clientId || undefined,
       title: title.trim(),
+      variationType: variations[0].type,
+      variationName: variations[0].name.trim(),
+      variations: initialData
+        ? undefined
+        : variations.map((variation) => ({ ...variation, name: variation.name.trim() })),
+      syncScope: initialData ? syncScope : 'CURRENT',
       status,
       pricePerM2: DEFAULT_QUOTE_PRICING.pricePerM2,
       materialCostPerM2: initialData?.materialCostPerM2 || DEFAULT_QUOTE_PRICING.materialCostPerM2,
@@ -840,6 +983,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
           description: calculatedItem.description.trim(),
           furnitureType: calculatedItem.furnitureType.trim(),
           furnitureModel: calculatedItem.furnitureModel.trim(),
+          placement: calculatedItem.placement?.trim() || undefined,
+          sourceItemKey: calculatedItem.sourceItemKey?.trim() || undefined,
           material: calculatedItem.material,
           finish: calculatedItem.finish.trim() || undefined,
           notes: calculatedItem.notes.trim() || undefined,
@@ -904,6 +1049,94 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <Input label="Validade" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} />
       </div>
 
+      <fieldset className="border-y border-[#E8E8E8] bg-[#FAFAFA] px-4 py-4">
+        <legend className="px-1 text-sm font-semibold text-[#121212]">Variação do orçamento</legend>
+        {initialData ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Select
+              label="Tipo da variação"
+              value={variations[0]?.type || 'STANDARD'}
+              onChange={(event) => updateSingleVariationType(event.target.value as QuoteVariationType)}
+              options={[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => ({
+                value: type,
+                label: QUOTE_VARIATION_LABELS[type],
+              }))}
+            />
+            <Input
+              label="Nome apresentado"
+              value={variations[0]?.name || ''}
+              onChange={(event) => updateVariationName(variations[0]?.type || 'STANDARD', event.target.value)}
+              placeholder="Ex.: Madeirado"
+            />
+            {(initialData.groupVariants?.length || 0) > 1 ? (
+              <label className="flex min-h-10 items-center gap-3 border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-3 py-2 text-sm text-[#6B350D] md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={syncScope === 'GROUP'}
+                  onChange={(event) => setSyncScope(event.target.checked ? 'GROUP' : 'CURRENT')}
+                  className="h-4 w-4 accent-[#FF6B00]"
+                />
+                <span>Aplicar estrutura, medidas e condições às outras variações deste orçamento</span>
+              </label>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => {
+                const selected = variations.some((variation) => variation.type === type)
+                return (
+                  <label
+                    key={type}
+                    className={`flex min-h-10 items-center gap-2 border px-3 py-2 text-sm font-medium ${
+                      selected ? 'border-[#FF6B00] bg-[#FFF3E8] text-[#A64200]' : 'border-[#D9D9D9] bg-white text-[#555]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleNewVariation(type)}
+                      className="h-4 w-4 accent-[#FF6B00]"
+                    />
+                    <span>{QUOTE_VARIATION_LABELS[type]}</span>
+                  </label>
+                )
+              })}
+            </div>
+            {variations.some((variation) => variation.type === 'CUSTOM') ? (
+              <Input
+                label="Nome da variação personalizada"
+                value={variations.find((variation) => variation.type === 'CUSTOM')?.name || ''}
+                onChange={(event) => updateVariationName('CUSTOM', event.target.value)}
+                placeholder="Ex.: Opção econômica"
+              />
+            ) : null}
+            <div className="overflow-x-auto border border-[#E2E2E2] bg-white">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead className="bg-[#F3F3F3] text-left text-xs uppercase text-[#777]">
+                  <tr>
+                    <th className="px-3 py-2">Variação</th>
+                    <th className="px-3 py-2 text-right">Custo</th>
+                    <th className="px-3 py-2 text-right">Lucro previsto</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EEEEEE]">
+                  {variationPreviews.map((variation) => (
+                    <tr key={variation.type}>
+                      <td className="px-3 py-2 font-semibold text-[#121212]">{variation.name}</td>
+                      <td className="px-3 py-2 text-right text-[#555]">{formatCurrency(variation.totals.costTotal)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-600">{formatCurrency(variation.totals.profit)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-[#121212]">{formatCurrency(variation.totals.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </fieldset>
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Input
           label="Prazo de entrega (dias úteis)"
@@ -964,23 +1197,23 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
               inputMode="decimal"
               value={cardFeePercent}
               onChange={(event) => setCardFeePercent(event.target.value)}
-              helperText={`Custo estimado: ${formatCurrency(calculated.cardFeeAmount)}`}
+              helperText={`Custo estimado: ${formatCurrency(displayedTotals.cardFeeAmount)}`}
             />
           </>
         ) : (
           <div className="flex min-h-10 items-center border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-4 py-2 text-sm text-[#7A3B00] lg:col-span-2">
             {paymentMethod === 'PIX'
-              ? `Desconto Pix: ${formatCurrency(calculated.paymentDiscount)} · Total: ${formatCurrency(calculated.total)}`
+              ? `Desconto Pix: ${formatCurrency(displayedTotals.paymentDiscount)} · Total: ${formatCurrency(displayedTotals.total)}`
               : 'O pagamento será definido com o cliente.'}
           </div>
         )}
         {paymentMethod === 'CARD' && (
           <div className="border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-4">
             {getQuotePaymentSummary({
-              total: calculated.total,
+              total: displayedTotals.total,
               paymentMethod,
-              cardInstallments: calculated.cardInstallments,
-              cardDownPayment: calculated.cardDownPayment,
+              cardInstallments: displayedTotals.cardInstallments,
+              cardDownPayment: displayedTotals.cardDownPayment,
             })}
           </div>
         )}
@@ -1120,19 +1353,35 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,2fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_90px_minmax(145px,1fr)]">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12">
                               {item.furnitureType === 'Personalizado' ? (
-                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                                <div className="grid gap-2 sm:grid-cols-2 xl:col-span-3 xl:grid-cols-1">
                                   <FurniturePicker environment={item.environment} furnitureType={item.furnitureType} furnitureModel={item.furnitureModel} recentSelections={recentSelections} onSelect={(selection) => updateFurnitureSelection(index, selection)} />
                                   <Input label="Nome do móvel" value={item.customFurniture} onChange={(event) => updateItem(index, 'customFurniture', event.target.value)} placeholder="Informe o móvel" />
                                 </div>
                               ) : (
-                                <FurniturePicker environment={item.environment} furnitureType={item.furnitureType} furnitureModel={item.furnitureModel} recentSelections={recentSelections} onSelect={(selection) => updateFurnitureSelection(index, selection)} />
+                                <div className="xl:col-span-3">
+                                  <FurniturePicker environment={item.environment} furnitureType={item.furnitureType} furnitureModel={item.furnitureModel} recentSelections={recentSelections} onSelect={(selection) => updateFurnitureSelection(index, selection)} />
+                                </div>
                               )}
-                              <Input label="Largura (mm)" inputMode="numeric" value={item.widthMm} onChange={(event) => updateItem(index, 'widthMm', event.target.value)} placeholder="Ex.: 700" />
-                              <Input label="Altura (mm)" inputMode="numeric" value={item.heightMm} onChange={(event) => updateItem(index, 'heightMm', event.target.value)} placeholder="Ex.: 2600" />
-                              <Input label="Qtd." inputMode="numeric" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
-                              <Select label="Dificuldade" value={item.difficulty} onChange={(event) => updateItem(index, 'difficulty', event.target.value as QuoteDifficulty)} options={Object.entries(QUOTE_DIFFICULTY_LABELS).map(([value, label]) => ({ value, label }))} />
+                              <div className="xl:col-span-3">
+                                <Input
+                                  label="Posição no ambiente"
+                                  list={`quote-placement-${item.draftId}`}
+                                  value={item.placement}
+                                  onChange={(event) => updateItem(index, 'placement', event.target.value)}
+                                  placeholder="Ex.: Parede da pia"
+                                />
+                                <datalist id={`quote-placement-${item.draftId}`}>
+                                  {getQuotePlacementSuggestions(item.environment).map((placement) => (
+                                    <option key={placement} value={placement} />
+                                  ))}
+                                </datalist>
+                              </div>
+                              <div className="xl:col-span-2"><Input label="Largura (mm)" inputMode="numeric" value={item.widthMm} onChange={(event) => updateItem(index, 'widthMm', event.target.value)} placeholder="Ex.: 700" /></div>
+                              <div className="xl:col-span-2"><Input label="Altura (mm)" inputMode="numeric" value={item.heightMm} onChange={(event) => updateItem(index, 'heightMm', event.target.value)} placeholder="Ex.: 2600" /></div>
+                              <div className="xl:col-span-1"><Input label="Qtd." inputMode="numeric" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} /></div>
+                              <div className="xl:col-span-1"><Select label="Dificuldade" value={item.difficulty} onChange={(event) => updateItem(index, 'difficulty', event.target.value as QuoteDifficulty)} options={Object.entries(QUOTE_DIFFICULTY_LABELS).map(([value, label]) => ({ value, label }))} /></div>
                             </div>
 
                             {dimensionWarnings.length || duplicateItemIds.has(item.draftId) ? (
@@ -1230,11 +1479,11 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
 
       <div className="z-30 -mx-2 border-t border-[#D8D8D8] bg-white px-2 pb-1 pt-3 md:sticky md:bottom-0 md:bg-white/95 md:backdrop-blur-sm">
         <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#121212] p-4 text-white md:grid-cols-5">
-          <div><p className="text-xs text-white/50">Subtotal</p><p className="text-base font-semibold">{formatCurrency(calculated.subtotal)}</p></div>
-          <div><p className="text-xs text-white/50">Descontos</p><p className="text-base font-semibold">{formatCurrency(calculated.discount)}</p></div>
-          <div><p className="text-xs text-white/50">Custo</p><p className="text-base font-semibold">{formatCurrency(calculated.costTotal)}</p></div>
-          <div><p className="text-xs text-white/50">Lucro previsto</p><p className="text-base font-semibold text-emerald-300">{formatCurrency(calculated.profit)}</p></div>
-          <div><p className="text-xs text-white/50">Total</p><p className="text-lg font-bold text-[#FFB06B]">{formatCurrency(calculated.total)}</p></div>
+          <div><p className="text-xs text-white/50">Subtotal</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.subtotal)}</p></div>
+          <div><p className="text-xs text-white/50">Descontos</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.discount)}</p></div>
+          <div><p className="text-xs text-white/50">Custo</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.costTotal)}</p></div>
+          <div><p className="text-xs text-white/50">Lucro previsto</p><p className="text-base font-semibold text-emerald-300">{formatCurrency(displayedTotals.profit)}</p></div>
+          <div><p className="text-xs text-white/50">Total</p><p className="text-lg font-bold text-[#FFB06B]">{formatCurrency(displayedTotals.total)}</p></div>
         </div>
 
         <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">

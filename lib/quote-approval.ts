@@ -3,6 +3,7 @@ import { moneyValue, type NumericValue } from './money'
 
 export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
 export const QUOTE_APPROVAL_BUNDLE_SNAPSHOT_VERSION = 3
+export const QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION = 4
 
 type QuoteApprovalItemSource = {
   id?: string
@@ -12,6 +13,8 @@ type QuoteApprovalItemSource = {
   material?: string | null
   finish?: string | null
   priceProfile?: string | null
+  placement?: string | null
+  sourceItemKey?: string | null
   width: number
   height: number
   quantity: number
@@ -24,6 +27,9 @@ export type QuoteApprovalSource = {
   id: string
   number?: number | null
   title: string
+  variationType?: string | null
+  variationName?: string | null
+  variationOrder?: number | null
   createdAt?: Date | string | null
   validUntil?: Date | string | null
   deliveryBusinessDays?: number | null
@@ -59,6 +65,9 @@ export type QuoteApprovalSnapshot = {
     id: string
     number: number | null
     title: string
+    variationType?: string | null
+    variationName?: string | null
+    variationOrder?: number | null
     createdAt?: string | null
     validUntil: string | null
     deliveryBusinessDays?: number
@@ -93,6 +102,8 @@ export type QuoteApprovalSnapshot = {
       material: string | null
       finish: string | null
       priceProfile?: string | null
+      placement?: string | null
+      sourceItemKey?: string | null
       width: number
       height: number
       quantity: number
@@ -110,6 +121,11 @@ export type QuoteApprovalBundleSnapshot = {
   quotes: QuoteApprovalData[]
 }
 
+export type QuoteApprovalOptionsSnapshot = {
+  version: typeof QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION
+  quotes: QuoteApprovalData[]
+}
+
 function dateToIso(value?: Date | string | null) {
   if (!value) return null
   const date = value instanceof Date ? value : new Date(value)
@@ -121,6 +137,9 @@ function buildQuoteApprovalData(quote: QuoteApprovalSource): QuoteApprovalData {
     id: quote.id,
     number: quote.number || null,
     title: quote.title,
+    variationType: quote.variationType || null,
+    variationName: quote.variationName || null,
+    variationOrder: quote.variationOrder ?? null,
     createdAt: dateToIso(quote.createdAt),
     validUntil: dateToIso(quote.validUntil),
     deliveryBusinessDays: quote.deliveryBusinessDays || 30,
@@ -155,6 +174,8 @@ function buildQuoteApprovalData(quote: QuoteApprovalSource): QuoteApprovalData {
       material: item.material || null,
       finish: item.finish || null,
       priceProfile: item.priceProfile || null,
+      placement: item.placement || null,
+      sourceItemKey: item.sourceItemKey || null,
       width: item.width,
       height: item.height,
       quantity: item.quantity,
@@ -190,6 +211,25 @@ export function buildQuoteApprovalBundleSnapshot(quotes: QuoteApprovalSource[]) 
   } satisfies QuoteApprovalBundleSnapshot)
 }
 
+export function buildQuoteApprovalOptionsSnapshot(quotes: QuoteApprovalSource[]) {
+  const orderedQuotes = quotes
+    .map(buildQuoteApprovalData)
+    .sort((left, right) => {
+      const orderDifference = (left.variationOrder ?? Number.MAX_SAFE_INTEGER) - (right.variationOrder ?? Number.MAX_SAFE_INTEGER)
+      const numberDifference = (left.number ?? Number.MAX_SAFE_INTEGER) - (right.number ?? Number.MAX_SAFE_INTEGER)
+      return orderDifference || numberDifference || left.id.localeCompare(right.id)
+    })
+
+  if (orderedQuotes.length < 2 || orderedQuotes.length > 3 || new Set(orderedQuotes.map((quote) => quote.id)).size !== orderedQuotes.length) {
+    throw new Error('O comparativo exige duas ou três propostas diferentes.')
+  }
+
+  return JSON.stringify({
+    version: QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION,
+    quotes: orderedQuotes,
+  } satisfies QuoteApprovalOptionsSnapshot)
+}
+
 export function parseQuoteApprovalSnapshot(value?: string | null): QuoteApprovalSnapshot | null {
   if (!value) return null
 
@@ -211,6 +251,21 @@ export function parseQuoteApprovalBundleSnapshot(value?: string | null): QuoteAp
     if (parsed?.version !== QUOTE_APPROVAL_BUNDLE_SNAPSHOT_VERSION) return null
     if (!Array.isArray(parsed.quotes) || parsed.quotes.length !== 2) return null
     if (new Set(parsed.quotes.map((quote) => quote.id)).size !== 2) return null
+    if (parsed.quotes.some((quote) => !quote.id || !quote.title || !quote.client?.name || !Array.isArray(quote.items))) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function parseQuoteApprovalOptionsSnapshot(value?: string | null): QuoteApprovalOptionsSnapshot | null {
+  if (!value) return null
+
+  try {
+    const parsed = JSON.parse(value) as QuoteApprovalOptionsSnapshot
+    if (parsed?.version !== QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION) return null
+    if (!Array.isArray(parsed.quotes) || parsed.quotes.length < 2 || parsed.quotes.length > 3) return null
+    if (new Set(parsed.quotes.map((quote) => quote.id)).size !== parsed.quotes.length) return null
     if (parsed.quotes.some((quote) => !quote.id || !quote.title || !quote.client?.name || !Array.isArray(quote.items))) return null
     return parsed
   } catch {

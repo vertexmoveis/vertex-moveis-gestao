@@ -139,6 +139,8 @@ export type QuoteCalculationItemInput = {
   description: string
   furnitureType?: string | null
   furnitureModel?: string | null
+  placement?: string | null
+  sourceItemKey?: string | null
   material?: string | null
   finish?: string | null
   width: number
@@ -335,6 +337,8 @@ export function calculateQuoteItem(item: QuoteCalculationItemInput, pricing: Quo
     description: item.description.trim(),
     furnitureType: item.furnitureType?.trim() || null,
     furnitureModel: item.furnitureModel?.trim() || null,
+    placement: item.placement?.trim() || null,
+    sourceItemKey: item.sourceItemKey?.trim() || `item-${position}`,
     material: item.material?.trim() || DEFAULT_QUOTE_MATERIAL,
     finish: item.finish?.trim() || null,
     width,
@@ -449,6 +453,9 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
   return JSON.stringify({
     id: quote.id,
     title: quote.title,
+    variationType: quote.variationType,
+    variationName: quote.variationName,
+    variationOrder: quote.variationOrder,
     client: quote.client?.name,
     status: quote.status,
     validUntil: quote.validUntil?.toISOString() || null,
@@ -479,6 +486,8 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
       description: item.description,
       furnitureType: item.furnitureType,
       furnitureModel: item.furnitureModel,
+      placement: item.placement,
+      sourceItemKey: item.sourceItemKey,
       material: item.material,
       finish: item.finish,
       width: item.width,
@@ -515,6 +524,7 @@ export function buildQuoteWhatsAppMessage(quote: { title: string; total: import(
 
 type QuoteContactMessage = {
   title: string
+  variationName?: string | null
   total: import('@/lib/money').NumericValue
   client?: { name: string }
 }
@@ -570,6 +580,34 @@ export function buildQuoteComparisonApprovalMessage(
       ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
       : 'No mesmo link você pode comparar os móveis, acabamentos, valores e formas de pagamento.',
     `Veja as duas propostas e escolha a sua preferida aqui: ${approvalUrl}`,
+    '',
+    'Qualquer dúvida, pode me responder por aqui.',
+  ].join('\n')
+}
+
+export function buildQuoteOptionsApprovalMessage(
+  quotes: QuoteContactMessage[],
+  approvalUrl: string,
+  reminder = false,
+) {
+  const clientName = quotes.find((quote) => quote.client?.name)?.client?.name || 'tudo bem'
+  const options = quotes.map((quote, index) => (
+    `${index + 1}. ${quote.variationName || quote.title}: ${formatQuoteCurrency(quote.total)}`
+  ))
+  const optionCount = quotes.length
+
+  return [
+    reminder ? `Olá, ${clientName}! Tudo certo?` : `Olá, ${clientName}!`,
+    '',
+    reminder
+      ? `Queria saber o que você achou das ${optionCount} opções que preparamos para o seu projeto:`
+      : `Preparamos ${optionCount} opções para o seu projeto:`,
+    ...options,
+    '',
+    reminder
+      ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
+      : 'No mesmo link você pode comparar os móveis, acabamentos, valores e formas de pagamento.',
+    `Veja as propostas e escolha a sua preferida aqui: ${approvalUrl}`,
     '',
     'Qualquer dúvida, pode me responder por aqui.',
   ].join('\n')

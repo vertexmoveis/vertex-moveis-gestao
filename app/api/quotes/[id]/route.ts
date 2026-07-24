@@ -12,6 +12,7 @@ import { ensureDefaultQuoteSettings, getActiveQuotePriceRules } from '@/lib/quot
 import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
 import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
+import { quoteVariationPriceProfile } from '@/lib/quote-variations'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
   const quote = await prisma.quote.findFirst({
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const { approvalRequests, ...quoteWithoutApprovalRequests } = quote
   const candidateAccess = auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }
-  const [comparisonCandidates, activeApprovalRequest] = await Promise.all([
+  const [comparisonCandidates, groupVariants, activeApprovalRequest] = await Promise.all([
     prisma.quote.findMany({
       where: {
         ...candidateAccess,
@@ -77,20 +78,57 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         clientId: quote.clientId,
         archivedAt: null,
         convertedProjectId: null,
-        status: { in: ['DRAFT', 'SENT', 'WAITING_APPROVAL'] },
+        OR: [
+          { status: { in: ['DRAFT', 'SENT', 'WAITING_APPROVAL'] } },
+          { groupId: quote.groupId, status: 'LOST' },
+        ],
       },
-      orderBy: [{ number: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, number: true, title: true, total: true, status: true },
+      orderBy: [{ groupId: 'asc' }, { variationOrder: 'asc' }, { number: 'asc' }],
+      select: {
+        id: true,
+        groupId: true,
+        number: true,
+        title: true,
+        variationType: true,
+        variationName: true,
+        total: true,
+        status: true,
+      },
+    }),
+    prisma.quote.findMany({
+      where: { groupId: quote.groupId, archivedAt: null },
+      orderBy: [{ variationOrder: 'asc' }, { number: 'asc' }],
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        variationType: true,
+        variationName: true,
+        variationOrder: true,
+        total: true,
+        costTotal: true,
+        status: true,
+      },
     }),
     prisma.quoteApprovalRequest.findFirst({
       where: {
-        OR: [{ quoteId: quote.id }, { comparisonQuoteId: quote.id }],
+        OR: [
+          { quoteId: quote.id },
+          { comparisonQuoteId: quote.id },
+          { options: { some: { quoteId: quote.id } } },
+        ],
         approvedAt: null,
         rejectedAt: null,
         invalidatedAt: null,
       },
       orderBy: { createdAt: 'desc' },
-      select: { token: true, quoteId: true, comparisonQuoteId: true, sentAt: true },
+      select: {
+        token: true,
+        quoteId: true,
+        comparisonQuoteId: true,
+        sentAt: true,
+        options: { orderBy: { position: 'asc' }, select: { quoteId: true } },
+      },
     }),
   ])
 
@@ -112,9 +150,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ...candidate,
       total: Number(candidate.total),
     })),
+    groupVariants: groupVariants.map((variant) => ({
+      ...variant,
+      total: Number(variant.total),
+      costTotal: Number(variant.costTotal),
+      profit: Number(variant.total) - Number(variant.costTotal),
+    })),
     activeApprovalRequest: activeApprovalRequest
       ? {
           ...activeApprovalRequest,
+          quoteIds: activeApprovalRequest.options.length > 0
+            ? activeApprovalRequest.options.map((option) => option.quoteId)
+            : [activeApprovalRequest.quoteId, activeApprovalRequest.comparisonQuoteId].filter((quoteId): quoteId is string => Boolean(quoteId)),
+          options: undefined,
           sentAt: activeApprovalRequest.sentAt.toISOString(),
         }
       : null,
@@ -166,12 +214,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         include: {
           client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
           items: { orderBy: { position: 'asc' } },
+          group: {
+            include: {
+              quotes: {
+                where: { archivedAt: null },
+                include: { items: { orderBy: { position: 'asc' } } },
+                orderBy: { variationOrder: 'asc' },
+              },
+            },
+          },
         },
       })
       if (!existing) throw new Error('Not found')
+      const approvalQuoteIds = input.syncScope === 'GROUP'
+        ? existing.group.quotes.map((groupQuote) => groupQuote.id)
+        : [id]
       const approvalRequests = await tx.quoteApprovalRequest.findMany({
         where: {
-          OR: [{ quoteId: id }, { comparisonQuoteId: id }],
+          OR: [
+            { quoteId: { in: approvalQuoteIds } },
+            { comparisonQuoteId: { in: approvalQuoteIds } },
+            { options: { some: { quoteId: { in: approvalQuoteIds } } } },
+          ],
           invalidatedAt: null,
         },
         select: {
@@ -180,6 +244,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           comparisonQuoteId: true,
           approvedAt: true,
           rejectedAt: true,
+          options: { select: { quoteId: true } },
         },
       })
       if (existing.convertedProjectId || existing.status === 'SOLD') throw new Error('Quote locked')
@@ -189,6 +254,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         (existing.status !== 'APPROVED' || !approvalRequests.some((request) => Boolean(request.approvedAt)))
       ) {
         throw new Error('Invalid manual status')
+      }
+      const duplicateVariation = await tx.quote.findFirst({
+        where: {
+          groupId: existing.groupId,
+          id: { not: id },
+          archivedAt: null,
+          variationName: { equals: input.variationName, mode: 'insensitive' },
+        },
+        select: { id: true },
+      })
+      if (duplicateVariation) throw new Error('Duplicate variation')
+      if (
+        input.syncScope === 'GROUP' &&
+        existing.group.quotes.some((groupQuote) => (
+          groupQuote.id !== id &&
+          (groupQuote.convertedProjectId || ['APPROVED', 'SOLD'].includes(groupQuote.status))
+        ))
+      ) {
+        throw new Error('Group locked')
       }
 
       const previousApprovalSnapshot = buildQuoteApprovalSnapshot(existing)
@@ -200,6 +284,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         data: {
           clientId: input.clientId,
           title: input.title,
+          variationType: input.variationType,
+          variationName: input.variationName,
           status: input.status,
           validUntil: input.validUntil,
           deliveryBusinessDays: input.deliveryBusinessDays,
@@ -232,9 +318,92 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           items: { orderBy: { position: 'asc' } },
         },
       })
+      await tx.quoteGroup.update({
+        where: { id: existing.groupId },
+        data: {
+          clientId: input.clientId,
+          title: input.title,
+          updatedAt: new Date(),
+        },
+      })
+      await tx.quote.updateMany({
+        where: { groupId: existing.groupId, id: { not: id } },
+        data: {
+          clientId: input.clientId,
+          title: input.title,
+        },
+      })
 
-      const approvalTermsChanged = previousApprovalSnapshot !== buildQuoteApprovalSnapshot(updated)
-      const hasApprovalState = existing.status === 'APPROVED' || approvalRequests.length > 0
+      const synchronizedQuotes = []
+      if (input.syncScope === 'GROUP') {
+        for (const target of existing.group.quotes) {
+          if (target.id === id) continue
+          const targetItemsBySourceKey = new Map(target.items.map((item) => [item.sourceItemKey, item]))
+          const variationProfile = quoteVariationPriceProfile(target.variationType as Parameters<typeof quoteVariationPriceProfile>[0])
+          const synchronizedItems = input.items.map((item) => {
+            const targetItem = item.sourceItemKey ? targetItemsBySourceKey.get(item.sourceItemKey) : undefined
+            return {
+              ...item,
+              sourceItemKey: item.sourceItemKey || undefined,
+              priceProfile: variationProfile || targetItem?.priceProfile || item.priceProfile,
+              material: targetItem?.material || item.material,
+              finish: targetItem?.finish || item.finish,
+            }
+          })
+          const targetTotals = calculateQuoteTotals(synchronizedItems, { ...input, priceRules, materialCosts: materials })
+
+          await tx.quoteItem.deleteMany({ where: { quoteId: target.id } })
+          const synchronized = await tx.quote.update({
+            where: { id: target.id },
+            data: {
+              clientId: input.clientId,
+              title: input.title,
+              validUntil: input.validUntil,
+              deliveryBusinessDays: input.deliveryBusinessDays,
+              firstInstallmentDate: input.firstInstallmentDate,
+              pricePerM2: input.pricePerM2,
+              materialCostPerM2: input.materialCostPerM2,
+              installationFee: input.installationFee,
+              marginPercent: input.marginPercent,
+              discount: targetTotals.discount,
+              manualDiscount: targetTotals.manualDiscount,
+              paymentDiscount: targetTotals.paymentDiscount,
+              paymentMethod: targetTotals.paymentMethod,
+              cardInstallments: targetTotals.cardInstallments,
+              cardDownPayment: targetTotals.cardDownPayment,
+              cardFeePercent: targetTotals.cardFeePercent,
+              cardFeeAmount: targetTotals.cardFeeAmount,
+              subtotal: targetTotals.subtotal,
+              costTotal: targetTotals.costTotal,
+              total: targetTotals.total,
+              notes: input.notes,
+              customerNotes: input.customerNotes,
+              items: { create: targetTotals.items },
+            },
+            include: {
+              client: { select: { id: true, name: true, document: true, phone: true, whatsapp: true, email: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
+              items: { orderBy: { position: 'asc' } },
+            },
+          })
+          synchronizedQuotes.push(synchronized)
+
+          const targetLatestRevision = await tx.quoteRevision.findFirst({
+            where: { quoteId: target.id },
+            orderBy: { version: 'desc' },
+            select: { version: true },
+          })
+          await tx.quoteRevision.create({
+            data: {
+              quoteId: target.id,
+              version: (targetLatestRevision?.version || 0) + 1,
+              snapshot: buildQuoteSnapshot(synchronized),
+            },
+          })
+        }
+      }
+
+      const approvalTermsChanged = previousApprovalSnapshot !== buildQuoteApprovalSnapshot(updated) || synchronizedQuotes.length > 0
+      const hasApprovalState = existing.group.quotes.some((groupQuote) => groupQuote.status === 'APPROVED') || approvalRequests.length > 0
       const approvalReset = approvalTermsChanged && hasApprovalState
 
       if (approvalReset) {
@@ -243,7 +412,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           data: { invalidatedAt: new Date() },
         })
         const relatedQuoteIds = approvalRequests
-          .flatMap((request) => [request.quoteId, request.comparisonQuoteId])
+          .flatMap((request) => [
+            request.quoteId,
+            request.comparisonQuoteId,
+            ...request.options.map((option) => option.quoteId),
+          ])
           .filter((quoteId): quoteId is string => Boolean(quoteId) && quoteId !== id)
         if (relatedQuoteIds.length > 0) {
           await tx.quote.updateMany({
@@ -288,6 +461,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (error instanceof Error && error.message === 'Invalid manual status') {
       return badRequest('A aprovação e a venda devem seguir o fluxo de aceite do cliente.')
+    }
+    if (error instanceof Error && error.message === 'Duplicate variation') {
+      return badRequest('Já existe uma variação com esse nome neste orçamento.')
+    }
+    if (error instanceof Error && error.message === 'Group locked') {
+      return badRequest('Uma das variações já foi aprovada ou vendida. Altere somente a variação atual.')
     }
     return serverError()
   }

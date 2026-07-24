@@ -5,6 +5,7 @@ import { COMPANY_PROFILE_ID, formatCompanyAddress, withCompanyProfileDefaults } 
 import { formatDateOnly } from '@/lib/date-only'
 import {
   parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalOptionsSnapshot,
   parseQuoteApprovalSnapshot,
 } from '@/lib/quote-approval'
 import { quoteDisplayCode } from '@/lib/quotes'
@@ -50,15 +51,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const company = withCompanyProfileDefaults(rawCompany)
   const quote = request.quote
+  const approvedOptions = parseQuoteApprovalOptionsSnapshot(request.snapshot)
   const approvedBundle = parseQuoteApprovalBundleSnapshot(request.snapshot)
   const approvedSnapshot = parseQuoteApprovalSnapshot(request.snapshot)
-  const approvedQuote = approvedBundle?.quotes.find((option) => option.id === request.selectedQuoteId)
+  const approvedQuote = approvedOptions?.quotes.find((option) => option.id === request.selectedQuoteId)
+    || approvedBundle?.quotes.find((option) => option.id === request.selectedQuoteId)
     || approvedSnapshot?.quote
   const approvedClient = approvedQuote?.client || quote.client
   const approvedItems = approvedQuote?.items || quote.items
   const approvedTotal = approvedQuote?.total ?? quote.total
   const approvedValidity = approvedQuote?.validUntil || quote.validUntil
-  const approvedTitle = approvedQuote?.title || quote.title
+  const approvedTitle = approvedQuote
+    ? [approvedQuote.title, approvedQuote.variationName].filter(Boolean).join(' · ')
+    : quote.title
   const code = quoteDisplayCode(approvedQuote || quote)
   const certificateCode = `VERTEX-${code}-${request.id.slice(-8).toUpperCase()}`
   const snapshotHash = createHash('sha256').update(request.snapshot || '').digest('hex')
@@ -72,7 +77,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const items = approvedItems.map((item, index) => `
     <tr>
       <td>${index + 1}</td>
-      <td><strong>${escapeHtml(item.environmentName || item.environment)}</strong><br><span>${escapeHtml(item.description)}</span></td>
+      <td><strong>${escapeHtml(item.environmentName || item.environment)}</strong><br><span>${escapeHtml(item.description)}${item.placement ? ` · ${escapeHtml(item.placement)}` : ''}</span></td>
       <td>${escapeHtml(item.quantity)}</td>
       <td>${escapeHtml(formatCurrency(item.total))}</td>
     </tr>

@@ -76,6 +76,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         quote.items.map((item) => item.environmentName || item.environment),
         quote.title
       )
+      const environmentNotes = new Map(environmentNames.map((environmentName) => [
+        environmentName,
+        quote.items
+          .filter((item) => (item.environmentName || item.environment) === environmentName)
+          .map((item) => `${item.description}${item.placement ? ` — ${item.placement}` : ''}`)
+          .join('\n'),
+      ]))
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
       const quoteTotal = numberValue(quote.total)
       const quoteCostTotal = numberValue(quote.costTotal)
@@ -139,9 +146,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           firstInstallmentDate,
           managerId: auth.user.role === 'ADMIN' ? quote.createdById : auth.user.id,
           internalNotes: [
-            `Projeto criado a partir do orçamento "${quote.title}".`,
+            `Projeto criado a partir do orçamento "${quote.title}", opção "${quote.variationName}".`,
             quote.notes || '',
-            quote.items.map((item) => `${item.environmentName || item.environment}: ${item.description}`).join('\n'),
+            quote.items.map((item) => `${item.environmentName || item.environment}: ${item.description}${item.placement ? ` — ${item.placement}` : ''}`).join('\n'),
           ].filter(Boolean).join('\n\n'),
           payments: payments.length > 0 ? { create: payments } : undefined,
           checklist: { create: buildDefaultChecklistItems() },
@@ -151,6 +158,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   name,
                   position: index + 1,
                   status: 'PENDING',
+                  notes: environmentNotes.get(name) || null,
                 })),
               }
             : undefined,

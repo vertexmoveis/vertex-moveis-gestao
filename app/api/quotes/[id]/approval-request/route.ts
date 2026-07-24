@@ -4,11 +4,11 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import {
   buildQuoteApprovalMessage,
-  buildQuoteComparisonApprovalMessage,
   buildQuoteFollowUpMessage,
+  buildQuoteOptionsApprovalMessage,
 } from '@/lib/quotes'
 import {
-  buildQuoteApprovalBundleSnapshot,
+  buildQuoteApprovalOptionsSnapshot,
   buildQuoteApprovalSnapshot,
 } from '@/lib/quote-approval'
 import { badRequest, forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
@@ -20,7 +20,13 @@ import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-pr
 const requestSchema = z.object({
   reminder: z.boolean().optional(),
   comparisonQuoteId: z.string().trim().min(1).optional(),
-}).strict()
+  comparisonQuoteIds: z.array(z.string().trim().min(1)).max(2).optional(),
+}).strict().superRefine((value, ctx) => {
+  const ids = value.comparisonQuoteIds || (value.comparisonQuoteId ? [value.comparisonQuoteId] : [])
+  if (new Set(ids).size !== ids.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['comparisonQuoteIds'], message: 'Escolha opções diferentes.' })
+  }
+})
 
 const quoteInclude = {
   client: {
@@ -49,8 +55,8 @@ function whatsAppUrl(phone: string | null | undefined, message: string) {
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
 }
 
-function pairKey(quoteId: string, comparisonQuoteId?: string | null) {
-  return [quoteId, comparisonQuoteId].filter((value): value is string => Boolean(value)).sort().join(':')
+function quoteSetKey(quoteIds: Array<string | null | undefined>) {
+  return quoteIds.filter((value): value is string => Boolean(value)).sort().join(':')
 }
 
 function earliestExpiry(values: Array<Date | null>) {
@@ -87,50 +93,70 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!quote) return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
   if (quote.convertedProjectId || quote.status === 'SOLD') return badRequest('Este orçamento já foi transformado em projeto.')
-  if (quote.status === 'LOST') return badRequest('Não é possível enviar um orçamento marcado como perdido.')
   if (quote.status === 'APPROVED') return badRequest('Este orçamento já foi aprovado. Transforme-o em projeto para continuar.')
 
-  let comparisonQuoteId = parsed.data.comparisonQuoteId
-  if (!comparisonQuoteId && reminder) {
+  let comparisonQuoteIds = parsed.data.comparisonQuoteIds
+    || (parsed.data.comparisonQuoteId ? [parsed.data.comparisonQuoteId] : [])
+  if (comparisonQuoteIds.length === 0 && reminder) {
     const activeRequest = await prisma.quoteApprovalRequest.findFirst({
       where: {
-        OR: [{ quoteId: quote.id }, { comparisonQuoteId: quote.id }],
+        OR: [
+          { quoteId: quote.id },
+          { comparisonQuoteId: quote.id },
+          { options: { some: { quoteId: quote.id } } },
+        ],
         approvedAt: null,
         rejectedAt: null,
         invalidatedAt: null,
       },
       orderBy: { createdAt: 'desc' },
-      select: { quoteId: true, comparisonQuoteId: true },
+      select: {
+        quoteId: true,
+        comparisonQuoteId: true,
+        options: { orderBy: { position: 'asc' }, select: { quoteId: true } },
+      },
     })
-    comparisonQuoteId = activeRequest
-      ? (activeRequest.quoteId === quote.id ? activeRequest.comparisonQuoteId || undefined : activeRequest.quoteId)
-      : undefined
+    const linkedIds = activeRequest?.options.length
+      ? activeRequest.options.map((option) => option.quoteId)
+      : [activeRequest?.quoteId, activeRequest?.comparisonQuoteId]
+    comparisonQuoteIds = linkedIds
+      .filter((quoteId): quoteId is string => Boolean(quoteId) && quoteId !== quote.id)
+      .slice(0, 2)
   }
 
-  if (comparisonQuoteId === quote.id) return badRequest('Escolha outro orçamento para comparar.')
+  if (comparisonQuoteIds.includes(quote.id)) return badRequest('Escolha outras opções para comparar.')
+  if (new Set(comparisonQuoteIds).size !== comparisonQuoteIds.length || comparisonQuoteIds.length > 2) {
+    return badRequest('Escolha no máximo duas opções diferentes.')
+  }
 
-  const comparisonQuote = comparisonQuoteId
-    ? await prisma.quote.findFirst({
-        where: { id: comparisonQuoteId, archivedAt: null },
+  const comparisonQuotes = comparisonQuoteIds.length > 0
+    ? await prisma.quote.findMany({
+        where: { id: { in: comparisonQuoteIds }, archivedAt: null },
         include: quoteInclude,
       })
-    : null
+    : []
+  if (comparisonQuotes.length !== comparisonQuoteIds.length) return badRequest('Uma das opções não foi encontrada.')
 
-  if (comparisonQuoteId && !comparisonQuote) return badRequest('O segundo orçamento não foi encontrado.')
-  if (comparisonQuote && auth.user.role !== 'ADMIN' && comparisonQuote.createdById !== auth.user.id) return forbidden()
-  if (comparisonQuote && comparisonQuote.clientId !== quote.clientId) {
-    return badRequest('As duas propostas precisam pertencer ao mesmo cliente.')
-  }
-  if (comparisonQuote?.convertedProjectId || comparisonQuote?.status === 'SOLD') {
-    return badRequest('A segunda proposta já foi transformada em projeto.')
-  }
-  if (comparisonQuote && ['LOST', 'APPROVED'].includes(comparisonQuote.status)) {
-    return badRequest('A segunda proposta não está disponível para aprovação.')
+  const orderedComparisonQuotes = comparisonQuoteIds.map((quoteId) => comparisonQuotes.find((candidate) => candidate.id === quoteId)!)
+  for (const comparisonQuote of orderedComparisonQuotes) {
+    if (auth.user.role !== 'ADMIN' && comparisonQuote.createdById !== auth.user.id) return forbidden()
+    if (comparisonQuote.clientId !== quote.clientId) {
+      return badRequest('Todas as propostas precisam pertencer ao mesmo cliente.')
+    }
+    if (comparisonQuote.convertedProjectId || comparisonQuote.status === 'SOLD') {
+      return badRequest(`A opção "${comparisonQuote.variationName}" já foi transformada em projeto.`)
+    }
+    if (comparisonQuote.status === 'APPROVED') {
+      return badRequest(`A opção "${comparisonQuote.variationName}" não está disponível para aprovação.`)
+    }
   }
 
   const now = new Date()
-  const quotes = comparisonQuote ? [quote, comparisonQuote] : [quote]
-  for (const currentQuote of quotes) {
+  const quotes = [quote, ...orderedComparisonQuotes]
+  const orderedQuotes = [...quotes].sort(
+    (left, right) => left.variationOrder - right.variationOrder || left.number - right.number,
+  )
+  for (const currentQuote of orderedQuotes) {
     if (isDateOnlyExpired(currentQuote.validUntil, now)) {
       return badRequest(`A validade de "${currentQuote.title}" expirou. Atualize a proposta antes de enviar.`)
     }
@@ -146,13 +172,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const approvalSnapshot = comparisonQuote
-    ? buildQuoteApprovalBundleSnapshot([quote, comparisonQuote])
+  const approvalSnapshot = orderedQuotes.length > 1
+    ? buildQuoteApprovalOptionsSnapshot(orderedQuotes)
     : buildQuoteApprovalSnapshot(quote)
   const revisionVersion = quote.revisions[0]?.version || null
-  const comparisonRevisionVersion = comparisonQuote?.revisions[0]?.version || null
-  const quoteIds = quotes.map((currentQuote) => currentQuote.id)
-  const expiresAt = earliestExpiry(quotes.map((currentQuote) => currentQuote.validUntil))
+  const comparisonRevisionVersion = quotes[1]?.revisions[0]?.version || null
+  const quoteIds = orderedQuotes.map((currentQuote) => currentQuote.id)
+  const expiresAt = earliestExpiry(orderedQuotes.map((currentQuote) => currentQuote.validUntil))
 
   const request = await prisma.$transaction(async (tx) => {
     const latest = await tx.quoteApprovalRequest.findFirst({
@@ -160,15 +186,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         OR: [
           { quoteId: { in: quoteIds } },
           { comparisonQuoteId: { in: quoteIds } },
+          { options: { some: { quoteId: { in: quoteIds } } } },
         ],
         approvedAt: null,
         rejectedAt: null,
         invalidatedAt: null,
       },
       orderBy: { createdAt: 'desc' },
+      include: { options: { orderBy: { position: 'asc' }, select: { quoteId: true } } },
     })
+    const latestQuoteIds = latest?.options.length
+      ? latest.options.map((option) => option.quoteId)
+      : [latest?.quoteId, latest?.comparisonQuoteId]
     const canReuse = latest
-      && pairKey(latest.quoteId, latest.comparisonQuoteId) === pairKey(quote.id, comparisonQuote?.id)
+      && quoteSetKey(latestQuoteIds) === quoteSetKey(quoteIds)
       && latest.snapshot === approvalSnapshot
       && !isDateOnlyExpired(latest.expiresAt, now)
 
@@ -178,6 +209,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           OR: [
             { quoteId: { in: quoteIds } },
             { comparisonQuoteId: { in: quoteIds } },
+            { options: { some: { quoteId: { in: quoteIds } } } },
           ],
           approvedAt: null,
           rejectedAt: null,
@@ -195,7 +227,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : await tx.quoteApprovalRequest.create({
           data: {
             quoteId: quote.id,
-            comparisonQuoteId: comparisonQuote?.id || null,
+            comparisonQuoteId: quotes[1]?.id || null,
             token: randomBytes(24).toString('base64url'),
             sentAt: now,
             expiresAt,
@@ -204,30 +236,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             snapshot: approvalSnapshot,
             revisionVersion,
             comparisonRevisionVersion,
+            options: {
+              create: orderedQuotes.map((currentQuote, position) => ({
+                quoteId: currentQuote.id,
+                revisionVersion: currentQuote.revisions[0]?.version || null,
+                position,
+              })),
+            },
           },
         })
 
-    await tx.quote.update({
-      where: { id: quote.id },
-      data: { status: 'WAITING_APPROVAL', sentAt: quote.sentAt || now },
-    })
-    if (comparisonQuote) {
+    for (const currentQuote of orderedQuotes) {
       await tx.quote.update({
-        where: { id: comparisonQuote.id },
-        data: { status: 'WAITING_APPROVAL', sentAt: comparisonQuote.sentAt || now },
+        where: { id: currentQuote.id },
+        data: {
+          status: 'WAITING_APPROVAL',
+          sentAt: currentQuote.sentAt || now,
+          lostAt: null,
+          lossReason: null,
+        },
       })
     }
     return approvalRequest
   })
 
   const approvalUrl = new URL(`/proposta/${request.token}`, req.url).toString()
-  const orderedQuotes = [...quotes].sort((left, right) => left.number - right.number)
-  const message = comparisonQuote
-    ? buildQuoteComparisonApprovalMessage(
-        [orderedQuotes[0], orderedQuotes[1]],
-        approvalUrl,
-        reminder,
-      )
+  const message = orderedQuotes.length > 1
+    ? buildQuoteOptionsApprovalMessage(orderedQuotes, approvalUrl, reminder)
     : reminder
       ? buildQuoteFollowUpMessage(quote, approvalUrl)
       : buildQuoteApprovalMessage(quote, approvalUrl)
@@ -237,11 +272,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     message,
     whatsAppUrl: whatsAppUrl(quote.client.whatsapp || quote.client.phone, message),
     quoteStatus: 'WAITING_APPROVAL',
-    comparisonQuote: comparisonQuote ? {
-      id: comparisonQuote.id,
-      title: comparisonQuote.title,
-      total: Number(comparisonQuote.total),
-    } : null,
+    options: orderedQuotes.map((currentQuote) => ({
+      id: currentQuote.id,
+      title: currentQuote.title,
+      variationName: currentQuote.variationName,
+      total: Number(currentQuote.total),
+    })),
     request: {
       id: request.id,
       reminderCount: request.reminderCount,

@@ -30,7 +30,7 @@ export function PublicApprovalActions({
 
   const respond = async (decision: 'APPROVE' | 'REJECT') => {
     if (decision === 'APPROVE' && options.length > 1 && !selectedQuoteId) {
-      setMessage('Escolha uma das duas propostas antes de aprovar.')
+      setMessage('Escolha uma das propostas antes de aprovar.')
       setStatus('error')
       return
     }
@@ -99,7 +99,7 @@ export function PublicApprovalActions({
       {options.length > 1 ? (
         <fieldset>
           <legend className="mb-2 text-sm font-semibold text-[#121212]">Qual proposta você deseja aprovar?</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {options.map((option) => {
               const selected = selectedQuoteId === option.id
               return (
@@ -178,7 +178,7 @@ export function PublicApprovalActions({
           disabled={status === 'loading'}
           className="mt-0.5 h-4 w-4 accent-[#FF6B00]"
         />
-        <span>Li {options.length > 1 ? 'as duas propostas, escolhi a opção acima e conferi' : 'a proposta e conferi'} os móveis, valores, pagamento e prazo. Concordo com estas condições para aprovar o orçamento.</span>
+        <span>Li {options.length > 1 ? `as ${options.length} propostas, escolhi a opção acima e conferi` : 'a proposta e conferi'} os móveis, valores, pagamento e prazo. Concordo com estas condições para aprovar o orçamento.</span>
       </label>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button type="button" disabled={status === 'loading'} onClick={() => void respond('APPROVE')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#E05A00] disabled:opacity-50"><CheckCircle2 size={16} /> {options.length > 1 ? 'Aprovar opção escolhida' : 'Aprovar orçamento'}</button>

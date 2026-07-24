@@ -95,7 +95,7 @@ export function renderSimpleQuoteProposal({
       return `
         <tr>
           <td class="number">${serviceIndex}</td>
-          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)], item.finish || 'Interno não informado'].join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
+          <td><div class="service-name">${escapeHtml(item.description)}</div><div class="service-detail">${item.placement ? `${escapeHtml(item.placement)} · ` : ''}${formatMeasure(quoteCentimetersToMillimeters(item.width))} × ${formatMeasure(quoteCentimetersToMillimeters(item.height))} mm · ${escapeHtml([item.material || 'MDF', QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)], item.finish || 'Interno não informado'].join(' · '))}${difficulty !== 'NORMAL' ? ` · ${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}` : ''}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</div></td>
           <td class="quantity">${item.quantity}</td>
           <td class="money">${formatCurrency(item.quantity > 0 ? moneyValue(item.total) / item.quantity : item.total)}</td>
           <td class="money">${formatCurrency(item.total)}</td>
@@ -109,7 +109,7 @@ export function renderSimpleQuoteProposal({
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orçamento ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)}</title>
+  <title>Orçamento ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)} - ${escapeHtml(quote.variationName)}</title>
   <style>
     :root { --ink: #151515; --muted: #626262; --line: #cfcfcf; --soft: #ececec; --orange: #ff6500; }
     * { box-sizing: border-box; }
@@ -189,6 +189,7 @@ export function renderSimpleQuoteProposal({
     </header>
 
     <div class="bar center"><span></span><span>ORÇAMENTO Nº ${escapeHtml(quoteDisplayCode(quote))}</span><span>${formatDateOnly(quote.createdAt)}</span></div>
+    <div class="delivery">OPÇÃO: ${escapeHtml(quote.variationName)}</div>
     <div class="delivery">PREVISÃO ESTIMADA DE ENTREGA: ${formatDateOnly(deliveryForecast)} (${quote.deliveryBusinessDays} dias úteis após aprovação e confirmação do pagamento)</div>
 
     <div class="section-title">Dados do cliente</div>

@@ -25,6 +25,7 @@ model User {
   updatedAt         DateTime         @updatedAt
   projects          Project[]
   quotes            Quote[]
+  quoteGroups       QuoteGroup[]
   notes             Note[]
   activities        ActivityLog[]
   paymentHistory    PaymentHistory[]
@@ -55,6 +56,7 @@ model Client {
   updatedAt    DateTime  @updatedAt
   projects     Project[]
   quotes       Quote[]
+  quoteGroups  QuoteGroup[]
 
   @@index([name])
   @@index([city])
@@ -129,6 +131,8 @@ model Project {
 model Quote {
   id                   String                 @id @default(cuid())
   number               Int                    @unique @default(autoincrement())
+  groupId              String
+  group                QuoteGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   clientId             String
   client               Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdById          String?
@@ -136,6 +140,9 @@ model Quote {
   convertedProjectId   String?                @unique
   convertedProject     Project?               @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
   title                String
+  variationType        String                 @default("STANDARD")
+  variationName        String                 @default("Padrão")
+  variationOrder       Int                    @default(0)
   status               String                 @default("DRAFT")
   validUntil           DateTime?
   deliveryBusinessDays Int                    @default(30)
@@ -170,7 +177,10 @@ model Quote {
   approvalRequests           QuoteApprovalRequest[] @relation("QuoteApprovalPrimary")
   comparisonApprovalRequests QuoteApprovalRequest[] @relation("QuoteApprovalComparison")
   selectedApprovalRequests   QuoteApprovalRequest[] @relation("QuoteApprovalSelected")
+  approvalOptions             QuoteApprovalOption[]
 
+  @@unique([groupId, variationOrder])
+  @@index([groupId])
   @@index([clientId])
   @@index([createdById])
   @@index([status])
@@ -178,6 +188,22 @@ model Quote {
   @@index([createdAt])
   @@index([createdById, status, createdAt])
   @@index([archivedAt])
+}
+
+model QuoteGroup {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  title       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  quotes      Quote[]
+
+  @@index([clientId])
+  @@index([createdById])
+  @@index([updatedAt])
 }
 
 model CompanyProfile {
@@ -208,6 +234,8 @@ model QuoteItem {
   description     String
   furnitureType   String?
   furnitureModel  String?
+  placement       String?
+  sourceItemKey   String
   material        String?
   finish          String?
   width           Float
@@ -230,6 +258,7 @@ model QuoteItem {
 
   @@index([quoteId])
   @@index([environment])
+  @@index([sourceItemKey])
 }
 
 model QuoteRevision {
@@ -395,6 +424,7 @@ model QuoteApprovalRequest {
   message                   String?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
+  options                   QuoteApprovalOption[]
 
   @@index([quoteId])
   @@index([comparisonQuoteId])
@@ -402,6 +432,21 @@ model QuoteApprovalRequest {
   @@index([expiresAt])
   @@index([invalidatedAt])
   @@index([sentAt])
+}
+
+model QuoteApprovalOption {
+  id              String               @id @default(cuid())
+  requestId       String
+  request         QuoteApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  quoteId         String
+  quote           Quote                @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  revisionVersion Int?
+  position        Int
+  createdAt       DateTime             @default(now())
+
+  @@unique([requestId, quoteId])
+  @@unique([requestId, position])
+  @@index([quoteId])
 }
 
 model ProjectEnvironment {

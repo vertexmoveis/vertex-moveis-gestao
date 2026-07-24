@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { QUOTE_STATUSES } from '@/lib/quotes'
+import { QUOTE_VARIATION_TYPES } from '@/lib/quote-variations'
 
 const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 const nullableString = (max: number) =>
@@ -89,6 +90,8 @@ export const quoteItemSchema = z.object({
   description: z.string().trim().min(1, 'Informe o móvel').max(240),
   furnitureType: nullableString(120),
   furnitureModel: nullableString(160),
+  placement: nullableString(160),
+  sourceItemKey: nullableString(120),
   material: nullableString(120),
   finish: nullableString(120),
   width: positiveNumberField,
@@ -113,9 +116,18 @@ export const quoteItemSchema = z.object({
   }
 })
 
+const quoteVariationSchema = z.object({
+  type: z.enum(QUOTE_VARIATION_TYPES),
+  name: z.string().trim().min(1, 'Informe o nome da variação').max(80),
+}).strict()
+
 export const quoteSaveSchema = z.object({
   clientId: z.string().trim().min(1, 'Selecione um cliente'),
   title: z.string().trim().min(1, 'Informe o título').max(160),
+  variationType: z.enum(QUOTE_VARIATION_TYPES).default('STANDARD'),
+  variationName: z.string().trim().min(1, 'Informe o nome da variação').max(80).default('Padrão'),
+  variations: z.array(quoteVariationSchema).min(1).max(3).optional(),
+  syncScope: z.enum(['CURRENT', 'GROUP']).default('CURRENT'),
   status: z.enum(QUOTE_STATUSES as [string, ...string[]]).default('DRAFT'),
   validUntil: dateField,
   deliveryBusinessDays: deliveryBusinessDaysField,

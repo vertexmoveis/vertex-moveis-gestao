@@ -46,7 +46,7 @@ export type QuoteReadinessSource = {
   cardInstallments?: number | null
   client?: ReadinessClient | null
   company?: ReadinessCompany | null
-  items?: unknown[] | null
+  items?: Array<{ placement?: string | null }> | null
 }
 
 function hasText(value?: string | null) {
@@ -75,6 +75,9 @@ export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new D
 
   if (!hasText(source.title)) add('quote.title', 'Informe o nome do orçamento.')
   if (!source.items?.length) add('quote.items', 'Adicione pelo menos um móvel.')
+  else if (source.items.some((item) => !hasText(item.placement))) {
+    warn('quote.items.placement', 'Alguns móveis ainda estão sem a posição no ambiente.')
+  }
   if (!(Number(source.total) > 0)) add('quote.total', 'O total do orçamento deve ser maior que zero.')
   if (!source.validUntil) add('quote.validUntil', 'Informe a validade da proposta.')
   else if (isDateOnlyExpired(source.validUntil, now)) add('quote.validUntil', 'Atualize a validade vencida da proposta.')

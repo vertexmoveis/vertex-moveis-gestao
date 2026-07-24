@@ -10,7 +10,7 @@ const completeQuote = {
   firstInstallmentDate: '2026-08-10',
   paymentMethod: 'CARD',
   cardInstallments: 10,
-  items: [{}],
+  items: [{ placement: 'Parede da pia' }],
   client: {
     name: 'Cliente Teste',
     document: '123.456.789-00',
@@ -48,6 +48,17 @@ test('CPF ou CNPJ do cliente não é obrigatório para enviar a proposta', () =>
 
   assert.equal(readiness.ready, true)
   assert.ok(!readiness.issues.some((issue) => issue.key === 'client.document'))
+})
+
+test('posição do móvel é recomendada, mas não impede o envio', () => {
+  const readiness = evaluateQuoteReadiness({
+    ...completeQuote,
+    items: [{}],
+  }, new Date('2026-07-21T12:00:00-03:00'))
+
+  assert.equal(readiness.ready, true)
+  assert.deepEqual(readiness.issues, [])
+  assert.deepEqual(readiness.warnings.map((warning) => warning.key), ['quote.items.placement'])
 })
 
 test('endereço do cliente é recomendado, mas não impede o envio', () => {

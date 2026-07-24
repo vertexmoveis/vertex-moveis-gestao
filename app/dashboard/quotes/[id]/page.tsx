@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, MessageCircle, Printer, Send, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Copy, Edit3, FileText, FolderOpen, GitBranch, MessageCircle, Plus, Printer, Send, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -24,6 +24,12 @@ import {
   safeQuotePriceProfile,
   type QuoteStatus,
 } from '@/lib/quotes'
+import {
+  QUOTE_VARIATION_LABELS,
+  QUOTE_VARIATION_TYPES,
+  quoteVariationDefaultName,
+  type QuoteVariationType,
+} from '@/lib/quote-variations'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { QuoteData } from '@/types/quotes'
 
@@ -56,7 +62,12 @@ export default function QuoteDetailPage() {
   const [approvalUrl, setApprovalUrl] = useState('')
   const [approvalMessage, setApprovalMessage] = useState('')
   const [approvalFeedback, setApprovalFeedback] = useState('')
-  const [comparisonQuoteId, setComparisonQuoteId] = useState('')
+  const [comparisonQuoteIds, setComparisonQuoteIds] = useState<string[]>([])
+  const [variantModalOpen, setVariantModalOpen] = useState(false)
+  const [variantType, setVariantType] = useState<QuoteVariationType>('WOODGRAIN')
+  const [variantName, setVariantName] = useState(quoteVariationDefaultName('WOODGRAIN'))
+  const [variantSaving, setVariantSaving] = useState(false)
+  const [variantError, setVariantError] = useState('')
   const [convertOpen, setConvertOpen] = useState(false)
   const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
   const [conversionDownPayment, setConversionDownPayment] = useState('0')
@@ -67,13 +78,23 @@ export default function QuoteDetailPage() {
     setQuote(data)
     const candidates = data.comparisonCandidates || []
     const activeRequest = data.activeApprovalRequest
-    const linkedQuoteId = activeRequest
-      ? (activeRequest.quoteId === data.id ? activeRequest.comparisonQuoteId : activeRequest.quoteId)
-      : null
-    setComparisonQuoteId((current) => {
-      if (linkedQuoteId && candidates.some((candidate) => candidate.id === linkedQuoteId)) return linkedQuoteId
-      if (current && candidates.some((candidate) => candidate.id === current)) return current
-      return candidates.length === 1 ? candidates[0].id : ''
+    const candidateIds = new Set(candidates.map((candidate) => candidate.id))
+    const legacyLinkedQuoteIds = activeRequest
+      ? [activeRequest.quoteId, activeRequest.comparisonQuoteId].filter((id): id is string => Boolean(id) && id !== data.id)
+      : []
+    const linkedQuoteIds = (activeRequest?.quoteIds || legacyLinkedQuoteIds)
+      .filter((id) => id !== data.id && candidateIds.has(id))
+    const groupedQuoteIds = (data.groupVariants || [])
+      .filter((variant) => variant.id !== data.id && candidateIds.has(variant.id))
+      .sort((a, b) => a.variationOrder - b.variationOrder)
+      .map((variant) => variant.id)
+      .slice(0, 2)
+
+    setComparisonQuoteIds((current) => {
+      if (linkedQuoteIds.length > 0) return linkedQuoteIds.slice(0, 2)
+      const validCurrent = current.filter((id) => candidateIds.has(id)).slice(0, 2)
+      if (validCurrent.length > 0) return validCurrent
+      return groupedQuoteIds
     })
     if (activeRequest?.token) {
       setApprovalUrl(`${window.location.origin}/proposta/${activeRequest.token}`)
@@ -153,7 +174,7 @@ export default function QuoteDetailPage() {
     if (!response.ok) {
       throw new Error(data?.error || 'Não foi possível salvar o orçamento.')
     }
-        applyLoadedQuote(data)
+    applyLoadedQuote(data)
     if (data.approvalReset) {
       setApprovalUrl('')
       setApprovalMessage('')
@@ -251,7 +272,7 @@ export default function QuoteDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reminder,
-        ...(comparisonQuoteId ? { comparisonQuoteId } : {}),
+        comparisonQuoteIds,
       }),
     })
     const data = await response.json().catch(() => ({}))
@@ -345,6 +366,40 @@ export default function QuoteDetailPage() {
     )
   }
 
+  const openVariantModal = () => {
+    if (!quote) return
+    const usedTypes = new Set((quote.groupVariants || []).map((variant) => variant.variationType))
+    const nextType = QUOTE_VARIATION_TYPES.find((type) => !usedTypes.has(type)) || 'CUSTOM'
+    setVariantType(nextType)
+    setVariantName(quoteVariationDefaultName(nextType))
+    setVariantError('')
+    setVariantModalOpen(true)
+  }
+
+  const createVariant = async () => {
+    if (!quote) return
+    setVariantSaving(true)
+    setVariantError('')
+    const response = await fetch(`/api/quotes/${quote.id}/variants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: variantType,
+        name: variantName.trim() || quoteVariationDefaultName(variantType),
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+    setVariantSaving(false)
+
+    if (!response.ok || !data?.id) {
+      setVariantError(data?.error || 'Não foi possível criar a variação.')
+      return
+    }
+
+    setVariantModalOpen(false)
+    router.push(`/dashboard/quotes/${data.id}`)
+  }
+
   const conversionEntry = Math.max(Number(conversionDownPayment) || 0, 0)
   const conversionBalance = Math.max(quote.total - conversionEntry, 0)
   const conversionInstallments = Math.max(Math.floor(Number(conversionInstallmentCount) || 0), 0)
@@ -356,12 +411,23 @@ export default function QuoteDetailPage() {
 
   const paymentSummary = getQuotePaymentSummary(quote)
   const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
-  const selectedComparison = quote.comparisonCandidates?.find((candidate) => candidate.id === comparisonQuoteId)
+  const selectedComparisons = (quote.comparisonCandidates || []).filter((candidate) => comparisonQuoteIds.includes(candidate.id))
+  const approvalQuoteCount = 1 + selectedComparisons.length
   const approvalActionLabel = quote.status === 'WAITING_APPROVAL'
     ? 'Pedir retorno do cliente'
-    : selectedComparison
-      ? 'Enviar 2 propostas'
+    : selectedComparisons.length > 0
+      ? `Enviar ${approvalQuoteCount} propostas`
       : 'Enviar para aprovação'
+  const sortedGroupVariants = [...(quote.groupVariants || [])].sort((a, b) => a.variationOrder - b.variationOrder)
+  const canCreateVariant = !quoteLocked && sortedGroupVariants.length < 3
+
+  const toggleComparisonQuote = (quoteId: string) => {
+    setComparisonQuoteIds((current) => {
+      if (current.includes(quoteId)) return current.filter((id) => id !== quoteId)
+      if (current.length >= 2) return current
+      return [...current, quoteId]
+    })
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -431,6 +497,60 @@ export default function QuoteDetailPage() {
           </div>
         )}
 
+        {sortedGroupVariants.length > 0 && (
+          <section className="border-y border-[#E8E8E8] bg-white">
+            <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[#121212]">
+                  <GitBranch size={16} className="text-[#FF6B00]" />
+                  Opções deste orçamento
+                </div>
+                <p className="mt-1 text-xs text-[#777]">
+                  As medidas e os ambientes são compartilhados; acabamento e preço ficam separados em cada opção.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!canCreateVariant}
+                title={sortedGroupVariants.length >= 3 ? 'Este orçamento já possui o limite de três opções' : quoteLocked ? 'Orçamento já transformado em projeto' : 'Criar outra opção com as mesmas medidas'}
+                onClick={openVariantModal}
+              >
+                <Plus size={15} />
+                Nova opção
+              </Button>
+            </div>
+            <div className="grid border-t border-[#F0F0F0] sm:grid-cols-2 xl:grid-cols-3">
+              {sortedGroupVariants.map((variant) => {
+                const isCurrent = variant.id === quote.id
+                return (
+                  <Link
+                    key={variant.id}
+                    href={`/dashboard/quotes/${variant.id}`}
+                    className={cn(
+                      'min-w-0 border-b border-[#F0F0F0] px-4 py-3 transition-colors sm:border-r xl:border-b-0',
+                      isCurrent ? 'bg-[#FFF5ED]' : 'hover:bg-[#FAFAFA]'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={cn('truncate text-sm font-semibold', isCurrent ? 'text-[#C94F00]' : 'text-[#121212]')}>
+                          {variant.variationName}
+                        </p>
+                        <p className="mt-1 text-xs text-[#777]">{formatCurrency(variant.total)}</p>
+                      </div>
+                      <span className={cn('shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold', QUOTE_STATUS_BG[variant.status])}>
+                        {QUOTE_STATUS_LABELS[variant.status]}
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[420px_1fr]">
           <div className="space-y-5">
             <div className="rounded-xl border border-[#E8E8E8] bg-white shadow-sm">
@@ -445,6 +565,10 @@ export default function QuoteDetailPage() {
                   <p className="text-xs text-[#9E9E9E]">Cliente</p>
                   <p className="font-semibold text-[#121212]">{quote.client?.name || 'Cliente em orçamento'}</p>
                   {quote.client?.phone && <p className="text-sm text-[#777]">{quote.client.phone}</p>}
+                </div>
+                <div>
+                  <p className="text-xs text-[#9E9E9E]">Variação</p>
+                  <p className="font-semibold text-[#121212]">{quote.variationName}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#FAFAFA] p-3">
                   <div>
@@ -526,22 +650,48 @@ export default function QuoteDetailPage() {
                 ) : null}
                 {quote.comparisonCandidates?.length ? (
                   <div className="space-y-2">
-                    <Select
-                      label="Enviar junto com"
-                      value={comparisonQuoteId}
-                      onChange={(event) => setComparisonQuoteId(event.target.value)}
-                      placeholder="Somente este orçamento"
-                      disabled={saving}
-                      options={quote.comparisonCandidates.map((candidate) => ({
-                        value: candidate.id,
-                        label: `${candidate.title} · ${formatCurrency(candidate.total)}`,
-                      }))}
-                    />
-                    {selectedComparison ? (
-                      <p className="rounded-lg border border-[#FFD6B8] bg-[#FFF7F1] px-3 py-2 text-xs leading-5 text-[#8F3B00]">
-                        A cliente receberá um único link para comparar esta proposta com “{selectedComparison.title}” e escolher qual deseja aprovar.
-                      </p>
-                    ) : null}
+                    <p className="text-xs font-semibold text-[#555]">Opções no mesmo link</p>
+                    <div className="divide-y divide-[#ECECEC] rounded-lg border border-[#E3E3E3]">
+                      <div className="flex items-center justify-between gap-3 bg-[#FAFAFA] px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[#121212]">{quote.variationName}</p>
+                          <p className="text-xs text-[#777]">{formatCurrency(quote.total)} · opção atual</p>
+                        </div>
+                        <input type="checkbox" checked readOnly aria-label={`${quote.variationName} incluída`} className="h-4 w-4 accent-[#FF6B00]" />
+                      </div>
+                      {quote.comparisonCandidates.map((candidate) => {
+                        const checked = comparisonQuoteIds.includes(candidate.id)
+                        const limitReached = !checked && comparisonQuoteIds.length >= 2
+                        return (
+                          <label
+                            key={candidate.id}
+                            className={cn(
+                              'flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5',
+                              limitReached && 'cursor-not-allowed opacity-50'
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#121212]">{candidate.variationName || candidate.title}</p>
+                              <p className="truncate text-xs text-[#777]">
+                                {candidate.groupId === quote.groupId ? 'Mesmo orçamento' : candidate.title} · {formatCurrency(candidate.total)}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={saving || limitReached}
+                              onChange={() => toggleComparisonQuote(candidate.id)}
+                              className="h-4 w-4 shrink-0 accent-[#FF6B00]"
+                            />
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <p className="rounded-lg border border-[#FFD6B8] bg-[#FFF7F1] px-3 py-2 text-xs leading-5 text-[#8F3B00]">
+                      {selectedComparisons.length > 0
+                        ? `O cliente receberá um único link com ${approvalQuoteCount} opções e escolherá apenas uma para aprovar.`
+                        : 'Marque até duas opções adicionais para o cliente comparar no mesmo link.'}
+                    </p>
                   </div>
                 ) : null}
                 <Button
@@ -633,6 +783,9 @@ export default function QuoteDetailPage() {
                       <div>
                         <p className="font-semibold text-[#121212]">{item.environmentName || item.environment}</p>
                         <p className="mt-1 text-sm text-[#555]">{item.description}</p>
+                        {item.placement && (
+                          <p className="mt-1 text-xs font-medium text-[#555]">Posição: {item.placement}</p>
+                        )}
                         <p className="mt-1 text-xs text-[#9E9E9E]">
                           {quoteCentimetersToMillimeters(item.width)} x {quoteCentimetersToMillimeters(item.height)} mm
                           {item.quantity > 1 ? ` • Qtd. ${item.quantity}` : ''}
@@ -691,6 +844,44 @@ export default function QuoteDetailPage() {
         ) : (
           <QuoteForm clients={clients} initialData={quote} onSubmit={handleUpdate} onCancel={() => setModalOpen(false)} />
         )}
+      </Modal>
+
+      <Modal open={variantModalOpen} onClose={() => setVariantModalOpen(false)} title="Criar nova opção" size="sm">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-[#FFD6B8] bg-[#FFF7F1] px-4 py-3 text-sm text-[#7A3500]">
+            As medidas, os ambientes e os móveis serão copiados de <strong>{quote.variationName}</strong>. Você poderá editar acabamento, preço e pagamento sem alterar a opção atual.
+          </div>
+          <Select
+            label="Tipo de variação"
+            value={variantType}
+            onChange={(event) => {
+              const nextType = event.target.value as QuoteVariationType
+              setVariantType(nextType)
+              setVariantName(quoteVariationDefaultName(nextType))
+            }}
+            options={QUOTE_VARIATION_TYPES.map((type) => ({
+              value: type,
+              label: QUOTE_VARIATION_LABELS[type],
+            }))}
+          />
+          <Input
+            label="Nome mostrado ao cliente"
+            value={variantName}
+            maxLength={60}
+            onChange={(event) => setVariantName(event.target.value)}
+            placeholder="Ex.: Madeirado externo"
+          />
+          {variantError && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{variantError}</p>
+          )}
+          <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
+            <Button type="button" variant="outline" onClick={() => setVariantModalOpen(false)}>Cancelar</Button>
+            <Button type="button" loading={variantSaving} disabled={!variantName.trim()} onClick={() => void createVariant()}>
+              <Plus size={16} />
+              Criar opção
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={convertOpen} onClose={() => setConvertOpen(false)} title="Confirmar venda e criar projeto" size="md">

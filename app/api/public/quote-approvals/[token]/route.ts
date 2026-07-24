@@ -4,7 +4,10 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import {
   buildQuoteApprovalBundleSnapshot,
+  buildQuoteApprovalOptionsSnapshot,
   buildQuoteApprovalSnapshot,
+  parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalOptionsSnapshot,
 } from '@/lib/quote-approval'
 import { getClientIp } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
@@ -75,19 +78,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       include: {
         quote: { include: quoteInclude },
         comparisonQuote: { include: quoteInclude },
+        options: {
+          orderBy: { position: 'asc' },
+          include: { quote: { include: quoteInclude } },
+        },
       },
     })
 
     if (!request) return { status: 404, error: 'Este link não é válido.' }
     if (request.invalidatedAt) return { status: 409, error: 'Esta proposta foi atualizada. Peça um novo link à Vertex Móveis.' }
     if (isDateOnlyExpired(request.expiresAt, now)) return { status: 410, error: 'Este link de aprovação expirou.' }
-    if (request.approvedAt || request.rejectedAt || request.quote.convertedProjectId || request.comparisonQuote?.convertedProjectId) {
+    const quotes = request.options.length > 0
+      ? request.options.map((option) => option.quote)
+      : request.comparisonQuote ? [request.quote, request.comparisonQuote] : [request.quote]
+    if (request.approvedAt || request.rejectedAt || quotes.some((quote) => Boolean(quote.convertedProjectId))) {
       return { status: 409, error: 'Este orçamento já recebeu uma resposta.' }
     }
 
-    const quotes = request.comparisonQuote ? [request.quote, request.comparisonQuote] : [request.quote]
-    const currentSnapshot = request.comparisonQuote
-      ? buildQuoteApprovalBundleSnapshot([request.quote, request.comparisonQuote])
+    const currentSnapshot = quotes.length > 1
+      ? parseQuoteApprovalOptionsSnapshot(request.snapshot)
+        ? buildQuoteApprovalOptionsSnapshot(quotes)
+        : quotes.length === 2 && parseQuoteApprovalBundleSnapshot(request.snapshot)
+          ? buildQuoteApprovalBundleSnapshot([quotes[0], quotes[1]])
+          : buildQuoteApprovalOptionsSnapshot(quotes)
       : buildQuoteApprovalSnapshot(request.quote)
     if (request.snapshot && request.snapshot !== currentSnapshot) {
       await tx.quoteApprovalRequest.update({ where: { id: request.id }, data: { invalidatedAt: now } })
@@ -95,26 +108,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     const selectedQuoteId = parsed.data.decision === 'APPROVE'
-      ? (request.comparisonQuote ? parsed.data.selectedQuoteId : request.quoteId)
+      ? (quotes.length > 1 ? parsed.data.selectedQuoteId : quotes[0].id)
       : null
     if (parsed.data.decision === 'APPROVE' && !selectedQuoteId) {
-      return { status: 400, error: 'Escolha uma das duas propostas antes de aprovar.' }
+      return { status: 400, error: 'Escolha uma das propostas antes de aprovar.' }
     }
     if (selectedQuoteId && !quotes.some((quote) => quote.id === selectedQuoteId)) {
       return { status: 400, error: 'A opção escolhida não pertence a esta proposta.' }
     }
 
-    const otherQuote = selectedQuoteId
-      ? quotes.find((quote) => quote.id !== selectedQuoteId) || null
-      : null
+    const otherQuotes = selectedQuoteId ? quotes.filter((quote) => quote.id !== selectedQuoteId) : []
     const selectedQuote = selectedQuoteId
-      ? quotes.find((quote) => quote.id === selectedQuoteId) || request.quote
-      : request.quote
-    const selectedRevisionVersion = selectedQuote.id === request.quoteId
-      ? request.revisionVersion
-      : request.comparisonRevisionVersion
-    const otherRevisionVersion = otherQuote
-      ? (otherQuote.id === request.quoteId ? request.revisionVersion : request.comparisonRevisionVersion)
+      ? quotes.find((quote) => quote.id === selectedQuoteId) || quotes[0]
+      : quotes[0]
+    const optionRevision = request.options.find((option) => option.quoteId === selectedQuote.id)?.revisionVersion
+    const selectedRevisionVersion = optionRevision
+      ?? (selectedQuote.id === request.quoteId ? request.revisionVersion : request.comparisonRevisionVersion)
+    const firstOtherQuote = otherQuotes[0] || null
+    const otherRevisionVersion = firstOtherQuote
+      ? request.options.find((option) => option.quoteId === firstOtherQuote.id)?.revisionVersion
+        ?? (firstOtherQuote.id === request.quoteId ? request.revisionVersion : request.comparisonRevisionVersion)
       : null
 
     const requestUpdate = await tx.quoteApprovalRequest.updateMany({
@@ -124,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
           ? {
               approvedAt: now,
               quoteId: selectedQuote.id,
-              comparisonQuoteId: otherQuote?.id || null,
+              comparisonQuoteId: firstOtherQuote?.id || null,
               selectedQuoteId: selectedQuote.id,
               revisionVersion: selectedRevisionVersion,
               comparisonRevisionVersion: otherRevisionVersion,
@@ -146,14 +159,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         where: { id: selectedQuote.id },
         data: { status: 'APPROVED', approvedAt: now, lostAt: null, lossReason: null },
       })
-      if (otherQuote) {
+      for (const otherQuote of otherQuotes) {
         await tx.quote.update({
           where: { id: otherQuote.id },
           data: {
             status: 'LOST',
             approvedAt: null,
             lostAt: now,
-            lossReason: `Outra opção foi escolhida: ${selectedQuote.title}`,
+            lossReason: `Outra opção foi escolhida: ${selectedQuote.variationName}`,
           },
         })
       }
@@ -178,6 +191,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         OR: [
           { quoteId: { in: quoteIds } },
           { comparisonQuoteId: { in: quoteIds } },
+          { options: { some: { quoteId: { in: quoteIds } } } },
         ],
         approvedAt: null,
         rejectedAt: null,
@@ -189,7 +203,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return {
       status: 200,
       selectedQuoteId: parsed.data.decision === 'APPROVE' ? selectedQuote.id : null,
-      selectedQuoteTitle: parsed.data.decision === 'APPROVE' ? selectedQuote.title : null,
+      selectedQuoteTitle: parsed.data.decision === 'APPROVE' ? selectedQuote.variationName : null,
     }
   })
 

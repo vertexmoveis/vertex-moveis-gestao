@@ -4,8 +4,10 @@ import { calculateQuoteTotals, getQuoteCardInstallmentPlan, getQuotePaymentDetai
 import { formatDateOnly } from '@/lib/date-only'
 import {
   buildQuoteApprovalBundleSnapshot,
+  buildQuoteApprovalOptionsSnapshot,
   buildQuoteApprovalSnapshot,
   parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalOptionsSnapshot,
   parseQuoteApprovalSnapshot,
 } from '@/lib/quote-approval'
 
@@ -169,4 +171,65 @@ test('a comparação guarda duas propostas separadas e em ordem estável', () =>
   assert.deepEqual(parsed?.quotes.map((quote) => quote.total), [14784, 25536])
   assert.equal(snapshot, buildQuoteApprovalBundleSnapshot([baseQuote, alternative]))
   assert.equal(parseQuoteApprovalSnapshot(snapshot), null)
+})
+
+test('o comparativo guarda até três variações, posição e vínculo dos móveis', () => {
+  const baseQuote = {
+    id: 'quote-standard',
+    number: 20,
+    title: 'Cozinha planejada',
+    variationType: 'STANDARD',
+    variationName: 'Padrão',
+    variationOrder: 0,
+    createdAt: '2026-07-24T12:00:00.000Z',
+    validUntil: '2026-08-10T12:00:00.000Z',
+    deliveryBusinessDays: 30,
+    firstInstallmentDate: '2026-08-01T12:00:00.000Z',
+    installationFee: 0,
+    manualDiscount: 0,
+    paymentDiscount: 0,
+    paymentMethod: 'CARD',
+    cardInstallments: 10,
+    cardDownPayment: 1000,
+    subtotal: 10000,
+    total: 10000,
+    customerNotes: null,
+    client: { name: 'Cliente Teste' },
+    items: [{
+      ...item,
+      id: 'standard-item',
+      placement: 'Parede da pia',
+      sourceItemKey: 'movel-cozinha-1',
+      total: 10000,
+    }],
+  }
+  const madeirado = {
+    ...baseQuote,
+    id: 'quote-madeirado',
+    number: 21,
+    variationType: 'WOODGRAIN',
+    variationName: 'Madeirado',
+    variationOrder: 1,
+    total: 12000,
+    items: [{ ...baseQuote.items[0], id: 'wood-item', total: 12000 }],
+  }
+  const provencal = {
+    ...baseQuote,
+    id: 'quote-provencal',
+    number: 22,
+    variationType: 'PROVENCAL',
+    variationName: 'Provençal',
+    variationOrder: 2,
+    total: 15000,
+    items: [{ ...baseQuote.items[0], id: 'provencal-item', total: 15000 }],
+  }
+
+  const snapshot = buildQuoteApprovalOptionsSnapshot([provencal, baseQuote, madeirado])
+  const parsed = parseQuoteApprovalOptionsSnapshot(snapshot)
+
+  assert.deepEqual(parsed?.quotes.map((quote) => quote.variationName), ['Padrão', 'Madeirado', 'Provençal'])
+  assert.equal(parsed?.quotes[0].items[0].placement, 'Parede da pia')
+  assert.equal(parsed?.quotes[0].items[0].sourceItemKey, 'movel-cozinha-1')
+  assert.equal(snapshot, buildQuoteApprovalOptionsSnapshot([madeirado, provencal, baseQuote]))
+  assert.equal(parseQuoteApprovalBundleSnapshot(snapshot), null)
 })

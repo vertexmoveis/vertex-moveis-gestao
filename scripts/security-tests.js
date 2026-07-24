@@ -166,8 +166,16 @@ async function seedDatabase() {
     data: { clientId: clientTwo.id, managerId: managerTwo.id, name: 'Project Two', status: 'APPROVED', stage: 'PENDING_START' },
   })
   const team = await prisma.operationalResource.create({ data: { name: 'Security Team', type: 'TEAM' } })
+  const quoteGroup = await prisma.quoteGroup.create({
+    data: {
+      clientId: clientOne.id,
+      createdById: managerOne.id,
+      title: 'Security Quote',
+    },
+  })
   const quote = await prisma.quote.create({
     data: {
+      groupId: quoteGroup.id,
       clientId: clientOne.id,
       createdById: managerOne.id,
       title: 'Security Quote',
@@ -181,6 +189,7 @@ async function seedDatabase() {
         create: {
           environment: 'Cozinha',
           description: 'Armario de teste',
+          sourceItemKey: 'security-quote-item-1',
           width: 100,
           height: 100,
           quantity: 1,

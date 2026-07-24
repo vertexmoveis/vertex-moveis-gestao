@@ -19,8 +19,10 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import {
   buildQuoteApprovalBundleSnapshot,
+  buildQuoteApprovalOptionsSnapshot,
   buildQuoteApprovalSnapshot,
   parseQuoteApprovalBundleSnapshot,
+  parseQuoteApprovalOptionsSnapshot,
   parseQuoteApprovalSnapshot,
   type QuoteApprovalData,
 } from '@/lib/quote-approval'
@@ -78,7 +80,8 @@ function QuoteOptionDetails({
         <div className="flex flex-col gap-3 border-b border-[#ECE9E5] bg-[#FAFAF8] px-6 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-10">
           <div>
             <p className="text-[11px] font-bold uppercase text-[#FF6B00]">Opção {optionNumber}</p>
-            <h2 className="mt-1 text-xl font-extrabold text-[#121212]">{quote.title}</h2>
+            <h2 className="mt-1 text-xl font-extrabold text-[#121212]">{quote.variationName || quote.title}</h2>
+            {quote.variationName ? <p className="mt-1 text-xs text-[#555]">{quote.title}</p> : null}
             <p className="mt-1 text-xs text-[#777]">Proposta {quoteDisplayCode(quote)}</p>
           </div>
           <div className="sm:text-right">
@@ -127,6 +130,7 @@ function QuoteOptionDetails({
                   <div key={item.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.5fr)_auto_auto] sm:items-center">
                     <div>
                       <p className="font-semibold text-[#121212]">{item.description}</p>
+                      {item.placement ? <p className="mt-1 text-sm font-medium text-[#555]">Posição: {item.placement}</p> : null}
                       <p className="mt-1 text-sm leading-5 text-[#777]">
                         {[item.material || 'MDF', item.priceProfile ? QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)] : 'Externo não informado', item.finish || 'Interno não informado'].join(' · ')}
                         {item.quantity > 1 ? ` · Quantidade ${item.quantity}` : ''}
@@ -276,30 +280,48 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
           items: { orderBy: { position: 'asc' } },
         },
       },
+      options: {
+        orderBy: { position: 'asc' },
+        include: {
+          quote: {
+            include: {
+              client: { select: { name: true, document: true, phone: true, whatsapp: true, address: true, street: true, number: true, neighborhood: true, city: true, state: true, zipCode: true } },
+              items: { orderBy: { position: 'asc' } },
+            },
+          },
+        },
+      },
     },
   })
 
   if (!request) notFound()
 
+  const storedOptions = parseQuoteApprovalOptionsSnapshot(request.snapshot)
+  const optionQuotes = request.options.map((option) => option.quote)
+  const currentOptions = optionQuotes.length > 1
+    ? parseQuoteApprovalOptionsSnapshot(buildQuoteApprovalOptionsSnapshot(optionQuotes))
+    : null
   const storedBundle = parseQuoteApprovalBundleSnapshot(request.snapshot)
   const currentBundle = request.comparisonQuote
     ? parseQuoteApprovalBundleSnapshot(buildQuoteApprovalBundleSnapshot([request.quote, request.comparisonQuote]))
     : null
   const storedSingle = parseQuoteApprovalSnapshot(request.snapshot)
   const currentSingle = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(request.quote))
-  const quotes = storedBundle?.quotes
+  const quotes = storedOptions?.quotes
+    || storedBundle?.quotes
+    || currentOptions?.quotes
     || currentBundle?.quotes
     || [storedSingle?.quote || currentSingle!.quote]
   const comparison = quotes.length > 1
   const selectedQuote = request.selectedQuoteId
     ? quotes.find((quote) => quote.id === request.selectedQuoteId)
     : undefined
-  const message = responseMessage(request, selectedQuote?.title)
+  const message = responseMessage(request, selectedQuote?.variationName || selectedQuote?.title)
   const clientName = quotes[0].client.name
   const approvalOptions: PublicApprovalOption[] = comparison
     ? quotes.map((quote) => ({
         id: quote.id,
-        title: quote.title,
+        title: quote.variationName || quote.title,
         totalLabel: formatCurrency(quote.total),
         paymentLabel: getQuotePaymentSummary(quote),
       }))
@@ -320,11 +342,11 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
           <div className="sm:max-w-md sm:text-right">
             <p className="text-[11px] font-bold uppercase text-[#FF6B00]">{comparison ? 'Comparativo de propostas' : 'Proposta comercial'}</p>
             <h1 className="mt-2 text-xl font-extrabold text-[#121212] sm:text-2xl">
-              {comparison ? 'Duas opções para o seu projeto' : quotes[0].title}
+              {comparison ? `${quotes.length} opções para o seu projeto` : quotes[0].title}
             </h1>
             <p className="mt-2 text-xs text-[#777]">
               {comparison
-                ? `Propostas ${quotes.map(quoteDisplayCode).join(' e ')}`
+                ? `Propostas ${quotes.map(quoteDisplayCode).join(' · ')}`
                 : `Código ${quoteDisplayCode(quotes[0])}`}
             </p>
           </div>
@@ -335,18 +357,19 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
           <h2 className="mt-2 text-2xl font-extrabold text-[#121212] sm:text-3xl">{clientName}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5E5E5E]">
             {comparison
-              ? 'Preparamos duas alternativas para você comparar com calma. Confira os móveis, acabamentos, valores e pagamento de cada uma; depois escolha a sua preferida ao final.'
+              ? `Preparamos ${quotes.length} alternativas para você comparar com calma. Confira os móveis, acabamentos, valores e pagamento de cada uma; depois escolha a sua preferida ao final.`
               : 'Esta proposta reúne os móveis planejados conforme as medidas e os acabamentos combinados. Confira os itens e responda abaixo.'}
           </p>
         </section>
 
         {comparison ? (
           <section className="border-y border-[#ECE9E5] bg-[#FAFAF8] px-6 py-6 sm:px-10">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {quotes.map((quote, index) => (
                 <div key={quote.id} className="rounded-lg border border-[#E2DED8] bg-white px-4 py-4">
                   <p className="text-[10px] font-bold uppercase text-[#FF6B00]">Opção {index + 1}</p>
-                  <h2 className="mt-1 font-bold text-[#121212]">{quote.title}</h2>
+                  <h2 className="mt-1 font-bold text-[#121212]">{quote.variationName || quote.title}</h2>
+                  {quote.variationName ? <p className="mt-1 text-xs text-[#777]">{quote.title}</p> : null}
                   <p className="mt-3 text-2xl font-extrabold text-[#121212]">{formatCurrency(quote.total)}</p>
                   <p className="mt-1 text-xs leading-5 text-[#666]">{getQuotePaymentSummary(quote)}</p>
                   {quote.validUntil ? <p className="mt-2 text-xs text-[#777]">Válida até {formatDateOnly(quote.validUntil)}</p> : null}

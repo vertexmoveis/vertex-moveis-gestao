@@ -278,15 +278,31 @@ export default function QuotesPage() {
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Orçamento</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Cliente</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Ambientes</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Opções</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Lucro</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Total</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F5F5F5]">
-                  {visibleQuotes.map((quote) => (
-                    <tr key={quote.id} className="cursor-pointer transition-colors hover:bg-[#FAFAFA]" onClick={() => router.push(`/dashboard/quotes/${quote.id}`)}>
+                  {visibleQuotes.map((quote) => {
+                    const variants = quote.variants?.length ? quote.variants : [{
+                      id: quote.id,
+                      number: quote.number || 0,
+                      variationType: quote.variationType,
+                      variationName: quote.variationName,
+                      total: quote.total,
+                      costTotal: quote.costTotal,
+                      profit: quote.profit,
+                      status: quote.status,
+                    }]
+                    const minTotal = Math.min(...variants.map((variant) => variant.total))
+                    const maxTotal = Math.max(...variants.map((variant) => variant.total))
+                    const minProfit = Math.min(...variants.map((variant) => variant.profit))
+                    const maxProfit = Math.max(...variants.map((variant) => variant.profit))
+
+                    return (
+                    <tr key={quote.groupId || quote.id} className="cursor-pointer transition-colors hover:bg-[#FAFAFA]" onClick={() => router.push(`/dashboard/quotes/${quote.id}`)}>
                       <td className="px-5 py-4">
                         <p className="font-semibold text-[#121212]">{quote.title}</p>
                         <p className="text-xs text-[#9E9E9E]">Código {quoteDisplayCode(quote)} • Atualizado em {formatDate(quote.updatedAt)}</p>
@@ -300,12 +316,27 @@ export default function QuotesPage() {
                           {QUOTE_STATUS_LABELS[quote.status as QuoteStatus]}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-[#777]">{quote.items.length} {quote.items.length === 1 ? 'móvel' : 'móveis'}</td>
                       <td className="px-4 py-4">
-                        <p className="font-semibold text-emerald-600">{formatCurrency(quote.profit)}</p>
-                        <p className="text-xs text-[#9E9E9E]">Custo {formatCurrency(quote.costTotal)}</p>
+                        <p className="text-xs font-semibold text-[#555]">{variants.length} {variants.length === 1 ? 'opção' : 'opções'}</p>
+                        <div className="mt-1 flex max-w-64 flex-wrap gap-1">
+                          {variants.map((variant) => (
+                            <span key={variant.id} className="rounded border border-[#E5E5E5] bg-[#FAFAFA] px-1.5 py-0.5 text-[10px] text-[#666]">
+                              {variant.variationName}
+                            </span>
+                          ))}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 text-right font-bold text-[#121212]">{formatCurrency(quote.total)}</td>
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-emerald-600">
+                          {minProfit === maxProfit ? formatCurrency(minProfit) : `${formatCurrency(minProfit)} a ${formatCurrency(maxProfit)}`}
+                        </p>
+                        <p className="text-xs text-[#9E9E9E]">Conforme a opção escolhida</p>
+                      </td>
+                      <td className="px-4 py-4 text-right font-bold text-[#121212]">
+                        {minTotal === maxTotal ? formatCurrency(minTotal) : (
+                          <span className="whitespace-nowrap">{formatCurrency(minTotal)} a {formatCurrency(maxTotal)}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-4">
                         <div className="flex justify-end gap-2">
                           <button
@@ -333,7 +364,7 @@ export default function QuotesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
                 </table>
               </div>

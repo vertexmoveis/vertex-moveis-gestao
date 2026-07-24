@@ -122,7 +122,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Proposta ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)}</title>
+  <title>Proposta ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)} - ${escapeHtml(quote.variationName)}</title>
   <style>
     :root { --ink: #151515; --muted: #6b6b6b; --line: #e7e7e7; --soft: #f7f7f5; --orange: #ff6500; --orange-soft: #fff3e9; }
     * { box-sizing: border-box; }
@@ -291,7 +291,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div class="proposal-meta">
         <strong>Orçamento nº ${escapeHtml(quoteDisplayCode(quote))}</strong>
         <h1>${escapeHtml(quote.title)}</h1>
-        <div class="proposal-code">Emitido em ${formatDate(quote.createdAt)}<br>Previsão estimada: ${formatDate(deliveryForecast)}<br>Válido até ${formatDate(quote.validUntil)}</div>
+        <div class="proposal-code"><strong>Opção: ${escapeHtml(quote.variationName)}</strong><br>Emitido em ${formatDate(quote.createdAt)}<br>Previsão estimada: ${formatDate(deliveryForecast)}<br>Válido até ${formatDate(quote.validUntil)}</div>
       </div>
     </header>
 
@@ -336,6 +336,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             <div class="item">
               <div class="item-main">
                 <div class="item-name">${escapeHtml(item.description)}</div>
+                ${item.placement ? `<div class="item-notes"><strong>Posição:</strong> ${escapeHtml(item.placement)}</div>` : ''}
                 ${item.notes ? `<div class="item-notes">${escapeHtml(item.notes)}</div>` : ''}
                 ${accessories.length ? `<div class="item-notes"><strong>Adicionais:</strong> ${escapeHtml(accessories.join(', '))}</div>` : ''}
                 ${difficulty !== 'NORMAL' ? `<span class="difficulty">${escapeHtml(QUOTE_DIFFICULTY_LABELS[difficulty])}</span>` : ''}

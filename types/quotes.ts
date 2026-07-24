@@ -1,4 +1,5 @@
 import type { QuoteCalculationMode, QuotePaymentMethod, QuotePriceProfile, QuoteStatus } from '@/lib/quotes'
+import type { QuoteVariationType } from '@/lib/quote-variations'
 
 export type QuoteItemData = {
   id?: string
@@ -7,6 +8,8 @@ export type QuoteItemData = {
   description: string
   furnitureType?: string | null
   furnitureModel?: string | null
+  placement?: string | null
+  sourceItemKey?: string | null
   width: number
   height: number
   depth?: number | null
@@ -27,8 +30,12 @@ export type QuoteItemData = {
 
 export type QuoteData = {
   id: string
+  groupId: string
   number?: number | null
   title: string
+  variationType: QuoteVariationType
+  variationName: string
+  variationOrder: number
   status: QuoteStatus
   subtotal: number
   discount: number
@@ -90,15 +97,41 @@ export type QuoteData = {
   } | null
   comparisonCandidates?: Array<{
     id: string
+    groupId: string
     number: number
     title: string
+    variationType: QuoteVariationType
+    variationName: string
     total: number
+    status: QuoteStatus
+  }>
+  groupVariants?: Array<{
+    id: string
+    number: number
+    title: string
+    variationType: QuoteVariationType
+    variationName: string
+    variationOrder: number
+    total: number
+    costTotal: number
+    profit: number
+    status: QuoteStatus
+  }>
+  variants?: Array<{
+    id: string
+    number: number
+    variationType: QuoteVariationType
+    variationName: string
+    total: number
+    costTotal: number
+    profit: number
     status: QuoteStatus
   }>
   activeApprovalRequest?: {
     token: string
     quoteId: string
     comparisonQuoteId: string | null
+    quoteIds?: string[]
     sentAt: string
   } | null
 }
