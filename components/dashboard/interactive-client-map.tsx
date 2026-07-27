@@ -31,6 +31,16 @@ function formatDistance(value: number | null) {
   return `${value.toFixed(value < 10 ? 1 : 0)} km`
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  })[character] || character)
+}
+
 export function InteractiveClientMap({
   vertexAddress,
   vertexLocation,
@@ -39,6 +49,7 @@ export function InteractiveClientMap({
 }: InteractiveClientMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Leaflet.Map | null>(null)
+  const dataLayerRef = useRef<Leaflet.LayerGroup | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -47,6 +58,7 @@ export function InteractiveClientMap({
 
     async function renderMap() {
       const L = await import('leaflet')
+      await import('leaflet.markercluster')
 
       if (disposed || !containerRef.current) return
 
@@ -65,24 +77,33 @@ export function InteractiveClientMap({
       }
 
       const map = mapRef.current
-      map.eachLayer((layer) => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-          layer.remove()
-        }
-      })
+      if (dataLayerRef.current) map.removeLayer(dataLayerRef.current)
+      const dataLayer = L.layerGroup().addTo(map)
+      dataLayerRef.current = dataLayer
 
       const vertexIcon = L.divIcon({
         className: 'vertex-map-marker',
-        html: '<div class="vertex-map-marker__pin vertex-map-marker__pin--origin">⌁</div>',
+        html: '<div class="vertex-map-marker__pin vertex-map-marker__pin--origin">V</div>',
         iconSize: [42, 42],
         iconAnchor: [21, 21],
       })
 
       L.marker([vertexLocation.lat, vertexLocation.lon], { icon: vertexIcon })
-        .bindPopup(`<strong>Vertex Móveis</strong><br>${vertexAddress}`)
-        .addTo(map)
+        .bindPopup(`<strong>Vertex Móveis</strong><br>${escapeHtml(vertexAddress)}`)
+        .addTo(dataLayer)
 
       const bounds = L.latLngBounds([[vertexLocation.lat, vertexLocation.lon]])
+      const markerCluster = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 46,
+        iconCreateFunction: (cluster) => L.divIcon({
+          className: 'vertex-map-cluster',
+          html: `<div class="vertex-map-cluster__pin">${cluster.getChildCount()}</div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        }),
+      })
+      markerCluster.addTo(dataLayer)
 
       clients.forEach((client, index) => {
         if (!client.coordinates) return
@@ -95,24 +116,11 @@ export function InteractiveClientMap({
           iconAnchor: [17, 17],
         })
 
-        L.polyline(
-          [
-            [vertexLocation.lat, vertexLocation.lon],
-            clientLatLng,
-          ],
-          {
-            color: '#FF6B00',
-            opacity: 0.45,
-            weight: 3,
-            dashArray: '8 8',
-          }
-        ).addTo(map)
-
         L.marker(clientLatLng, { icon: markerIcon })
           .bindPopup(
-            `<strong>${client.name}</strong><br>${client.address || 'Sem endereço cadastrado'}<br><span>${formatDistance(client.distanceKm)}</span><br><a href="${routeHref(client)}" target="_blank" rel="noreferrer">Abrir rota</a>`
+            `<strong>${escapeHtml(client.name)}</strong><br>${escapeHtml(client.address || 'Sem endereço cadastrado')}<br><span>${formatDistance(client.distanceKm)}</span><br><a href="${escapeHtml(routeHref(client))}" target="_blank" rel="noreferrer">Abrir rota</a>`
           )
-          .addTo(map)
+          .addTo(markerCluster)
 
         bounds.extend(clientLatLng)
       })
@@ -140,6 +148,7 @@ export function InteractiveClientMap({
 
   useEffect(() => {
     return () => {
+      dataLayerRef.current = null
       mapRef.current?.remove()
       mapRef.current = null
     }

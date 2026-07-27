@@ -48,3 +48,43 @@ test('fluxo autenticado abre dashboard e configurações', async ({ page }) => {
   await page.goto('/dashboard/settings')
   await expect(page.getByText('Segurança da conta')).toBeVisible()
 })
+
+test('fluxo autenticado navega pelos modulos principais sem erros de pagina', async ({ page }) => {
+  test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, 'Credenciais E2E não configuradas.')
+
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto('/login')
+  await page.getByPlaceholder('seu@email.com').fill(process.env.E2E_EMAIL!)
+  await page.getByPlaceholder('Sua senha').fill(process.env.E2E_PASSWORD!)
+  if (process.env.E2E_OTP) {
+    await page.getByPlaceholder('Código do autenticador, se ativado').fill(process.env.E2E_OTP)
+  }
+  await page.getByRole('button', { name: 'Entrar' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
+
+  const routes = [
+    ['/dashboard/clients', 'Clientes'],
+    ['/dashboard/quotes', 'Orçamentos'],
+    ['/dashboard/projects', 'Projetos'],
+    ['/dashboard/production', 'Produção'],
+    ['/dashboard/calendar', 'Calendário'],
+    ['/dashboard/financeiro', 'Financeiro'],
+    ['/dashboard/purchases', 'Compras'],
+  ] as const
+
+  for (const [route, title] of routes) {
+    await page.goto(route)
+    await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Application error')).toHaveCount(0)
+  }
+
+  await page.goto('/dashboard/quotes')
+  await page.getByRole('button', { name: 'Novo Orçamento' }).click()
+  await expect(page.getByText('Novo Orçamento', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Nome do orçamento')).toBeVisible()
+  await page.getByRole('button', { name: 'Fechar' }).click()
+
+  expect(pageErrors).toEqual([])
+})

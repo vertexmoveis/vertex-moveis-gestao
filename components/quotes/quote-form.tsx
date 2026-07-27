@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'
 import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import { FurniturePicker, type RecentFurnitureSelection } from '@/components/quotes/furniture-picker'
+import { QuoteFormSummary } from '@/components/quotes/quote-form-summary'
+import { QuotePaymentSection } from '@/components/quotes/quote-payment-section'
 import {
   DEFAULT_QUOTE_INTERNAL_FINISH,
   DEFAULT_QUOTE_MATERIAL,
@@ -28,8 +30,6 @@ import {
   QUOTE_INTERNAL_FINISHES,
   QUOTE_PRICE_PROFILE_LABELS,
   QUOTE_PRICE_PROFILES,
-  QUOTE_PAYMENT_METHOD_LABELS,
-  QUOTE_PAYMENT_METHODS,
   QUOTE_STATUS_LABELS,
   calculateQuoteTotals,
   getQuoteAutomaticPricing,
@@ -38,7 +38,6 @@ import {
   getQuoteFurnitureDescription,
   getQuoteFurnitureGroup,
   getQuoteFurnitureGroups,
-  getQuotePaymentSummary,
   quoteCentimetersToMillimeters,
   quoteMillimetersToCentimeters,
   resolveQuoteFurnitureSelection,
@@ -1168,56 +1167,21 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <Input label="Desconto comercial" inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 border-y border-[#E8E8E8] py-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px_180px]">
-        <Select
-          label="Forma de pagamento"
-          value={paymentMethod}
-          onChange={(event) => setPaymentMethod(event.target.value as QuotePaymentMethod)}
-          options={QUOTE_PAYMENT_METHODS.map((value) => ({ value, label: QUOTE_PAYMENT_METHOD_LABELS[value] }))}
-        />
-        {paymentMethod === 'CARD' ? (
-          <>
-            <Input
-              label="Entrada (R$)"
-              inputMode="decimal"
-              value={cardDownPayment}
-              onChange={(event) => setCardDownPayment(event.target.value)}
-            />
-            <Select
-              label="Parcelas no cartão"
-              value={cardInstallments}
-              onChange={(event) => setCardInstallments(event.target.value)}
-              options={Array.from({ length: 24 }, (_, index) => {
-                const value = String(index + 1)
-                return { value, label: `${value}x` }
-              })}
-            />
-            <Input
-              label="Taxa da operadora (%)"
-              inputMode="decimal"
-              value={cardFeePercent}
-              onChange={(event) => setCardFeePercent(event.target.value)}
-              helperText={`Custo estimado: ${formatCurrency(displayedTotals.cardFeeAmount)}`}
-            />
-          </>
-        ) : (
-          <div className="flex min-h-10 items-center border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-4 py-2 text-sm text-[#7A3B00] lg:col-span-2">
-            {paymentMethod === 'PIX'
-              ? `Desconto Pix: ${formatCurrency(displayedTotals.paymentDiscount)} · Total: ${formatCurrency(displayedTotals.total)}`
-              : 'O pagamento será definido com o cliente.'}
-          </div>
-        )}
-        {paymentMethod === 'CARD' && (
-          <div className="border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-4">
-            {getQuotePaymentSummary({
-              total: displayedTotals.total,
-              paymentMethod,
-              cardInstallments: displayedTotals.cardInstallments,
-              cardDownPayment: displayedTotals.cardDownPayment,
-            })}
-          </div>
-        )}
-      </div>
+      <QuotePaymentSection
+        paymentMethod={paymentMethod}
+        cardDownPayment={cardDownPayment}
+        cardInstallments={cardInstallments}
+        cardFeePercent={cardFeePercent}
+        cardFeeAmount={displayedTotals.cardFeeAmount}
+        paymentDiscount={displayedTotals.paymentDiscount}
+        total={displayedTotals.total}
+        calculatedCardInstallments={displayedTotals.cardInstallments}
+        calculatedCardDownPayment={displayedTotals.cardDownPayment}
+        onPaymentMethodChange={setPaymentMethod}
+        onCardDownPaymentChange={setCardDownPayment}
+        onCardInstallmentsChange={setCardInstallments}
+        onCardFeePercentChange={setCardFeePercent}
+      />
 
       <section className="border-y border-[#E8E8E8] bg-[#F7F7F7] py-4">
         <div className="mb-4 flex flex-col gap-3 px-1 lg:flex-row lg:items-end lg:justify-between">
@@ -1477,25 +1441,17 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <Textarea label="Mensagem para o cliente" value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} />
       </div>
 
-      <div className="z-30 -mx-2 border-t border-[#D8D8D8] bg-white px-2 pb-1 pt-3 md:sticky md:bottom-0 md:bg-white/95 md:backdrop-blur-sm">
-        <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#121212] p-4 text-white md:grid-cols-5">
-          <div><p className="text-xs text-white/50">Subtotal</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.subtotal)}</p></div>
-          <div><p className="text-xs text-white/50">Descontos</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.discount)}</p></div>
-          <div><p className="text-xs text-white/50">Custo</p><p className="text-base font-semibold">{formatCurrency(displayedTotals.costTotal)}</p></div>
-          <div><p className="text-xs text-white/50">Lucro previsto</p><p className="text-base font-semibold text-emerald-300">{formatCurrency(displayedTotals.profit)}</p></div>
-          <div><p className="text-xs text-white/50">Total</p><p className="text-lg font-bold text-[#FFB06B]">{formatCurrency(displayedTotals.total)}</p></div>
-        </div>
-
-        <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-[#777]">
-            {draftSavedAt ? `Rascunho salvo neste computador às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(draftSavedAt)}.` : 'O rascunho será salvo automaticamente neste computador.'}
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-            <Button type="submit" loading={saving}>{initialData ? 'Salvar Orçamento' : 'Criar Orçamento'}</Button>
-          </div>
-        </div>
-      </div>
+      <QuoteFormSummary
+        subtotal={displayedTotals.subtotal}
+        discount={displayedTotals.discount}
+        costTotal={displayedTotals.costTotal}
+        profit={displayedTotals.profit}
+        total={displayedTotals.total}
+        draftSavedAt={draftSavedAt}
+        isEditing={Boolean(initialData)}
+        saving={saving}
+        onCancel={onCancel}
+      />
     </form>
   )
 }

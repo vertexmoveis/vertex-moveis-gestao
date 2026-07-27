@@ -57,6 +57,9 @@ O painel principal apresenta uma visão rápida da operação:
 - Busca e paginação.
 - Geocodificação do endereço.
 - Mapa interativo com ruas, marcadores e zoom.
+- Agrupamento automático de marcadores quando existem muitos clientes próximos.
+- Busca por nome ou endereço e alternância entre clientes com projetos ativos e todos os clientes.
+- Carregamento progressivo dos endereços ainda não localizados, preservando imediatamente os pontos já conhecidos.
 - Distância aproximada em linha reta entre a Vertex e cada cliente.
 - Link para abrir a rota completa no Google Maps.
 
@@ -241,6 +244,8 @@ Disponível para administradores:
 - Valor vendido no mês.
 - Custo previsto e custo ajustado.
 - Lucro estimado e lucro ajustado.
+- Rentabilidade por projeto, ambiente e tipo de móvel.
+- Comparação entre custo previsto e custo real, com indicação de quantos projetos já possuem gastos conferidos.
 - Valores futuros.
 - Entradas e parcelas.
 - Paginação dos lançamentos.
@@ -271,6 +276,10 @@ Parcelas recebidas nunca são apagadas automaticamente. Ao editar o projeto, o C
 - Limite de 25 MB por arquivo.
 - Categorias para medição, projeto técnico, produção, instalação e entrega.
 - Arquivos privados, com download autenticado.
+- Conferência da assinatura interna de PDF, JPEG, PNG, WebP, HEIC e HEIF, sem confiar somente na extensão.
+- Integração opcional com scanner de malware externo.
+- Estado de verificação visível no projeto e opção de verificar novamente.
+- Retenção automática configurável, desativada por padrão.
 - Exclusão controlada e histórico no projeto.
 - Barra de progresso durante o envio.
 
@@ -303,6 +312,15 @@ Cada projeto pode gerar um link exclusivo para o cliente:
 ### Lembretes automáticos
 
 Uma rotina diária cria alertas para produção parada, prazos de etapa, entregas, parcelas vencidas e orçamentos sem resposta. Os alertas aparecem no CRM e podem ser enviados a uma integração externa por webhook.
+
+Quando a integração oficial da Meta está configurada, a mesma rotina envia modelos aprovados do WhatsApp para:
+
+- Orçamentos aguardando resposta há pelo menos 3 dias.
+- Parcelas vencidas, com repetição controlada semanalmente.
+- Instalações marcadas para o dia seguinte.
+- Primeiro contato de pós-venda.
+
+Cada tentativa é registrada com chave de deduplicação. O webhook público atualiza entrega, leitura e falha sem criar envios repetidos. Sem as credenciais da Meta, o CRM apenas ignora o envio oficial e mantém os atalhos manuais do WhatsApp funcionando.
 
 ## Usuários e permissões
 
@@ -413,9 +431,28 @@ Variáveis opcionais:
 | `CRON_SECRET` | Protege as rotinas automáticas da Vercel |
 | `REMINDER_WEBHOOK_URL` | Endpoint HTTPS opcional para enviar lembretes externos |
 | `REMINDER_WEBHOOK_SECRET` | Segredo opcional enviado no webhook de lembretes |
+| `WHATSAPP_ACCESS_TOKEN` | Token permanente da API oficial do WhatsApp Cloud |
+| `WHATSAPP_PHONE_NUMBER_ID` | Identificador do número configurado na Meta |
+| `WHATSAPP_GRAPH_VERSION` | Versão da Graph API; o padrão atual do CRM é `v25.0` |
+| `WHATSAPP_TEMPLATE_LANGUAGE` | Idioma dos modelos; padrão `pt_BR` |
+| `WHATSAPP_TEMPLATE_QUOTE_REMINDER` | Modelo aprovado para cobrar resposta do orçamento |
+| `WHATSAPP_TEMPLATE_PAYMENT_REMINDER` | Modelo aprovado para parcela vencida |
+| `WHATSAPP_TEMPLATE_INSTALLATION_REMINDER` | Modelo aprovado para lembrar a instalação |
+| `WHATSAPP_TEMPLATE_POST_SALE` | Modelo aprovado para o pós-venda |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Token usado pela Meta para validar o callback |
+| `WHATSAPP_APP_SECRET` | Segredo do aplicativo usado para conferir a assinatura do webhook |
+| `FILE_SCAN_WEBHOOK_URL` | Scanner HTTPS opcional que recebe o arquivo em `multipart/form-data` |
+| `FILE_SCAN_WEBHOOK_SECRET` | Segredo enviado ao scanner no cabeçalho `X-Vertex-Secret` |
+| `PROJECT_FILE_RETENTION_DAYS` | Dias para excluir arquivos expirados; vazio ou `0` mantém os arquivos |
 | `ADMIN_NAME` | Nome usado ao provisionar o primeiro administrador |
 | `ADMIN_EMAIL` | E-mail usado ao provisionar o primeiro administrador |
 | `ADMIN_PASSWORD` | Senha usada ao provisionar o primeiro administrador |
+
+Na Meta, configure o callback do WhatsApp como
+`https://vertex-moveis-gestao.vercel.app/api/public/whatsapp-webhook`.
+O scanner de arquivos deve aceitar `POST` HTTPS com o campo `file` em
+`multipart/form-data` e responder JSON com `{ "clean": true }` ou
+`{ "status": "clean" }` quando o conteúdo estiver liberado.
 
 ## Instalação local
 
@@ -520,7 +557,10 @@ Os testes atuais cobrem:
 - Requisitos para enviar a proposta.
 - CPF ou CNPJ opcional.
 - Cálculo de custo real do projeto.
+- Rentabilidade por projeto, ambiente e tipo de móvel.
 - Segurança do upload para o Vercel Blob.
+- Assinaturas internas dos formatos permitidos e política de retenção.
+- Normalização de telefone e assinatura HMAC do webhook do WhatsApp.
 - Cobertura de todas as tabelas no backup.
 - Precisão de valores em centavos.
 - Criptografia e integridade do backup.
@@ -550,12 +590,11 @@ npx vercel --prod
 Prioridades sugeridas para as próximas versões:
 
 1. **Testar uma restauração externa completa.** Recuperar o CRM em outro banco usando somente a cópia em nuvem e a chave guardada fora da Vercel.
-2. **Integrar WhatsApp oficial.** Enviar lembretes de aprovação, cobrança, instalação e pós-venda sem depender da abertura manual da conversa.
-3. **Ampliar os testes de navegador autenticados.** Cobrir orçamento, aprovação, conversão em projeto, pagamento, recibo, upload e conclusão com uma conta exclusiva de testes.
-4. **Monitorar desempenho e uploads.** Medir tempo e falhas do Vercel Blob, banco e páginas, com aviso externo quando houver erro repetido.
-5. **Escalar produção e compras.** Adicionar carregamento progressivo quando o Kanban ultrapassar 250 projetos ou a lista de compras crescer muito.
-6. **Verificar arquivos enviados.** Adicionar varredura de malware e regras de retenção para PDFs e imagens.
-7. **Completar a acessibilidade.** Testar todos os fluxos por teclado, contraste e leitores de tela.
+2. **Ativar a conta oficial do WhatsApp.** Criar e aprovar os quatro modelos na Meta e cadastrar as credenciais na Vercel.
+3. **Executar o fluxo E2E destrutivo em um banco isolado.** Criar cliente e orçamento, aprovar, converter, pagar, reabrir, anexar arquivo e concluir sem tocar nos dados reais.
+4. **Contratar ou hospedar o scanner de malware.** O CRM já valida o formato real; a análise profunda depende do endpoint externo configurado.
+5. **Monitorar desempenho e uploads.** Medir tempo e falhas do Vercel Blob, banco e páginas, com aviso externo quando houver erro repetido.
+6. **Completar a acessibilidade.** Testar todos os fluxos por teclado, contraste e leitores de tela.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { upload } from '@vercel/blob/client'
 import Image from 'next/image'
-import { ExternalLink, FileImage, FileText, FolderOpen, Loader2, Trash2, Upload } from 'lucide-react'
+import { ExternalLink, FileImage, FileText, FolderOpen, Loader2, RefreshCw, ShieldAlert, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -22,6 +22,10 @@ export type ProjectFile = {
   type: string
   category: ProjectFileCategory
   size: number | null
+  securityStatus: 'PENDING' | 'TYPE_CHECKED' | 'CLEAN' | 'REJECTED' | 'ERROR'
+  securityDetails: string | null
+  securityCheckedAt: string | null
+  expiresAt: string | null
   createdAt: string
 }
 
@@ -49,6 +53,7 @@ export function ProjectFilesCard({
   const [progress, setProgress] = useState<number | null>(null)
   const [uploadingName, setUploadingName] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [scanningId, setScanningId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,11 +100,13 @@ export function ProjectFilesCard({
           }),
         })
         const recorded = await response.json().catch(() => null)
+        if (recorded?.id) {
+          nextFiles = [recorded as ProjectFile, ...nextFiles.filter((item) => item.id !== recorded.id)]
+          onFilesChange(nextFiles)
+        }
         if (!response.ok || !recorded?.id) {
           throw new Error(recorded?.error || 'O arquivo foi enviado, mas não pôde ser registrado no projeto.')
         }
-        nextFiles = [recorded as ProjectFile, ...nextFiles.filter((item) => item.id !== recorded.id)]
-        onFilesChange(nextFiles)
       } catch (uploadError) {
         setError(
           uploadError instanceof DOMException && uploadError.name === 'AbortError'
@@ -127,6 +134,25 @@ export function ProjectFilesCard({
       return
     }
     onFilesChange(files.filter((item) => item.id !== file.id))
+  }
+
+  const scanFile = async (file: ProjectFile) => {
+    setScanningId(file.id)
+    setError('')
+    const response = await fetch(`/api/projects/${projectId}/files/${file.id}/scan`, { method: 'POST' })
+    const updated = await response.json().catch(() => null)
+    setScanningId(null)
+    if (updated?.securityStatus === 'REJECTED') {
+      onFilesChange(files.filter((item) => item.id !== file.id))
+      setError(updated.securityDetails || 'O arquivo foi rejeitado e removido.')
+      return
+    }
+    if (updated?.id) {
+      onFilesChange(files.map((item) => item.id === file.id ? updated as ProjectFile : item))
+    }
+    if (!response.ok) {
+      setError(updated?.securityDetails || updated?.error || 'Não foi possível verificar o arquivo.')
+    }
   }
 
   return (
@@ -185,17 +211,22 @@ export function ProjectFilesCard({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {files.map((file) => {
               const fileUrl = `/api/projects/${projectId}/files/${file.id}`
-              const image = supportsPreview(file.type)
+              const released = file.securityStatus === 'CLEAN' || file.securityStatus === 'TYPE_CHECKED'
+              const image = released && supportsPreview(file.type)
               return (
                 <div key={file.id} className="overflow-hidden rounded-lg border border-[#E8E8E8] bg-white">
                   {image ? (
                     <a href={fileUrl} target="_blank" rel="noreferrer" className="relative block aspect-[4/3] bg-[#F5F5F5]">
                       <Image src={fileUrl} alt={file.name} fill sizes="(min-width: 1280px) 260px, (min-width: 640px) 45vw, 90vw" unoptimized className="object-cover" />
                     </a>
-                  ) : (
+                  ) : released ? (
                     <a href={fileUrl} target="_blank" rel="noreferrer" className="flex aspect-[4/3] items-center justify-center bg-[#FAFAFA] text-[#FF6B00]">
                       {file.type === 'application/pdf' ? <FileText size={36} /> : <FileImage size={36} />}
                     </a>
+                  ) : (
+                    <div className="flex aspect-[4/3] items-center justify-center bg-[#FAFAFA] text-amber-600">
+                      <ShieldAlert size={36} />
+                    </div>
                   )}
                   <div className="space-y-2 p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -203,23 +234,50 @@ export function ProjectFilesCard({
                         <p className="truncate text-sm font-semibold text-[#121212]" title={file.name}>{file.name}</p>
                         <p className="mt-0.5 text-[10px] text-[#9E9E9E]">{PROJECT_FILE_CATEGORY_LABELS[file.category] || 'Outros arquivos'}</p>
                       </div>
-                      <button
-                        type="button"
-                        title="Remover arquivo"
-                        onClick={() => void removeFile(file)}
-                        disabled={deletingId === file.id}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {deletingId === file.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {!released ? (
+                          <button
+                            type="button"
+                            title="Verificar arquivo novamente"
+                            onClick={() => void scanFile(file)}
+                            disabled={scanningId === file.id}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            <RefreshCw size={14} className={scanningId === file.id ? 'animate-spin' : ''} />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          title="Remover arquivo"
+                          onClick={() => void removeFile(file)}
+                          disabled={deletingId === file.id}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingId === file.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      {released ? <ShieldCheck size={12} className="text-emerald-600" /> : <ShieldAlert size={12} className="text-amber-600" />}
+                      <span className={released ? 'text-emerald-700' : 'text-amber-700'}>
+                        {file.securityStatus === 'CLEAN'
+                          ? 'Verificado contra ameaças'
+                          : file.securityStatus === 'TYPE_CHECKED'
+                            ? 'Formato conferido'
+                            : file.securityStatus === 'ERROR'
+                              ? 'Verificação pendente'
+                              : 'Verificando arquivo'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-[10px] text-[#9E9E9E]">
                       <span>{formatFileSize(file.size)}</span>
                       <span>{formatDate(file.createdAt)}</span>
                     </div>
-                    <a href={fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF6B00] hover:underline">
-                      Abrir <ExternalLink size={12} />
-                    </a>
+                    {released ? (
+                      <a href={fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF6B00] hover:underline">
+                        Abrir <ExternalLink size={12} />
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               )

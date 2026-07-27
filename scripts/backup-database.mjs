@@ -34,6 +34,7 @@ const tableOrder = [
   'ProjectEnvironment',
   'ProjectPayment',
   'PaymentHistory',
+  'WhatsAppMessage',
   'ProjectChecklistItem',
   'Note',
   'ProjectFile',

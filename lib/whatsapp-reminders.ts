@@ -1,0 +1,235 @@
+import { prisma } from '@/lib/db'
+import { dateOnlyKeyInTimeZone, formatDateOnly } from '@/lib/date-only'
+import { dispatchWhatsAppTemplate } from '@/lib/whatsapp-cloud'
+import { moneyValue, type NumericValue } from '@/lib/money'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function addDays(date: Date, days: number) {
+  const value = new Date(date)
+  value.setDate(value.getDate() + days)
+  return value
+}
+
+function dateKey(date: Date) {
+  return dateOnlyKeyInTimeZone(date)
+}
+
+function periodKey(date: Date, days: number) {
+  return Math.floor(date.getTime() / (days * DAY_MS))
+}
+
+function formatDateTime(value: Date) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(value)
+}
+
+function formatMoney(value: NumericValue) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(moneyValue(value))
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, callback: (item: T) => Promise<R>) {
+  const results: R[] = []
+  let index = 0
+  async function worker() {
+    while (index < items.length) {
+      const current = items[index]
+      index += 1
+      results.push(await callback(current))
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()))
+  return results
+}
+
+export async function runAutomatedWhatsAppReminders(input: { today: Date; origin: string }) {
+  const threeDaysAgo = addDays(input.today, -3)
+  const tomorrow = addDays(input.today, 1)
+  const dayAfterTomorrow = addDays(input.today, 2)
+  const [quoteRequests, overduePayments, installations, postSaleProjects] = await Promise.all([
+    prisma.quoteApprovalRequest.findMany({
+      where: {
+        approvedAt: null,
+        rejectedAt: null,
+        invalidatedAt: null,
+        sentAt: { lte: threeDaysAgo },
+        OR: [{ lastReminderAt: null }, { lastReminderAt: { lte: threeDaysAgo } }],
+        quote: { archivedAt: null, status: 'WAITING_APPROVAL' },
+      },
+      orderBy: { sentAt: 'asc' },
+      take: 15,
+      select: {
+        id: true,
+        token: true,
+        sentAt: true,
+        quote: {
+          select: {
+            id: true,
+            title: true,
+            client: { select: { name: true, whatsapp: true, phone: true } },
+          },
+        },
+      },
+    }),
+    prisma.projectPayment.findMany({
+      where: {
+        paidAt: null,
+        dueDate: { lt: input.today },
+        project: { archivedAt: null },
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 15,
+      select: {
+        id: true,
+        amount: true,
+        dueDate: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            client: { select: { name: true, whatsapp: true, phone: true } },
+          },
+        },
+      },
+    }),
+    prisma.installationSchedule.findMany({
+      where: {
+        scheduledStart: { gte: tomorrow, lt: dayAfterTomorrow },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        project: { archivedAt: null },
+      },
+      orderBy: { scheduledStart: 'asc' },
+      take: 15,
+      select: {
+        id: true,
+        scheduledStart: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            client: { select: { name: true, whatsapp: true, phone: true } },
+          },
+        },
+      },
+    }),
+    prisma.project.findMany({
+      where: {
+        archivedAt: null,
+        stage: 'COMPLETED',
+        postSaleFollowUpAt: { lte: input.today },
+        postSaleContactedAt: null,
+      },
+      orderBy: { postSaleFollowUpAt: 'asc' },
+      take: 15,
+      select: {
+        id: true,
+        name: true,
+        client: { select: { name: true, whatsapp: true, phone: true } },
+      },
+    }),
+  ])
+
+  type ReminderJob = {
+    kind: 'quote' | 'payment' | 'installation' | 'postSale'
+    run: () => ReturnType<typeof dispatchWhatsAppTemplate>
+    onSent?: () => Promise<unknown>
+  }
+
+  const jobs: ReminderJob[] = [
+    ...quoteRequests.map((request) => ({
+      kind: 'quote' as const,
+      run: () => dispatchWhatsAppTemplate({
+        dedupeKey: `quote-reminder:${request.id}:${periodKey(input.today, 3)}`,
+        kind: 'QUOTE_REMINDER',
+        phone: request.quote.client.whatsapp || request.quote.client.phone,
+        clientName: request.quote.client.name,
+        quoteId: request.quote.id,
+        bodyParameters: [
+          request.quote.client.name,
+          request.quote.title,
+          `${input.origin.replace(/\/$/, '')}/proposta/${request.token}`,
+        ],
+      }),
+      onSent: () => prisma.quoteApprovalRequest.update({
+        where: { id: request.id },
+        data: { reminderCount: { increment: 1 }, lastReminderAt: new Date() },
+      }),
+    })),
+    ...overduePayments.map((payment) => ({
+      kind: 'payment' as const,
+      run: () => dispatchWhatsAppTemplate({
+        dedupeKey: `payment-reminder:${payment.id}:${periodKey(input.today, 7)}`,
+        kind: 'PAYMENT_REMINDER',
+        phone: payment.project.client.whatsapp || payment.project.client.phone,
+        clientName: payment.project.client.name,
+        projectId: payment.project.id,
+        paymentId: payment.id,
+        bodyParameters: [
+          payment.project.client.name,
+          payment.project.name,
+          formatMoney(payment.amount),
+          formatDateOnly(payment.dueDate),
+        ],
+      }),
+    })),
+    ...installations.map((installation) => ({
+      kind: 'installation' as const,
+      run: () => dispatchWhatsAppTemplate({
+        dedupeKey: `installation-reminder:${installation.id}:${dateKey(installation.scheduledStart)}`,
+        kind: 'INSTALLATION_REMINDER',
+        phone: installation.project.client.whatsapp || installation.project.client.phone,
+        clientName: installation.project.client.name,
+        projectId: installation.project.id,
+        bodyParameters: [
+          installation.project.client.name,
+          installation.project.name,
+          formatDateTime(installation.scheduledStart),
+        ],
+      }),
+    })),
+    ...postSaleProjects.map((project) => ({
+      kind: 'postSale' as const,
+      run: () => dispatchWhatsAppTemplate({
+        dedupeKey: `post-sale:${project.id}`,
+        kind: 'POST_SALE',
+        phone: project.client.whatsapp || project.client.phone,
+        clientName: project.client.name,
+        projectId: project.id,
+        bodyParameters: [project.client.name, project.name],
+      }),
+      onSent: () => prisma.project.update({
+        where: { id: project.id },
+        data: { postSaleContactedAt: new Date() },
+      }),
+    })),
+  ]
+
+  const outcomes = await mapWithConcurrency(jobs, 4, async (job) => ({
+    job,
+    result: await job.run(),
+  }))
+
+  await Promise.all(
+    outcomes
+      .filter(({ job, result }) => result.status === 'sent' && job.onSent)
+      .map(({ job }) => job.onSent!()),
+  )
+
+  const count = (status: string) => outcomes.filter((outcome) => outcome.result.status === status).length
+  return {
+    candidates: jobs.length,
+    sent: count('sent'),
+    failed: count('failed'),
+    skipped: count('skipped'),
+    duplicates: count('duplicate'),
+    byKind: {
+      quote: quoteRequests.length,
+      payment: overduePayments.length,
+      installation: installations.length,
+      postSale: postSaleProjects.length,
+    },
+  }
+}

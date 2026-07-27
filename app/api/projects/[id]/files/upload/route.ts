@@ -81,6 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           type: blob.contentType || 'application/octet-stream',
           url: blob.url,
           size: null,
+          securityStatus: 'PENDING',
         })
       },
     })

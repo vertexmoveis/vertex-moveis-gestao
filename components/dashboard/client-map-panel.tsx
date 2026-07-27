@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { ChevronDown, MapPinned, RefreshCw, Users } from 'lucide-react'
+import { ChevronDown, MapPinned, RefreshCw, Search, Users } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,15 @@ type ClientMapPanelClient = {
   latitude?: number | null
   longitude?: number | null
   projectsCount: number
+}
+
+type ClientMapMeta = {
+  scope: 'active' | 'all'
+  query: string
+  total: number
+  returned: number
+  limit: number
+  truncated: boolean
 }
 
 const LazyClientMap = dynamic(() => import('@/components/dashboard/client-map').then((mod) => mod.ClientMap), {
@@ -30,11 +39,13 @@ export function ClientMapPanel() {
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [scope, setScope] = useState<'active' | 'all'>('active')
+  const [query, setQuery] = useState('')
+  const [meta, setMeta] = useState<ClientMapMeta | null>(null)
   const requestRef = useRef<AbortController | null>(null)
   const clientsWithAddress = clients.filter((client) => client.address).length
 
   const loadMapClients = useCallback(async () => {
-    if (loaded || loading) return
     const controller = new AbortController()
     requestRef.current?.abort()
     requestRef.current = controller
@@ -42,10 +53,13 @@ export function ClientMapPanel() {
     setError('')
 
     try {
-      const response = await fetch('/api/clients/map', { signal: controller.signal })
+      const params = new URLSearchParams({ scope, limit: '200' })
+      if (query.trim()) params.set('q', query.trim())
+      const response = await fetch(`/api/clients/map?${params.toString()}`, { signal: controller.signal })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload?.error || 'Não foi possível carregar o mapa.')
       setClients(Array.isArray(payload.clients) ? payload.clients : [])
+      setMeta(payload.meta || null)
       setLoaded(true)
     } catch (requestError) {
       if ((requestError as { name?: string })?.name !== 'AbortError') {
@@ -57,18 +71,23 @@ export function ClientMapPanel() {
         setLoading(false)
       }
     }
-  }, [loaded, loading])
+  }, [query, scope])
 
   useEffect(() => () => requestRef.current?.abort(), [])
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => {
+      void loadMapClients()
+    }, query ? 350 : 0)
+    return () => window.clearTimeout(timer)
+  }, [loadMapClients, open, query])
 
   const toggleMap = () => {
-    const nextOpen = !open
-    setOpen(nextOpen)
-    if (nextOpen) void loadMapClients()
+    setOpen((current) => !current)
   }
 
   const summary = loaded
-    ? `${clientsWithAddress} de ${clients.length} cliente${clients.length !== 1 ? 's' : ''} com endereço para calcular distância.`
+    ? `${clientsWithAddress} de ${meta?.total ?? clients.length} cliente${(meta?.total ?? clients.length) !== 1 ? 's' : ''} com endereço para calcular distância.`
     : 'Os clientes e as ruas serão carregados somente quando você abrir o mapa.'
 
   return (
@@ -98,7 +117,57 @@ export function ClientMapPanel() {
         </div>
       </div>
 
-      {open && loading && (
+      {open && (
+        <div className="flex flex-col gap-3 rounded-lg border border-[#E8E8E8] bg-white p-3 sm:flex-row sm:items-center">
+          <div className="inline-flex h-10 shrink-0 rounded-lg border border-[#D9D9D9] bg-[#F7F7F7] p-1">
+            <button
+              type="button"
+              onClick={() => setScope('active')}
+              aria-pressed={scope === 'active'}
+              className={cn(
+                'min-w-28 rounded-md px-3 text-xs font-semibold transition-colors',
+                scope === 'active' ? 'bg-white text-[#121212] shadow-sm' : 'text-[#777] hover:text-[#121212]'
+              )}
+            >
+              Em andamento
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('all')}
+              aria-pressed={scope === 'all'}
+              className={cn(
+                'min-w-20 rounded-md px-3 text-xs font-semibold transition-colors',
+                scope === 'all' ? 'bg-white text-[#121212] shadow-sm' : 'text-[#777] hover:text-[#121212]'
+              )}
+            >
+              Todos
+            </button>
+          </div>
+          <label className="relative min-w-0 flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar cliente, rua, bairro ou CEP"
+              aria-label="Buscar clientes no mapa"
+              className="h-10 w-full rounded-lg border border-[#D9D9D9] bg-white pl-9 pr-3 text-sm text-[#121212] outline-none focus:border-[#FF6B00]"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 shrink-0 px-3"
+            onClick={() => void loadMapClients()}
+            loading={loading}
+            title="Atualizar clientes do mapa"
+            aria-label="Atualizar clientes do mapa"
+          >
+            <RefreshCw size={15} />
+          </Button>
+        </div>
+      )}
+      {open && loading && !loaded && (
         <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] text-sm text-[#9E9E9E]">
           Carregando clientes do mapa...
         </div>
@@ -116,6 +185,11 @@ export function ClientMapPanel() {
             <RefreshCw size={14} />
             Tentar novamente
           </Button>
+        </div>
+      )}
+      {open && loaded && meta?.truncated && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          Mostrando {meta.returned} de {meta.total} clientes. Refine a busca para localizar os demais.
         </div>
       )}
       {open && loaded && <LazyClientMap clients={clients} />}

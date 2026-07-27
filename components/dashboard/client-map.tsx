@@ -91,17 +91,28 @@ function formatDistance(value: number | null) {
   return `${value.toFixed(value < 10 ? 1 : 0)} km`
 }
 
+function cachedClientCoordinates(client: ClientMapClient): Coordinates | null {
+  return Number.isFinite(client.latitude) && Number.isFinite(client.longitude)
+    ? { lat: Number(client.latitude), lon: Number(client.longitude) }
+    : null
+}
+
+function initializeClient(client: ClientMapClient, origin: Coordinates | null): LocatedClient {
+  const coordinates = cachedClientCoordinates(client)
+  return {
+    ...client,
+    coordinates,
+    distanceKm: origin && coordinates ? distanceKm(origin, coordinates) : null,
+    status: coordinates ? 'ready' : client.address ? 'loading' : 'missing-address',
+  }
+}
+
 export function ClientMap({ clients }: { clients: ClientMapClient[] }) {
   const [vertexAddress, setVertexAddress] = useState(DEFAULT_VERTEX_ADDRESS)
   const [addressDraft, setAddressDraft] = useState(DEFAULT_VERTEX_ADDRESS)
   const [vertexLocation, setVertexLocation] = useState<Coordinates | null>(DEFAULT_VERTEX_COORDINATES)
   const [locatedClients, setLocatedClients] = useState<LocatedClient[]>(
-    clients.map((client) => ({
-      ...client,
-      coordinates: null,
-      distanceKm: null,
-      status: client.address ? 'loading' : 'missing-address',
-    }))
+    clients.map((client) => initializeClient(client, DEFAULT_VERTEX_COORDINATES))
   )
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -145,45 +156,33 @@ export function ClientMap({ clients }: { clients: ClientMapClient[] }) {
     let cancelled = false
 
     async function locateClients() {
-      setLoading(true)
-      const results: LocatedClient[] = []
+      const initialized = clients.map((client) => initializeClient(client, vertexLocation))
+      const pending = initialized.filter((client) => client.status === 'loading')
+      setLocatedClients(initialized)
+      setLoading(pending.length > 0)
 
-      for (const client of clients) {
-        if (!client.address) {
-          results.push({ ...client, coordinates: null, distanceKm: null, status: 'missing-address' })
-          continue
-        }
-
-        const cachedCoordinates =
-          Number.isFinite(client.latitude) && Number.isFinite(client.longitude)
-            ? { lat: Number(client.latitude), lon: Number(client.longitude) }
-            : null
-        const coordinates = cachedCoordinates || (await geocodeAddress(client.address).catch(() => null))
+      for (const [index, client] of pending.entries()) {
+        const coordinates = await geocodeAddress(client.address || '').catch(() => null)
         if (cancelled) return
+        if (coordinates) void saveClientCoordinates(client.id, coordinates)
 
-        if (!cachedCoordinates && coordinates) {
-          saveClientCoordinates(client.id, coordinates)
+        setLocatedClients((current) => current.map((item) => (
+          item.id === client.id
+            ? {
+                ...item,
+                coordinates,
+                distanceKm: vertexLocation && coordinates ? distanceKm(vertexLocation, coordinates) : null,
+                status: coordinates ? 'ready' : 'not-found',
+              }
+            : item
+        )))
+
+        if (index < pending.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1600))
         }
-
-        results.push({
-          ...client,
-          coordinates,
-          distanceKm: vertexLocation && coordinates ? distanceKm(vertexLocation, coordinates) : null,
-          status: coordinates ? 'ready' : 'not-found',
-        })
-
-        setLocatedClients([...results, ...clients.slice(results.length).map((nextClient) => ({
-          ...nextClient,
-          coordinates: null,
-          distanceKm: null,
-          status: nextClient.address ? 'loading' as const : 'missing-address' as const,
-        }))])
-
-        await new Promise((resolve) => setTimeout(resolve, 250))
       }
 
-      setLocatedClients(results)
-      setLoading(false)
+      if (!cancelled) setLoading(false)
     }
 
     locateClients()

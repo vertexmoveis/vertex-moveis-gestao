@@ -60,7 +60,10 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
           <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F0F0]">
             <h2 className="text-base font-semibold text-[#121212]">{title}</h2>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Fechar"
+              title="Fechar"
               className="p-1.5 rounded-lg hover:bg-[#F5F5F5] text-[#9E9E9E] hover:text-[#121212] transition-colors"
             >
               <X size={18} />

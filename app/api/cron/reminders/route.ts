@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { runAutomatedWhatsAppReminders } from '@/lib/whatsapp-reminders'
+import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
+export const maxDuration = 60
 
 function isAuthorized(req: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim()
@@ -10,9 +12,7 @@ function isAuthorized(req: NextRequest) {
 }
 
 function startOfDay(date = new Date()) {
-  const value = new Date(date)
-  value.setHours(0, 0, 0, 0)
-  return value
+  return startOfDateInTimeZone(dateOnlyKeyInTimeZone(date)) || new Date(date)
 }
 
 function addDays(date: Date, days: number) {
@@ -109,6 +109,8 @@ export async function GET(req: NextRequest) {
         select: { id: true, name: true, productionBlockReason: true, client: { select: { name: true } } },
       }),
     ])
+    const dashboardOrigin = process.env.NEXTAUTH_URL?.replace(/\/$/, '') || req.nextUrl.origin
+    const whatsapp = await runAutomatedWhatsAppReminders({ today, origin: dashboardOrigin })
 
     const payload = {
       date: dayKey(today),
@@ -119,13 +121,16 @@ export async function GET(req: NextRequest) {
         overduePayments,
         stageDeadlines: stageDeadlines.length,
         blocked: blocked.length,
+        whatsappSent: whatsapp.sent,
+        whatsappFailed: whatsapp.failed,
       },
       production,
       deliveries,
       quotes,
       stageDeadlines,
       blocked,
-      dashboardUrl: `${process.env.NEXTAUTH_URL?.replace(/\/$/, '') || req.nextUrl.origin}/dashboard`,
+      whatsapp,
+      dashboardUrl: `${dashboardOrigin}/dashboard`,
     }
     const webhookSent = await sendWebhook(payload)
 
@@ -137,11 +142,11 @@ export async function GET(req: NextRequest) {
         message: webhookSent
           ? 'Resumo diário de pendências enviado para a automação configurada.'
           : 'Resumo diário de pendências preparado; alertas disponíveis no sistema.',
-        details: { ...payload.counts, webhookSent },
+        details: { ...payload.counts, webhookSent, whatsappCandidates: whatsapp.candidates },
       },
     })
 
-    return NextResponse.json({ success: true, counts: payload.counts, webhookSent })
+    return NextResponse.json({ success: true, counts: payload.counts, whatsapp, webhookSent })
   } catch (error) {
     await prisma.systemEvent.create({
       data: {

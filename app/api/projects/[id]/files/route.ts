@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { del } from '@vercel/blob'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { recordProjectFile } from '@/lib/project-file-records'
@@ -9,6 +10,7 @@ import {
   PROJECT_FILE_MAX_SIZE,
 } from '@/lib/project-files'
 import { badRequest, canAccessProject, forbidden, requireAuth, serverError } from '@/lib/security'
+import { inspectProjectBlob, projectFileExpiryDate } from '@/lib/project-file-security'
 
 const fileRecordSchema = z.object({
   name: z.string().trim().min(1, 'Informe o nome do arquivo.').max(180),
@@ -43,7 +45,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!project) return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 })
     if (!canAccessProject(auth.user, project.managerId)) return forbidden()
 
-    const file = await recordProjectFile({ projectId: id, ...parsed.data, size: parsed.data.size ?? null })
+    const inspection = await inspectProjectBlob({
+      url: parsed.data.url,
+      expectedType: parsed.data.type,
+      name: parsed.data.name,
+    })
+    if (inspection.status === 'REJECTED') {
+      await del(parsed.data.url).catch(() => undefined)
+      await prisma.$transaction([
+        prisma.projectFile.deleteMany({ where: { projectId: id, url: parsed.data.url } }),
+        prisma.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: 'Arquivo rejeitado',
+            description: `${parsed.data.name}: ${inspection.details || 'Falha na verificação de segurança.'}`,
+          },
+        }),
+      ])
+      return NextResponse.json({ error: inspection.details || 'O arquivo foi rejeitado pela verificação de segurança.' }, { status: 422 })
+    }
+
+    const file = await recordProjectFile({
+      projectId: id,
+      ...parsed.data,
+      size: inspection.size ?? parsed.data.size ?? null,
+      securityStatus: inspection.status,
+      securityDetails: inspection.details,
+      securityCheckedAt: new Date(),
+      expiresAt: projectFileExpiryDate(),
+    })
+    if (inspection.status === 'ERROR') {
+      return NextResponse.json({
+        ...file,
+        error: 'O arquivo foi enviado, mas a verificação de segurança precisa ser repetida.',
+      }, { status: 503 })
+    }
     return NextResponse.json(file, { status: 201 })
   } catch {
     return serverError()

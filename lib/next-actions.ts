@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 import { unstable_cache } from 'next/cache'
+import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 
 export type NextActionKind = 'quote' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
 
@@ -17,9 +18,7 @@ export type DashboardNextAction = {
 type NextActionUser = { id?: string | null; role?: string | null }
 
 function startOfDay(date = new Date()) {
-  const copy = new Date(date)
-  copy.setHours(0, 0, 0, 0)
-  return copy
+  return startOfDateInTimeZone(dateOnlyKeyInTimeZone(date)) || new Date(date)
 }
 
 function addDays(date: Date, days: number) {
@@ -29,7 +28,7 @@ function addDays(date: Date, days: number) {
 }
 
 function monthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  return dateOnlyKeyInTimeZone(date).slice(0, 7)
 }
 
 async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8): Promise<DashboardNextAction[]> {

@@ -24,6 +24,7 @@ const BACKUP_TABLES = [
   'ProjectEnvironment',
   'ProjectPayment',
   'PaymentHistory',
+  'WhatsAppMessage',
   'ProjectChecklistItem',
   'Note',
   'ProjectFile',

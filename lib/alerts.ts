@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { addBusinessDays } from '@/lib/business-days'
 import { unstable_cache } from 'next/cache'
+import { dateOnlyKeyInTimeZone, endOfDateInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 
 export type AlertTone = 'danger' | 'warning' | 'info'
 
@@ -23,15 +24,11 @@ function plural(value: number, singular: string, pluralLabel: string) {
 }
 
 function startOfDay(date = new Date()) {
-  const copy = new Date(date)
-  copy.setHours(0, 0, 0, 0)
-  return copy
+  return startOfDateInTimeZone(dateOnlyKeyInTimeZone(date)) || new Date(date)
 }
 
 function endOfDay(date = new Date()) {
-  const copy = new Date(date)
-  copy.setHours(23, 59, 59, 999)
-  return copy
+  return endOfDateInTimeZone(dateOnlyKeyInTimeZone(date)) || new Date(date)
 }
 
 function addDays(date: Date, days: number) {

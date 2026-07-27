@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { PROJECT_FILE_CATEGORY_LABELS, type ProjectFileCategory } from '@/lib/project-files'
+import { projectFileExpiryDate, type ProjectFileSecurityStatus } from '@/lib/project-file-security'
 
 type ProjectFileRecordInput = {
   projectId: string
@@ -8,6 +9,10 @@ type ProjectFileRecordInput = {
   category: ProjectFileCategory
   url: string
   size?: number | null
+  securityStatus?: ProjectFileSecurityStatus
+  securityDetails?: string | null
+  securityCheckedAt?: Date | null
+  expiresAt?: Date | null
 }
 
 function serializeProjectFile(file: {
@@ -18,9 +23,18 @@ function serializeProjectFile(file: {
   category: string
   url: string
   size: number | null
+  securityStatus: string
+  securityDetails: string | null
+  securityCheckedAt: Date | null
+  expiresAt: Date | null
   createdAt: Date
 }) {
-  return { ...file, createdAt: file.createdAt.toISOString() }
+  return {
+    ...file,
+    securityCheckedAt: file.securityCheckedAt?.toISOString() || null,
+    expiresAt: file.expiresAt?.toISOString() || null,
+    createdAt: file.createdAt.toISOString(),
+  }
 }
 
 export async function recordProjectFile(input: ProjectFileRecordInput) {
@@ -29,14 +43,26 @@ export async function recordProjectFile(input: ProjectFileRecordInput) {
       where: { projectId_url: { projectId: input.projectId, url: input.url } },
     })
     if (existing) {
-      const file = existing.size === null && input.size !== null && input.size !== undefined
-        ? await tx.projectFile.update({ where: { id: existing.id }, data: { size: input.size } })
-        : existing
+      const file = await tx.projectFile.update({
+        where: { id: existing.id },
+        data: {
+          ...(input.size !== undefined && input.size !== null ? { size: input.size } : {}),
+          ...(input.securityStatus ? { securityStatus: input.securityStatus } : {}),
+          ...(input.securityDetails !== undefined ? { securityDetails: input.securityDetails } : {}),
+          ...(input.securityCheckedAt !== undefined ? { securityCheckedAt: input.securityCheckedAt } : {}),
+          ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
+        },
+      })
       return serializeProjectFile(file)
     }
 
     try {
-      const file = await tx.projectFile.create({ data: input })
+      const file = await tx.projectFile.create({
+        data: {
+          ...input,
+          expiresAt: input.expiresAt === undefined ? projectFileExpiryDate() : input.expiresAt,
+        },
+      })
       await tx.timelineEvent.create({
         data: {
           projectId: input.projectId,

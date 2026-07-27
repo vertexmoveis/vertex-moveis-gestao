@@ -108,7 +108,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         include: { author: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
       },
-      files: { orderBy: { createdAt: 'desc' } },
+      files: {
+        where: { securityStatus: { not: 'REJECTED' } },
+        orderBy: { createdAt: 'desc' },
+      },
       timeline: { select: { id: true, event: true, description: true, date: true, createdAt: true }, orderBy: { date: 'asc' } },
       payments: auth.user.role === 'ADMIN'
         ? {

@@ -531,18 +531,50 @@ model Note {
 }
 
 model ProjectFile {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  type      String
-  category  String   @default("OTHER")
-  url       String
-  size      Int?
-  createdAt DateTime @default(now())
+  id                String    @id @default(cuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  type              String
+  category          String    @default("OTHER")
+  url               String
+  size              Int?
+  securityStatus    String    @default("PENDING")
+  securityCheckedAt DateTime?
+  securityDetails   String?
+  expiresAt         DateTime?
+  createdAt         DateTime  @default(now())
 
   @@unique([projectId, url])
   @@index([projectId, category])
+  @@index([securityStatus])
+  @@index([expiresAt])
+}
+
+model WhatsAppMessage {
+  id                String    @id @default(cuid())
+  dedupeKey         String    @unique
+  kind              String
+  recipient         String
+  clientName        String?
+  quoteId           String?
+  projectId         String?
+  paymentId         String?
+  templateName      String
+  status            String    @default("PENDING")
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([providerMessageId])
+  @@index([quoteId])
+  @@index([projectId])
 }
 
 model TimelineEvent {

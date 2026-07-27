@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { quoteSaveSchema } from '@/lib/quote-schemas'
 import {
@@ -15,20 +14,17 @@ import {
   normalizeQuoteVariations,
   quoteVariationPriceProfile,
 } from '@/lib/quote-variations'
-
-const GROUP_STATUS_PRIORITY = ['SOLD', 'APPROVED', 'WAITING_APPROVAL', 'SENT', 'DRAFT', 'LOST'] as const
+import {
+  getQuoteGroupList,
+  QUOTE_GROUP_STATUS_PRIORITY,
+  type QuoteGroupStatus,
+} from '@/lib/quote-group-list'
+import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 
 function resolveGroupStatus(quotes: Array<{ status: string }>) {
-  return GROUP_STATUS_PRIORITY.find((status) => quotes.some((quote) => quote.status === status))
+  return QUOTE_GROUP_STATUS_PRIORITY.find((status) => quotes.some((quote) => quote.status === status))
     || quotes[0]?.status
     || 'DRAFT'
-}
-
-function isGroupExpired(quotes: Array<{ status: string; validUntil: Date | null }>, today: Date) {
-  return quotes.some((quote) => (
-    ['DRAFT', 'SENT', 'WAITING_APPROVAL', 'APPROVED'].includes(quote.status)
-    && Boolean(quote.validUntil && quote.validUntil < today)
-  ))
 }
 
 export async function GET(req: NextRequest) {
@@ -44,50 +40,26 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
-  const status = (searchParams.get('status') || '').trim()
+  const requestedStatus = (searchParams.get('status') || '').trim().toUpperCase()
+  const status = QUOTE_GROUP_STATUS_PRIORITY.includes(requestedStatus as QuoteGroupStatus)
+    ? requestedStatus as QuoteGroupStatus
+    : null
   const expiredOnly = searchParams.get('expired') === '1'
   const page = Math.max(Number.parseInt(searchParams.get('page') || '1', 10) || 1, 1)
   const pageSize = Math.min(Math.max(Number.parseInt(searchParams.get('pageSize') || '20', 10) || 20, 10), 100)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const today = startOfDateInTimeZone(dateOnlyKeyInTimeZone(new Date())) || new Date()
 
-  const baseWhere: Prisma.QuoteGroupWhereInput = {
-    ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
-    quotes: { some: { archivedAt: null } },
-  }
-
-  if (q) {
-    baseWhere.OR = [
-      { title: { contains: q } },
-      { client: { name: { contains: q } } },
-      { quotes: { some: { archivedAt: null, variationName: { contains: q } } } },
-    ]
-  }
-
-  const groupSummaries = await prisma.quoteGroup.findMany({
-    where: baseWhere,
-    orderBy: { updatedAt: 'desc' },
-    select: {
-      id: true,
-      updatedAt: true,
-      quotes: {
-        where: { archivedAt: null },
-        select: { status: true, validUntil: true },
-      },
-    },
+  const groupList = await getQuoteGroupList({
+    userId: auth.user.id,
+    isAdmin: auth.user.role === 'ADMIN',
+    query: q,
+    status,
+    expiredOnly,
+    page,
+    pageSize,
+    today,
   })
-  const summarizedGroups = groupSummaries.map((group) => ({
-    ...group,
-    status: resolveGroupStatus(group.quotes),
-    expired: isGroupExpired(group.quotes, today),
-  }))
-  const filteredGroups = summarizedGroups.filter((group) => (
-    (!status || group.status === status)
-    && (!expiredOnly || group.expired)
-  ))
-  const pageGroupIds = filteredGroups
-    .slice((page - 1) * pageSize, page * pageSize)
-    .map((group) => group.id)
+  const pageGroupIds = groupList.groupIds
   const groups = pageGroupIds.length > 0
     ? await prisma.quoteGroup.findMany({
       where: { id: { in: pageGroupIds } },
@@ -108,13 +80,6 @@ export async function GET(req: NextRequest) {
   const orderedGroups = pageGroupIds
     .map((groupId) => groupById.get(groupId))
     .filter((group): group is (typeof groups)[number] => Boolean(group))
-  const statusCounts = Object.fromEntries(GROUP_STATUS_PRIORITY.map((groupStatus) => [
-    groupStatus,
-    summarizedGroups.filter((group) => group.status === groupStatus).length,
-  ]))
-  const total = filteredGroups.length
-  const totalCount = summarizedGroups.length
-  const expiredCount = summarizedGroups.filter((group) => group.expired).length
   const items = orderedGroups.flatMap((group) => {
     const groupStatus = resolveGroupStatus(group.quotes)
     const representative = group.quotes.find((quote) => quote.status === groupStatus) || group.quotes[0]
@@ -140,12 +105,12 @@ export async function GET(req: NextRequest) {
     pagination: {
       page,
       pageSize,
-      total,
-      totalPages: Math.max(Math.ceil(total / pageSize), 1),
+      total: groupList.total,
+      totalPages: Math.max(Math.ceil(groupList.total / pageSize), 1),
     },
-    totalCount,
-    statusCounts,
-    expiredCount,
+    totalCount: groupList.totalCount,
+    statusCounts: groupList.statusCounts,
+    expiredCount: groupList.expiredCount,
   })
 }
 

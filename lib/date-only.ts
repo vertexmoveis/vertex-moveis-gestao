@@ -68,6 +68,50 @@ export function dateOnlyKeyInTimeZone(value: Date, timeZone = 'America/Sao_Paulo
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
+export function startOfDateInTimeZone(value: DateOnlyValue, timeZone = 'America/Sao_Paulo') {
+  const target = dateParts(value)
+  if (!target) return null
+
+  const targetAsUtc = Date.UTC(target.year, target.month - 1, target.day)
+  let timestamp = targetAsUtc
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  })
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = formatter.formatToParts(new Date(timestamp))
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value || 0)
+    const representedAsUtc = Date.UTC(
+      part('year'),
+      part('month') - 1,
+      part('day'),
+      part('hour'),
+      part('minute'),
+      part('second'),
+    )
+    const adjustment = targetAsUtc - representedAsUtc
+    timestamp += adjustment
+    if (adjustment === 0) break
+  }
+
+  return new Date(timestamp)
+}
+
+export function endOfDateInTimeZone(value: DateOnlyValue, timeZone = 'America/Sao_Paulo') {
+  const parts = dateParts(value)
+  if (!parts) return null
+  const nextDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + 1, 12))
+  const nextStart = startOfDateInTimeZone(dateOnlyKey(nextDate), timeZone)
+  return nextStart ? new Date(nextStart.getTime() - 1) : null
+}
+
 export function isDateOnlyExpired(value: DateOnlyValue, now = new Date(), timeZone = 'America/Sao_Paulo') {
   const key = dateOnlyKey(value)
   return Boolean(key && key < dateOnlyKeyInTimeZone(now, timeZone))

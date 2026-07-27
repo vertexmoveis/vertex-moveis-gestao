@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { formatClientAddress } from '@/lib/address'
 import { getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
@@ -15,15 +16,38 @@ export async function GET(req: NextRequest) {
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-  const clients = await prisma.client.findMany({
-    where: {
-      archivedAt: null,
-      ...(auth.user.role === 'ADMIN'
-        ? {}
-        : { projects: { some: { managerId: auth.user.id, archivedAt: null } } }),
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 60,
+  const query = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 120)
+  const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'active'
+  const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get('limit') || '200', 10)
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 200, 50), 500)
+  const managedProjectWhere: Prisma.ProjectWhereInput = {
+    archivedAt: null,
+    ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
+    ...(scope === 'active' ? { stage: { not: 'COMPLETED' } } : {}),
+  }
+  const where: Prisma.ClientWhereInput = {
+    archivedAt: null,
+    ...(auth.user.role === 'ADMIN' && scope === 'all'
+      ? {}
+      : { projects: { some: managedProjectWhere } }),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { street: { contains: query, mode: 'insensitive' } },
+            { neighborhood: { contains: query, mode: 'insensitive' } },
+            { city: { contains: query, mode: 'insensitive' } },
+            { zipCode: { contains: query, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  }
+
+  const [clients, total] = await Promise.all([
+    prisma.client.findMany({
+    where,
+    orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+    take: limit,
     select: {
       id: true,
       name: true,
@@ -38,7 +62,9 @@ export async function GET(req: NextRequest) {
       longitude: true,
       _count: { select: { projects: { where: { archivedAt: null } } } },
     },
-  })
+    }),
+    prisma.client.count({ where }),
+  ])
 
   return NextResponse.json({
     clients: clients.map((client) => ({
@@ -49,6 +75,14 @@ export async function GET(req: NextRequest) {
       longitude: client.longitude,
       projectsCount: client._count.projects,
     })),
+    meta: {
+      scope,
+      query,
+      total,
+      returned: clients.length,
+      limit,
+      truncated: total > clients.length,
+    },
   }, {
     headers: { 'Cache-Control': 'private, no-store' },
   })

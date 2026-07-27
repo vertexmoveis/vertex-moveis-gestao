@@ -5,19 +5,25 @@ import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, numberValue } from '@/lib/money'
+import { buildProfitabilityReport } from '@/lib/profitability'
+import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 
 function parseMonth(value: string | null) {
   const now = new Date()
-  const match = value?.match(/^(\d{4})-(\d{2})$/)
-  const year = match ? Number(match[1]) : now.getFullYear()
-  const monthIndex = match ? Number(match[2]) - 1 : now.getMonth()
-  const paidStart = new Date(year, monthIndex, 1)
-  const paidEnd = new Date(year, monthIndex + 1, 1)
-  const dueStart = new Date(Date.UTC(year, monthIndex, 1))
-  const dueEnd = new Date(Date.UTC(year, monthIndex + 1, 1))
+  const match = value?.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
+  const currentMonth = dateOnlyKeyInTimeZone(now).slice(0, 7)
+  const selectedMonth = match ? value! : currentMonth
+  const year = Number(selectedMonth.slice(0, 4))
+  const monthIndex = Number(selectedMonth.slice(5, 7)) - 1
+  const nextMonthDate = new Date(Date.UTC(year, monthIndex + 1, 1, 12))
+  const nextMonth = dateOnlyKeyInTimeZone(nextMonthDate, 'UTC').slice(0, 7)
+  const paidStart = startOfDateInTimeZone(`${selectedMonth}-01`)!
+  const paidEnd = startOfDateInTimeZone(`${nextMonth}-01`)!
+  const dueStart = paidStart
+  const dueEnd = paidEnd
 
   return {
-    key: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+    key: selectedMonth,
     paidStart,
     paidEnd,
     dueStart,
@@ -54,7 +60,7 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
   const { page, pageSize } = parsePagination(searchParams)
   const now = new Date()
-  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+  const today = startOfDateInTimeZone(dateOnlyKeyInTimeZone(now)) || now
   const paymentWindowWhere: Prisma.ProjectPaymentWhereInput = {
     OR: [
       { paidAt: { gte: month.paidStart, lt: month.paidEnd } },
@@ -124,10 +130,29 @@ export async function GET(req: NextRequest) {
     prisma.project.findMany({
       where: soldProjectsWhere,
       select: {
+        id: true,
+        name: true,
         value: true,
         productionCost: true,
+        client: { select: { name: true } },
         materials: { select: { estimatedCost: true, actualCost: true } },
         expenses: { select: { amount: true } },
+        sourceQuote: {
+          select: {
+            items: {
+              orderBy: { position: 'asc' },
+              select: {
+                environment: true,
+                environmentName: true,
+                description: true,
+                furnitureType: true,
+                furnitureModel: true,
+                cost: true,
+                total: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.projectPayment.findMany({
@@ -164,6 +189,7 @@ export async function GET(req: NextRequest) {
     profit: moneyValue(soldValue - soldCost),
     future: moneyValue(future._sum.amount),
   }
+  const profitability = buildProfitabilityReport(soldProjects)
 
   const payments = allPayments
     .map((payment) => ({
@@ -183,6 +209,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     month: month.key,
     summary,
+    profitability,
     payments,
     pagination: {
       page,

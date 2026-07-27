@@ -84,6 +84,26 @@
   transform: rotate(42deg);
 }
 
+.vertex-map-cluster {
+  background: transparent;
+  border: 0;
+}
+
+.vertex-map-cluster__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: #FF6B00;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgb(18 18 18 / 22%);
+}
+
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
 }

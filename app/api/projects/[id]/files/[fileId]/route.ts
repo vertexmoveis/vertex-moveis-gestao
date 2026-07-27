@@ -19,6 +19,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const file = await getFileWithAccess(id, fileId)
   if (!file) return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 })
   if (!canAccessProject(auth.user, file.project.managerId)) return forbidden()
+  if (!['TYPE_CHECKED', 'CLEAN'].includes(file.securityStatus)) {
+    return NextResponse.json({ error: 'O arquivo ainda não foi liberado pela verificação de segurança.' }, { status: 423 })
+  }
   if (!isProjectBlobUrl(file.url, id)) return NextResponse.json({ error: 'Arquivo indisponível.' }, { status: 404 })
 
   try {

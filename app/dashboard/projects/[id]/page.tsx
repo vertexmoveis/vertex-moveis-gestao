@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, Send, Clock, CheckCircle, Trash2, Phone, MessageCircle, CreditCard, CheckSquare, Square, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Calendar, Send, Clock, CheckCircle, Trash2, MessageCircle, CreditCard, CheckSquare, Square, ReceiptText, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import { ProjectMaterialsCard } from '@/components/projects/project-materials-ca
 import { ProjectExpensesCard } from '@/components/projects/project-expenses-card'
 import { ProjectPortalCard } from '@/components/projects/project-portal-card'
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
+import { ProjectClientCard } from '@/components/projects/project-client-card'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
@@ -742,64 +743,12 @@ export default function ProjectDetailPage() {
               </CardBody>
             </Card>
 
-            {/* Client */}
-            <Card id="cliente" className="scroll-mt-28">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Cliente</p>
-                  <Link href={`/dashboard/clients/${project.client.id}`} className="text-xs text-[#FF6B00] hover:underline">
-                    Ver perfil
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar name={project.client.name} size="md" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#121212]">{project.client.name}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {project.client.phone && (
-                    <div className="flex items-center gap-2 text-xs text-[#9E9E9E]">
-                      <Phone size={12} />{project.client.phone}
-                    </div>
-                  )}
-                  {clientWhatsAppNumber && (
-                    <a
-                      href={buildWhatsAppLink(clientWhatsAppNumber)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-xs text-green-600 hover:underline"
-                    >
-                      <MessageCircle size={12} />WhatsApp
-                    </a>
-                  )}
-                  {clientWhatsAppNumber && (
-                    <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
-                      <a
-                        href={buildWhatsAppLink(clientWhatsAppNumber, approvalMessage)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF6B00] px-3 text-xs font-semibold text-[#FF6B00] transition-colors hover:bg-[#FFF3EA]"
-                      >
-                        <Send size={13} />
-                        Pedir aprovação
-                      </a>
-                      <a
-                        href={buildWhatsAppLink(clientWhatsAppNumber, approvalReminderMessage)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] px-3 text-xs font-semibold text-[#121212] transition-colors hover:border-[#FF6B00] hover:text-[#FF6B00]"
-                      >
-                        <MessageCircle size={13} />
-                        Cobrar aprovação
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </CardBody>
-            </Card>
+            <ProjectClientCard
+              client={project.client}
+              whatsAppNumber={clientWhatsAppNumber}
+              approvalMessage={approvalMessage}
+              approvalReminderMessage={approvalReminderMessage}
+            />
 
             <ProjectPortalCard
               projectId={project.id}

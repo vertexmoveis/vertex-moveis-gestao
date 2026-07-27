@@ -15,7 +15,8 @@ import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
 import { moneyValue } from '@/lib/money'
-import { CheckCircle2, DatabaseBackup, TriangleAlert } from 'lucide-react'
+import { getWhatsAppIntegrationStatus } from '@/lib/whatsapp-cloud'
+import { CheckCircle2, DatabaseBackup, MessageCircle, TriangleAlert } from 'lucide-react'
 
 function formatTimestamp(value: Date) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(value)
@@ -37,6 +38,8 @@ export default async function SettingsPage() {
     ? (await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS now`)[0]?.now || new Date(0)
     : new Date(0)
   const errorWindowStart = new Date(databaseTime.getTime() - 24 * 60 * 60 * 1000)
+  const whatsAppWindowStart = new Date(databaseTime.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const whatsAppIntegration = getWhatsAppIntegrationStatus()
   const [priceRules, materials, resources, managedUsers] = isAdmin
     ? await Promise.all([
         prisma.quotePriceRule.findMany({ orderBy: [{ active: 'desc' }, { environment: 'asc' }, { name: 'asc' }] }),
@@ -51,7 +54,7 @@ export default async function SettingsPage() {
   const companyProfile = isAdmin
     ? await prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } })
     : null
-  const [latestBackup, recentErrorCount, recentErrors] = isAdmin
+  const [latestBackup, recentErrorCount, recentErrors, whatsAppRows] = isAdmin
     ? await Promise.all([
         prisma.systemEvent.findFirst({
           where: { type: { in: ['BACKUP_SUCCESS', 'BACKUP_FAILURE'] } },
@@ -66,8 +69,14 @@ export default async function SettingsPage() {
           take: 3,
           select: { id: true, source: true, message: true, createdAt: true },
         }),
+        prisma.whatsAppMessage.groupBy({
+          by: ['status'],
+          where: { createdAt: { gte: whatsAppWindowStart } },
+          _count: { _all: true },
+        }),
       ])
-    : [null, 0, []]
+    : [null, 0, [], []]
+  const whatsAppCounts = new Map(whatsAppRows.map((row) => [row.status, row._count._all]))
   const backupDetails = latestBackup?.details && typeof latestBackup.details === 'object' && !Array.isArray(latestBackup.details)
     ? latestBackup.details as Record<string, unknown>
     : {}
@@ -168,6 +177,59 @@ export default async function SettingsPage() {
                   ))}
                 </div>
               ) : null}
+            </CardBody>
+          </Card>
+        )}
+
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#121212]">Automação do WhatsApp</h2>
+                  <p className="mt-1 text-xs text-[#777]">Aprovação, cobrança, instalação e pós-venda</p>
+                </div>
+                {whatsAppIntegration.ready
+                  ? <CheckCircle2 size={20} className="text-emerald-600" aria-label="WhatsApp configurado" />
+                  : <TriangleAlert size={20} className="text-amber-600" aria-label="WhatsApp requer configuração" />}
+              </div>
+            </CardHeader>
+            <CardBody className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className={`border-l-4 p-3 ${whatsAppIntegration.providerConfigured ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={15} />
+                    <p className="text-xs font-semibold">Meta Cloud API</p>
+                  </div>
+                  <p className="mt-2 text-sm font-bold">{whatsAppIntegration.providerConfigured ? 'Conectada' : 'Não configurada'}</p>
+                </div>
+                <div className={`border-l-4 p-3 ${whatsAppIntegration.webhookConfigured ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <p className="text-xs font-semibold">Confirmação de entrega</p>
+                  <p className="mt-2 text-sm font-bold">{whatsAppIntegration.webhookConfigured ? 'Ativa' : 'Pendente'}</p>
+                </div>
+                <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
+                  <p className="text-xs font-semibold text-blue-800">Últimos 7 dias</p>
+                  <p className="mt-2 text-sm font-bold text-blue-900">
+                    {(whatsAppCounts.get('SENT') || 0) + (whatsAppCounts.get('DELIVERED') || 0) + (whatsAppCounts.get('READ') || 0)} enviadas
+                  </p>
+                  <p className="mt-1 text-xs text-blue-800/70">{whatsAppCounts.get('FAILED') || 0} falhas</p>
+                </div>
+              </div>
+              <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['QUOTE_REMINDER', 'Retorno de orçamento'],
+                  ['PAYMENT_REMINDER', 'Cobrança de parcela'],
+                  ['INSTALLATION_REMINDER', 'Lembrete de instalação'],
+                  ['POST_SALE', 'Pós-venda'],
+                ].map(([kind, label]) => (
+                  <div key={kind} className="flex items-center justify-between border-b border-[#ECECEC] py-2">
+                    <span className="text-[#555]">{label}</span>
+                    <span className={whatsAppIntegration.templates[kind as keyof typeof whatsAppIntegration.templates] ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700'}>
+                      {whatsAppIntegration.templates[kind as keyof typeof whatsAppIntegration.templates] ? 'Pronto' : 'Pendente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardBody>
           </Card>
         )}

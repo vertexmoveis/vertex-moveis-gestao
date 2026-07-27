@@ -12,6 +12,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { formatDateOnly } from '@/lib/date-only'
+import { ProfitabilityReport, type ProfitabilityData } from '@/components/finance/profitability-report'
 
 type FinancePayment = {
   id: string
@@ -47,6 +48,7 @@ type FinanceData = {
     profit: number
     future: number
   }
+  profitability: ProfitabilityData
   payments: FinancePayment[]
   pagination: Pagination
 }
@@ -307,6 +309,8 @@ export default function FinanceiroPage() {
             </div>
           </CardBody>
         </Card>
+
+        {data?.profitability ? <ProfitabilityReport data={data.profitability} /> : null}
 
         <Card>
           <CardHeader>
