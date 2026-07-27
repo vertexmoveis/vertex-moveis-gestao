@@ -12,7 +12,12 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const validToken = Boolean(token && !token.invalid)
+  const validToken = Boolean(
+    token
+    && !token.invalid
+    && typeof token.id === 'string'
+    && token.id.length > 0,
+  )
   const isApiMutation = pathname.startsWith('/api/')
     && !pathname.startsWith('/api/auth/')
     && !pathname.startsWith('/api/public/')
