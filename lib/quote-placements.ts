@@ -12,6 +12,7 @@ const PLACEMENTS_BY_ENVIRONMENT: Record<string, string[]> = {
   cozinha: [
     'Parede da pia',
     'Parede da geladeira',
+    'Parede do forno',
     'Parede do fogão ou coifa',
     'Sobre a geladeira',
     'Sobre a coifa',

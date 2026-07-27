@@ -54,6 +54,17 @@ test('busca modelos ignorando acentos e reconhece nomes alternativos', () => {
   assert.ok(!alias.some((option) => option.model === 'Guarda-roupa de abrir'))
 })
 
+test('oferece módulos para forno de embutir na cozinha', () => {
+  const ovenModules = getQuoteFurnitureGroup('Cozinha', 'Módulo para forno')
+  const standaloneSearch = searchQuoteFurnitureOptions('Cozinha', 'forno solto')
+  const drawerSearch = searchQuoteFurnitureOptions('Cozinha', 'forno com gaveteiro')
+
+  assert.ok(ovenModules.models.includes('Módulo avulso para forno de embutir'))
+  assert.ok(ovenModules.models.includes('Módulo para forno de embutir com gaveteiro'))
+  assert.ok(standaloneSearch.some((option) => option.model === 'Módulo avulso para forno de embutir'))
+  assert.ok(drawerSearch.some((option) => option.model === 'Módulo para forno de embutir com gaveteiro'))
+})
+
 test('modelos rápidos usam apenas móveis válidos no ambiente', () => {
   for (const environment of QUOTE_ENVIRONMENT_OPTIONS) {
     for (const template of getQuoteEnvironmentTemplates(environment)) {
