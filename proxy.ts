@@ -35,13 +35,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === '/login' && validToken) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/api/:path*'],
+  matcher: ['/dashboard/:path*', '/api/:path*'],
 }
