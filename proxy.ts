@@ -32,6 +32,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith('/dashboard') && !validToken) {
     const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('motivo', 'sessao-expirada')
     return NextResponse.redirect(loginUrl)
   }
 
