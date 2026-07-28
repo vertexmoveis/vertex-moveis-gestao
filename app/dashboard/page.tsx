@@ -28,6 +28,7 @@ import { formatDate } from '@/lib/utils'
 import { businessDaysBetween } from '@/lib/business-days'
 import { getAppAlerts, type AlertTone } from '@/lib/alerts'
 import { getDashboardNextActions, type NextActionKind } from '@/lib/next-actions'
+import { formatDashboardDate, getDashboardGreeting } from '@/lib/dashboard-local-time'
 import Link from 'next/link'
 
 type DashboardUser = { id?: string; role?: string }
@@ -185,16 +186,15 @@ export default async function DashboardPage() {
       : []),
   ]
 
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+  const currentDate = new Date()
+  const greeting = getDashboardGreeting(currentDate)
   const firstName = session?.user?.name?.split(' ')[0] || 'usuário'
 
   return (
     <div className="flex flex-col h-full">
       <Header
         title={`${greeting}, ${firstName}!`}
-        subtitle={`${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        subtitle={formatDashboardDate(currentDate)}
         userName={session?.user?.name || ''}
       />
 
