@@ -117,7 +117,7 @@ export function FurniturePicker({
 
   return (
     <div ref={containerRef} className="relative flex min-w-0 flex-col gap-1.5">
-      <label className="text-sm font-medium text-[#121212]">Móvel</label>
+      <label className="text-sm font-medium text-[#121212]">Móvel de marcenaria</label>
       <button
         type="button"
         aria-haspopup="listbox"

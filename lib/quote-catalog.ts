@@ -55,7 +55,7 @@ const group = (
   suggestedMode: QuoteCalculationMode = 'AREA_M2'
 ): QuoteFurnitureGroup => ({ type, models, accessories, suggestedMode })
 
-const STANDALONE_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = {
+const NON_JOINERY_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = {
   Cozinha: [
     'Balcão auxiliar avulso',
     'Módulo avulso com portas',
@@ -237,6 +237,7 @@ const STANDALONE_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = {
     'Banco-baú',
     'Estante baixa',
     'Carrinho auxiliar planejado',
+    'Sofá com armazenamento',
   ],
   Depósito: [
     'Gaveteiro avulso',
@@ -466,9 +467,9 @@ export const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGrou
 QUOTE_FURNITURE_CATALOG.Suíte = QUOTE_FURNITURE_CATALOG.Dormitório
 QUOTE_FURNITURE_CATALOG['Home theater'] = QUOTE_FURNITURE_CATALOG.Sala
 QUOTE_FURNITURE_CATALOG.Churrasqueira = QUOTE_FURNITURE_CATALOG['Área gourmet']
-STANDALONE_FURNITURE_BY_ENVIRONMENT.Suíte = STANDALONE_FURNITURE_BY_ENVIRONMENT.Dormitório
-STANDALONE_FURNITURE_BY_ENVIRONMENT['Home theater'] = STANDALONE_FURNITURE_BY_ENVIRONMENT.Sala
-STANDALONE_FURNITURE_BY_ENVIRONMENT.Churrasqueira = STANDALONE_FURNITURE_BY_ENVIRONMENT['Área gourmet']
+NON_JOINERY_FURNITURE_BY_ENVIRONMENT.Suíte = NON_JOINERY_FURNITURE_BY_ENVIRONMENT.Dormitório
+NON_JOINERY_FURNITURE_BY_ENVIRONMENT['Home theater'] = NON_JOINERY_FURNITURE_BY_ENVIRONMENT.Sala
+NON_JOINERY_FURNITURE_BY_ENVIRONMENT.Churrasqueira = NON_JOINERY_FURNITURE_BY_ENVIRONMENT['Área gourmet']
 
 export const QUOTE_ENVIRONMENT_OPTIONS = Object.keys(QUOTE_FURNITURE_CATALOG)
 export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string> = {
@@ -477,7 +478,7 @@ export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string>
   UNIT: 'Por unidade',
 }
 
-const PERSONALIZED_GROUP = group('Personalizado', ['Móvel personalizado'], STANDARD_ACCESSORIES)
+const PERSONALIZED_GROUP = group('Personalizado', ['Outro móvel sob medida'], STANDARD_ACCESSORIES)
 
 const FURNITURE_SEARCH_ALIASES: Record<string, readonly string[]> = {
   'Armário aéreo': ['armário superior', 'móvel aéreo'],
@@ -490,7 +491,7 @@ const FURNITURE_SEARCH_ALIASES: Record<string, readonly string[]> = {
   'Criado-mudo de piso': ['mesa de cabeceira'],
   'Painel para TV': ['painel de televisão', 'home'],
   'Balcão de recepção': ['recepção', 'balcão de atendimento'],
-  'Móvel personalizado': ['outro móvel', 'sob medida'],
+  'Outro móvel sob medida': ['móvel personalizado', 'outro móvel', 'sob medida'],
 }
 
 const QUOTE_ENVIRONMENT_TEMPLATES: Record<string, readonly QuoteEnvironmentTemplate[]> = {
@@ -591,14 +592,14 @@ function deduplicateFurnitureGroups(groups: readonly QuoteFurnitureGroup[]) {
 }
 
 export function getQuoteFurnitureGroups(environment: string) {
-  const standaloneModels = STANDALONE_FURNITURE_BY_ENVIRONMENT[environment]
-  const standaloneGroup = standaloneModels?.length
-    ? [group('Móveis avulsos', standaloneModels, CABINET_ACCESSORIES)]
-    : []
+  const nonJoineryModels = new Set(NON_JOINERY_FURNITURE_BY_ENVIRONMENT[environment] || [])
+  const joineryGroups = (QUOTE_FURNITURE_CATALOG[environment] || []).flatMap((furnitureGroup) => {
+    const models = furnitureGroup.models.filter((model) => !nonJoineryModels.has(model))
+    return models.length ? [{ ...furnitureGroup, models }] : []
+  })
 
   return deduplicateFurnitureGroups([
-    ...(QUOTE_FURNITURE_CATALOG[environment] || []),
-    ...standaloneGroup,
+    ...joineryGroups,
     PERSONALIZED_GROUP,
   ])
 }
