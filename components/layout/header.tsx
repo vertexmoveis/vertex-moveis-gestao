@@ -152,16 +152,23 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
     <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-[#E8E8E8] bg-white py-4 pl-14 pr-4 sm:gap-4 sm:pr-6 lg:px-6">
       <div className="flex-1 min-w-0">
         <h1 className="text-lg font-bold text-[#121212] truncate">{title}</h1>
-        {subtitle && <p className="text-xs text-[#9E9E9E] mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 truncate text-xs text-[#9E9E9E]">{subtitle}</p>}
       </div>
 
       <div className="flex items-center gap-2">
         {/* Search */}
-        <div className={cn('relative transition-all duration-200', searchOpen ? 'w-72 sm:w-96' : 'w-9')}>
+        <div className={cn(
+          'relative transition-all duration-200',
+          searchOpen
+            ? 'fixed left-3 right-3 top-3 z-[70] w-auto sm:relative sm:inset-auto sm:z-auto sm:w-96'
+            : 'w-9',
+        )}>
           {searchOpen ? (
             <form onSubmit={handleSearch} className="flex items-center">
               <input
                 autoFocus
+                aria-label="Buscar cliente, projeto ou orçamento"
+                aria-controls="global-search-results"
                 value={query}
                 onChange={(e) => {
                   const value = e.target.value
@@ -184,7 +191,7 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
                 <X size={14} />
               </button>
               {query.trim().length >= 2 && (
-                <div className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-[#E8E8E8] bg-white shadow-xl">
+                <div id="global-search-results" className="absolute right-0 top-11 z-50 w-full overflow-hidden rounded-lg border border-[#E8E8E8] bg-white shadow-xl">
                   <div className="border-b border-[#F0F0F0] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#9E9E9E]">
                     Busca geral
                   </div>
@@ -237,6 +244,8 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
             <button
               type="button"
               aria-label="Abrir busca"
+              aria-expanded={searchOpen}
+              aria-controls="global-search-results"
               onClick={() => setSearchOpen(true)}
               className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F5F5F5] text-[#9E9E9E] hover:text-[#121212] transition-colors"
             >
@@ -250,6 +259,8 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
           <button
             type="button"
             aria-label="Abrir notificações"
+            aria-expanded={notificationsOpen}
+            aria-controls="header-notifications"
             onClick={() => {
               const nextOpen = !notificationsOpen
               setNotificationsOpen(nextOpen)
@@ -269,7 +280,7 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-[#E8E8E8] bg-white shadow-xl z-50 overflow-hidden">
+            <div id="header-notifications" className="absolute right-0 top-11 z-50 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-[#E8E8E8] bg-white shadow-xl">
               <div className="px-4 py-3 border-b border-[#E8E8E8] flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[#121212]">Notificações</h2>
                 <button

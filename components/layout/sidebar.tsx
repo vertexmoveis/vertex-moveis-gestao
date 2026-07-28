@@ -59,6 +59,8 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
       <button
         type="button"
         aria-label="Abrir menu"
+        aria-expanded={mobileOpen}
+        aria-controls="main-navigation"
         onClick={() => setMobileOpen(true)}
         className="fixed left-3 top-4 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8E8E8] bg-white text-[#121212] shadow-sm transition-colors hover:bg-[#F5F5F5] lg:hidden"
       >
@@ -75,6 +77,8 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
       )}
 
       <aside
+        id="main-navigation"
+        aria-label="Navegação principal"
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-64 shrink-0 -translate-x-full flex-col bg-[#121212] shadow-2xl transition-[transform,width] duration-300 ease-in-out lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shadow-none',
           mobileOpen && 'translate-x-0',
@@ -111,13 +115,14 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
         <button
           type="button"
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          aria-expanded={!collapsed}
           onClick={() => setCollapsed((current) => !current)}
           className="absolute right-3 top-6 z-10 hidden h-7 w-7 items-center justify-center rounded-full border border-[#D9D9D9] bg-white shadow-sm transition-colors hover:bg-[#F5F5F5] lg:flex"
         >
           {collapsed ? <ChevronRight size={12} className="text-[#121212]" /> : <ChevronLeft size={12} className="text-[#121212]" />}
         </button>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-4 scrollbar-none">
+        <nav aria-label="Menu principal" className="flex-1 space-y-0.5 overflow-y-auto px-2 py-4 scrollbar-none">
           {expanded && <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-widest text-white/30">Menu</p>}
           {navItems.filter((item) => !item.adminOnly || userRole === 'ADMIN').map((item) => {
             const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href)

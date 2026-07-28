@@ -175,6 +175,8 @@ Um orçamento vendido pode ser convertido em projeto sem digitar novamente os da
 - Agenda de instalação.
 - Acompanhamento de pós-venda e garantia.
 - Link privado de acompanhamento para o cliente, com andamento, ambientes e previsão de instalação.
+- Contrato digital versionado, com fotografia dos dados, link seguro, aceite, data e responsável.
+- Chamados de garantia com prioridade, agendamento, andamento e solução registrada.
 - Bloqueio de produção com motivo obrigatório e prazo por etapa.
 - Lixeira para recuperar projetos apagados por engano.
 
@@ -268,6 +270,10 @@ Parcelas recebidas nunca são apagadas automaticamente. Ao editar o projeto, o C
 - Painel geral de compras pendentes.
 - Registro de mão de obra, frete e outras despesas.
 - Recálculo do custo e do lucro real do projeto.
+- Estoque atual, estoque mínimo e localização de cada material.
+- Alerta de reposição quando o saldo chega ao mínimo.
+- Histórico de cotações por fornecedor, data e custo.
+- Opção de transformar a cotação mais recente no custo padrão dos próximos orçamentos.
 
 ### Fotos e arquivos
 
@@ -428,6 +434,7 @@ Variáveis opcionais:
 | `BACKUP_RETENTION_DAYS` | Retenção, com padrão de 30 dias |
 | `BACKUP_ENCRYPTION_KEY` | Chave externa para criptografar e recuperar backups |
 | `BACKUP_KEY_FILE` | Caminho alternativo do arquivo local da chave |
+| `RESTORE_TEST_DATABASE_URL` | Banco externo exclusivo usado no teste mensal de restauração |
 | `CRON_SECRET` | Protege as rotinas automáticas da Vercel |
 | `REMINDER_WEBHOOK_URL` | Endpoint HTTPS opcional para enviar lembretes externos |
 | `REMINDER_WEBHOOK_SECRET` | Segredo opcional enviado no webhook de lembretes |
@@ -443,6 +450,8 @@ Variáveis opcionais:
 | `WHATSAPP_APP_SECRET` | Segredo do aplicativo usado para conferir a assinatura do webhook |
 | `FILE_SCAN_WEBHOOK_URL` | Scanner HTTPS opcional que recebe o arquivo em `multipart/form-data` |
 | `FILE_SCAN_WEBHOOK_SECRET` | Segredo enviado ao scanner no cabeçalho `X-Vertex-Secret` |
+| `OPERATIONS_ALERT_WEBHOOK_URL` | Webhook HTTPS que recebe alertas da saúde operacional |
+| `OPERATIONS_ALERT_WEBHOOK_SECRET` | Segredo opcional enviado no alerta operacional |
 | `PROJECT_FILE_RETENTION_DAYS` | Dias para excluir arquivos expirados; vazio ou `0` mantém os arquivos |
 | `ADMIN_NAME` | Nome usado ao provisionar o primeiro administrador |
 | `ADMIN_EMAIL` | E-mail usado ao provisionar o primeiro administrador |
@@ -498,6 +507,7 @@ Remove-Item Env:ADMIN_NAME,Env:ADMIN_EMAIL,Env:ADMIN_PASSWORD
 | `npm run db:deploy` | Aplica migrações pendentes |
 | `npm run admin:provision` | Cria ou atualiza o primeiro administrador |
 | `npm run backup:db` | Cria um backup manual |
+| `npm run backup:test-restore` | Baixa o backup privado e testa uma restauração isolada |
 | `npm run backup:daily` | Registra o backup diário no Windows |
 | `npm run security:audit-data` | Procura dados de teste sem exibir informações completas |
 | `npm run security:demo-users -- --action=list` | Lista usuários suspeitos de teste |
@@ -526,6 +536,10 @@ O processo:
 
 Na produção, `/api/cron/backup` executa diariamente às 18h no horário de São Paulo. A cópia em nuvem também é criptografada, verificada e mantém 30 dias de histórico. A chave de criptografia não deve ser perdida, pois ela é necessária para restaurar os dados.
 
+O comando `npm run backup:test-restore` baixa a cópia mais recente do Vercel Blob, confere a criptografia e restaura todas as tabelas em um schema temporário. Com `RESTORE_TEST_DATABASE_URL`, o teste usa outro banco e registra uma restauração externa real. O workflow `.github/workflows/monthly-restore-test.yml` executa essa conferência todo mês quando os segredos estão cadastrados no GitHub.
+
+A rota pública `/api/public/health` informa apenas disponibilidade, sem nomes de tabelas, credenciais ou detalhes internos. A rotina `/api/cron/health` confere banco, backup, restauração, erros, WhatsApp e scanner diariamente; quando `OPERATIONS_ALERT_WEBHOOK_URL` está configurada, mudanças de estado são enviadas ao monitor externo.
+
 Para cadastrar a tarefa diária das 18h no Windows:
 
 ```powershell
@@ -543,7 +557,7 @@ npm run lint
 npm test
 npm run test:e2e
 npm run build
-npm audit --audit-level=moderate
+npm audit --omit=dev --audit-level=moderate
 npm run test:security
 ```
 
@@ -565,6 +579,9 @@ Os testes atuais cobrem:
 - Precisão de valores em centavos.
 - Criptografia e integridade do backup.
 - Token e criptografia do portal de acompanhamento.
+- Token, criptografia, versão e aceite do contrato digital.
+- Estoque mínimo e cálculo de reposição.
+- Classificação da saúde operacional.
 - Autenticação em duas etapas.
 - Login, redirecionamento protegido e manifesto PWA em desktop e celular.
 - Permissões entre administradores, gerentes e usuários de consulta.
@@ -585,16 +602,14 @@ Publicação manual:
 npx vercel --prod
 ```
 
-## Melhorias recomendadas
+## Integrações externas pendentes
 
-Prioridades sugeridas para as próximas versões:
+O código e as telas estão preparados. Estas etapas dependem de contas ou credenciais que não ficam no repositório:
 
-1. **Testar uma restauração externa completa.** Recuperar o CRM em outro banco usando somente a cópia em nuvem e a chave guardada fora da Vercel.
-2. **Ativar a conta oficial do WhatsApp.** Criar e aprovar os quatro modelos na Meta e cadastrar as credenciais na Vercel.
-3. **Executar o fluxo E2E destrutivo em um banco isolado.** Criar cliente e orçamento, aprovar, converter, pagar, reabrir, anexar arquivo e concluir sem tocar nos dados reais.
-4. **Contratar ou hospedar o scanner de malware.** O CRM já valida o formato real; a análise profunda depende do endpoint externo configurado.
-5. **Monitorar desempenho e uploads.** Medir tempo e falhas do Vercel Blob, banco e páginas, com aviso externo quando houver erro repetido.
-6. **Completar a acessibilidade.** Testar todos os fluxos por teclado, contraste e leitores de tela.
+1. Cadastrar `RESTORE_TEST_DATABASE_URL` e os demais segredos no GitHub para a restauração mensal acontecer em outro banco.
+2. Aprovar os modelos na Meta e cadastrar as credenciais para ativar o envio oficial do WhatsApp.
+3. Contratar ou hospedar um scanner de malware e informar `FILE_SCAN_WEBHOOK_URL`.
+4. Cadastrar um webhook de operação ou conectar `/api/public/health` a um monitor externo.
 
 ---
 

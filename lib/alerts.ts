@@ -56,6 +56,7 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     approvalFollowUpDue,
     expiredQuotes,
     postSaleDue,
+    openWarrantyTickets,
   ] = await Promise.all([
     isAdmin
       ? prisma.projectPayment.count({
@@ -121,6 +122,12 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
         stage: 'COMPLETED',
         postSaleFollowUpAt: { lte: todayEnd },
         postSaleContactedAt: null,
+      },
+    }),
+    prisma.warrantyTicket.count({
+      where: {
+        status: { notIn: ['RESOLVED', 'CANCELED'] },
+        project: projectScope,
       },
     }),
   ])
@@ -197,6 +204,14 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
       href: '/dashboard/projects?stage=COMPLETED',
       count: postSaleDue,
       tone: 'info',
+    },
+    {
+      id: 'warranty-open',
+      title: 'Garantias em atendimento',
+      body: `${openWarrantyTickets} ${plural(openWarrantyTickets, 'chamado precisa', 'chamados precisam')} de acompanhamento.`,
+      href: '/dashboard/projects?warranty=open',
+      count: openWarrantyTickets,
+      tone: 'warning',
     },
   ] satisfies AppAlert[]).filter((item) => item.count > 0)
 }

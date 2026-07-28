@@ -103,6 +103,29 @@ function buildTestApplication() {
   execFileSync(executable, args, { cwd: root, env: testServerEnvironment(), stdio: 'inherit' })
 }
 
+function runIsolatedBrowserTests(admin) {
+  execFileSync(
+    process.execPath,
+    [
+      path.join('node_modules', '@playwright', 'test', 'cli.js'),
+      'test',
+      'e2e/destructive-lifecycle.spec.ts',
+      '--project=desktop',
+    ],
+    {
+      cwd: root,
+      env: {
+        ...testEnvironment(),
+        PLAYWRIGHT_BASE_URL: baseUrl,
+        E2E_EMAIL: admin.email,
+        E2E_PASSWORD: password,
+        E2E_DESTRUCTIVE: '1',
+      },
+      stdio: 'inherit',
+    },
+  )
+}
+
 async function prepareTestDatabase() {
   const { loadDatabaseEnv } = await import('./database-env.mjs')
   const { directUrl } = loadDatabaseEnv()
@@ -160,12 +183,33 @@ async function seedDatabase() {
     },
   })
   const ownProject = await prisma.project.create({
-    data: { clientId: clientOne.id, managerId: managerOne.id, name: 'Project One', status: 'APPROVED', stage: 'PENDING_START' },
+    data: {
+      clientId: clientOne.id,
+      managerId: managerOne.id,
+      name: 'Project One',
+      status: 'APPROVED',
+      stage: 'PENDING_START',
+      value: 1000,
+      downPayment: 200,
+      installmentCount: 2,
+      installmentValue: 400,
+      deliveryBusinessDays: 30,
+      environments: { create: { name: 'Cozinha', position: 1 } },
+      payments: {
+        create: [
+          { installmentNumber: 1, type: 'INSTALLMENT', amount: 400, dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+          { installmentNumber: 2, type: 'INSTALLMENT', amount: 400, dueDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) },
+        ],
+      },
+    },
   })
   const otherProject = await prisma.project.create({
     data: { clientId: clientTwo.id, managerId: managerTwo.id, name: 'Project Two', status: 'APPROVED', stage: 'PENDING_START' },
   })
   const team = await prisma.operationalResource.create({ data: { name: 'Security Team', type: 'TEAM' } })
+  const material = await prisma.materialCatalogItem.create({
+    data: { name: 'MDF Teste', category: 'Chapas', unit: 'unidade', unitCost: 100 },
+  })
   const quoteGroup = await prisma.quoteGroup.create({
     data: {
       clientId: clientOne.id,
@@ -203,7 +247,7 @@ async function seedDatabase() {
     },
   })
   await prisma.$disconnect()
-  return { admin, managerOne, managerTwo, clientOne, ownProject, otherProject, team, quote }
+  return { admin, managerOne, managerTwo, clientOne, ownProject, otherProject, team, material, quote }
 }
 
 function startServer() {
@@ -335,6 +379,9 @@ async function runTests(ids) {
   const managerJar = await login(ids.managerOne.email)
   const cookie = cookieHeader(managerJar)
   const jsonHeaders = { 'Content-Type': 'application/json', Cookie: cookie }
+  const adminJar = await login(ids.admin.email)
+  const adminCookie = cookieHeader(adminJar)
+  const adminJsonHeaders = { 'Content-Type': 'application/json', Cookie: adminCookie }
   const schedulePayload = {
     projectId: ids.ownProject.id,
     scheduledStart: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -382,6 +429,70 @@ async function runTests(ids) {
       }),
     })
     : 0
+  const contractRequest = await fetch(`${baseUrl}/api/projects/${ids.ownProject.id}/contracts`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({}),
+  })
+  const contractPayload = await contractRequest.json().catch(() => ({}))
+  const contractToken = contractPayload.url ? new URL(contractPayload.url).pathname.split('/').pop() : ''
+  const publicContractStatus = contractToken
+    ? await status(`/api/public/contracts/${contractToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signatoryName: 'Client One',
+        acceptedTerms: true,
+      }),
+    })
+    : 0
+  const repeatedContractStatus = contractToken
+    ? await status(`/api/public/contracts/${contractToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signatoryName: 'Client One',
+        acceptedTerms: true,
+      }),
+    })
+    : 0
+  const warrantyRequest = await fetch(`${baseUrl}/api/projects/${ids.ownProject.id}/warranty`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      title: 'Ajustar porta',
+      description: 'Porta precisa de regulagem.',
+      priority: 'HIGH',
+    }),
+  })
+  const warrantyPayload = await warrantyRequest.json().catch(() => ({}))
+  const warrantyResolvedStatus = warrantyPayload.id
+    ? await status(`/api/projects/${ids.ownProject.id}/warranty/${warrantyPayload.id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({ status: 'RESOLVED', resolution: 'Porta regulada.' }),
+    })
+    : 0
+  const inventoryPatchStatus = await status('/api/inventory', {
+    method: 'PATCH',
+    headers: adminJsonHeaders,
+    body: JSON.stringify({
+      materialId: ids.material.id,
+      stockQuantity: 5,
+      minimumStock: 10,
+      location: 'A1',
+    }),
+  })
+  const supplierPriceStatus = await status('/api/inventory', {
+    method: 'POST',
+    headers: adminJsonHeaders,
+    body: JSON.stringify({
+      materialId: ids.material.id,
+      supplier: 'Fornecedor Teste',
+      unitCost: 120,
+      applyAsDefault: true,
+    }),
+  })
 
   const tests = [
     ['database rate limit persists six attempts', databaseRateLimitWorks, true],
@@ -404,6 +515,15 @@ async function runTests(ids) {
     ['manager can register post-sale after completion', postSaleStatus, 200],
     ['manager can create an approval link', approvalRequest.status, 200],
     ['public approval link records approval', publicApprovalStatus, 200],
+    ['manager can create a project contract', contractRequest.status, 201],
+    ['public contract link records acceptance', publicContractStatus, 200],
+    ['signed contract cannot be accepted twice', repeatedContractStatus, 409],
+    ['manager can open a warranty ticket', warrantyRequest.status, 201],
+    ['manager can resolve a warranty ticket', warrantyResolvedStatus, 200],
+    ['manager cannot access inventory administration', await status('/api/inventory', { headers: { Cookie: cookie } }), 403],
+    ['admin can update inventory quantities', inventoryPatchStatus, 200],
+    ['admin can register supplier price history', supplierPriceStatus, 201],
+    ['public health endpoint is available', await status('/api/public/health'), 200],
   ]
 
   const failed = tests.filter(([, actual, expected]) => actual !== expected)
@@ -424,6 +544,7 @@ async function main() {
     server = startServer()
     await waitForServer()
     await runTests(ids)
+    runIsolatedBrowserTests(ids.admin)
   } finally {
     if (server) {
       if (process.platform === 'win32') {

@@ -22,6 +22,13 @@ function formatTimestamp(value: Date) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(value)
 }
 
+function healthStatusLabel(value: unknown) {
+  if (value === 'healthy') return 'Saudável'
+  if (value === 'degraded') return 'Requer atenção'
+  if (value === 'critical') return 'Crítico'
+  return 'Executado'
+}
+
 const roleLabels: Record<string, string> = {
   ADMIN: 'Administrador',
   MANAGER: 'Gerente',
@@ -54,7 +61,7 @@ export default async function SettingsPage() {
   const companyProfile = isAdmin
     ? await prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } })
     : null
-  const [latestBackup, recentErrorCount, recentErrors, whatsAppRows] = isAdmin
+  const [latestBackup, recentErrorCount, recentErrors, whatsAppRows, latestHealth, latestRestore] = isAdmin
     ? await Promise.all([
         prisma.systemEvent.findFirst({
           where: { type: { in: ['BACKUP_SUCCESS', 'BACKUP_FAILURE'] } },
@@ -74,8 +81,16 @@ export default async function SettingsPage() {
           where: { createdAt: { gte: whatsAppWindowStart } },
           _count: { _all: true },
         }),
+        prisma.systemEvent.findFirst({
+          where: { type: { in: ['HEALTH_CHECK_SUCCESS', 'HEALTH_CHECK_WARNING', 'HEALTH_CHECK_FAILURE'] } },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.systemEvent.findFirst({
+          where: { type: { in: ['RESTORE_TEST_SUCCESS', 'RESTORE_TEST_FAILURE'] } },
+          orderBy: { createdAt: 'desc' },
+        }),
       ])
-    : [null, 0, [], []]
+    : [null, 0, [], [], null, null]
   const whatsAppCounts = new Map(whatsAppRows.map((row) => [row.status, row._count._all]))
   const backupDetails = latestBackup?.details && typeof latestBackup.details === 'object' && !Array.isArray(latestBackup.details)
     ? latestBackup.details as Record<string, unknown>
@@ -86,6 +101,20 @@ export default async function SettingsPage() {
   const secondaryCopied = backupDetails.secondaryCopied === true
   const backupStorage = backupDetails.storage === 'vercel-blob-private' ? 'Nuvem privada' : 'OneDrive'
   const backupHealthy = latestBackup?.type === 'BACKUP_SUCCESS' && backupRecent && secondaryCopied
+  const healthDetails = latestHealth?.details && typeof latestHealth.details === 'object' && !Array.isArray(latestHealth.details)
+    ? latestHealth.details as Record<string, unknown>
+    : {}
+  const restoreDetails = latestRestore?.details && typeof latestRestore.details === 'object' && !Array.isArray(latestRestore.details)
+    ? latestRestore.details as Record<string, unknown>
+    : {}
+  const restoreRecent = latestRestore
+    ? databaseTime.getTime() - latestRestore.createdAt.getTime() < 35 * 24 * 60 * 60 * 1000
+    : false
+  const externalRestoreHealthy = latestRestore?.type === 'RESTORE_TEST_SUCCESS'
+    && restoreRecent
+    && restoreDetails.externalDatabase === true
+  const scannerConfigured = Boolean(process.env.FILE_SCAN_WEBHOOK_URL?.trim())
+  const operationsAlertConfigured = Boolean(process.env.OPERATIONS_ALERT_WEBHOOK_URL?.trim())
 
   return (
     <div className="flex flex-col h-full">
@@ -149,11 +178,11 @@ export default async function SettingsPage() {
               </div>
             </CardHeader>
             <CardBody className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className={`border-l-4 p-3 ${backupHealthy ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
                   <div className="flex items-center gap-2"><DatabaseBackup size={15} /><p className="text-xs font-semibold">Último backup</p></div>
                   <p className="mt-2 text-sm font-bold">{latestBackup ? formatTimestamp(latestBackup.createdAt) : 'Ainda não registrado'}</p>
-                  <p className="mt-1 text-xs text-[#666]">{latestBackup?.type === 'BACKUP_SUCCESS' ? `${backupDetails.encrypted === true ? 'Criptografado, ' : ''}restaurado e conferido` : 'Verifique a execução diária'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{latestBackup?.type === 'BACKUP_SUCCESS' ? `${backupDetails.encrypted === true ? 'Criptografado e ' : ''}conferido` : 'Verifique a execução diária'}</p>
                 </div>
                 <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-800">Segunda cópia</p>
@@ -229,6 +258,46 @@ export default async function SettingsPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#121212]">Proteção e monitoramento</h2>
+                  <p className="mt-1 text-xs text-[#777]">Restauração, disponibilidade e análise de arquivos</p>
+                </div>
+                {latestHealth?.type === 'HEALTH_CHECK_SUCCESS' && externalRestoreHealthy
+                  ? <CheckCircle2 size={20} className="text-emerald-600" aria-label="Monitoramento saudável" />
+                  : <TriangleAlert size={20} className="text-amber-600" aria-label="Monitoramento requer atenção" />}
+              </div>
+            </CardHeader>
+            <CardBody>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className={`border-l-4 p-3 ${externalRestoreHealthy ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <p className="text-xs font-semibold">Restauração externa</p>
+                  <p className="mt-2 text-sm font-bold">{externalRestoreHealthy ? 'Testada' : 'Pendente'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{latestRestore ? formatTimestamp(latestRestore.createdAt) : 'Nenhum teste registrado'}</p>
+                </div>
+                <div className={`border-l-4 p-3 ${latestHealth?.type === 'HEALTH_CHECK_SUCCESS' ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <p className="text-xs font-semibold">Monitor diário</p>
+                  <p className="mt-2 text-sm font-bold">{latestHealth ? healthStatusLabel(healthDetails.status) : 'Aguardando execução'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{operationsAlertConfigured ? 'Alerta externo conectado' : 'Webhook de alerta pendente'}</p>
+                </div>
+                <div className={`border-l-4 p-3 ${scannerConfigured ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
+                  <p className="text-xs font-semibold">Scanner de arquivos</p>
+                  <p className="mt-2 text-sm font-bold">{scannerConfigured ? 'Externo ativo' : 'Validação interna'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{scannerConfigured ? 'Conteúdo analisado no envio' : 'Conecte um antivírus por webhook'}</p>
+                </div>
+                <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
+                  <p className="text-xs font-semibold text-blue-800">Endpoint de disponibilidade</p>
+                  <p className="mt-2 break-all text-sm font-bold text-blue-900">/api/public/health</p>
+                  <p className="mt-1 text-xs text-blue-800/70">Pronto para monitor externo</p>
+                </div>
               </div>
             </CardBody>
           </Card>

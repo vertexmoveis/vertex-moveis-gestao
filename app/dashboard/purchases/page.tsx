@@ -1,7 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/header'
-import { PurchasesBoard, type PurchaseMaterial } from '@/components/purchases/purchases-board'
+import type { PurchaseMaterial } from '@/components/purchases/purchases-board'
+import { PurchasesWorkspace } from '@/components/purchases/purchases-workspace'
 import { prisma } from '@/lib/db'
 import { authOptions } from '@/lib/auth'
 import { moneyValue } from '@/lib/money'
@@ -51,7 +52,7 @@ export default async function PurchasesPage() {
     <div className="flex h-full flex-col">
       <Header title="Compras" subtitle="Materiais que faltam comprar, pedidos em aberto e custo real" userName={user?.name || ''} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <PurchasesBoard initialMaterials={initialMaterials} limited={limited} />
+        <PurchasesWorkspace initialMaterials={initialMaterials} limited={limited} />
       </div>
     </div>
   )

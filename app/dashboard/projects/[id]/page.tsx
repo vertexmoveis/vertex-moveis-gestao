@@ -14,6 +14,8 @@ import { ProjectFilesCard, type ProjectFile } from '@/components/projects/projec
 import { ProjectMaterialsCard } from '@/components/projects/project-materials-card'
 import { ProjectExpensesCard } from '@/components/projects/project-expenses-card'
 import { ProjectPortalCard } from '@/components/projects/project-portal-card'
+import { ProjectContractsCard } from '@/components/projects/project-contracts-card'
+import { ProjectWarrantyCard } from '@/components/projects/project-warranty-card'
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
 import { ProjectClientCard } from '@/components/projects/project-client-card'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
@@ -756,6 +758,13 @@ export default function ProjectDetailPage() {
               whatsapp={project.client.whatsapp || project.client.phone}
             />
 
+            <ProjectContractsCard
+              projectId={project.id}
+              projectName={project.name}
+              clientName={project.client.name}
+              whatsapp={project.client.whatsapp || project.client.phone}
+            />
+
             <ProjectProductionControl
               projectId={project.id}
               value={{
@@ -830,6 +839,11 @@ export default function ProjectDetailPage() {
                 </CardBody>
               </Card>
             )}
+
+            <ProjectWarrantyCard
+              projectId={project.id}
+              warrantyEndsAt={project.warrantyEndsAt}
+            />
 
             {/* Manager */}
             {project.manager && (

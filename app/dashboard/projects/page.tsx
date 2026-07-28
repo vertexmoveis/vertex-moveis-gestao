@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Search, FolderOpen, Plus } from 'lucide-react'
+import { Search, FolderOpen, Plus, ShieldCheck } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Modal } from '@/components/ui/modal'
 import { StatusBadge } from '@/components/ui/badge'
@@ -27,6 +27,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState(searchParams.get('q') || '')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [stageFilter, setStageFilter] = useState(searchParams.get('stage') || '')
+  const [warrantyFilter, setWarrantyFilter] = useState(searchParams.get('warranty') === 'open')
   const [page, setPage] = useState(Math.max(Number(searchParams.get('page') || 1), 1))
   const [totalProjects, setTotalProjects] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -41,6 +42,7 @@ export default function ProjectsPage() {
     if (search) params.set('q', search)
     if (statusFilter) params.set('status', statusFilter)
     if (stageFilter) params.set('stage', stageFilter)
+    if (warrantyFilter) params.set('warranty', 'open')
 
     const res = await fetch(`/api/projects?${params}`)
     const data = await res.json()
@@ -48,7 +50,7 @@ export default function ProjectsPage() {
     setTotalProjects(Array.isArray(data) ? data.length : data.total || 0)
     setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1)
     setLoading(false)
-  }, [page, search, stageFilter, statusFilter])
+  }, [page, search, stageFilter, statusFilter, warrantyFilter])
 
   useEffect(() => {
     const timer = setTimeout(fetchProjects, 300)
@@ -60,6 +62,7 @@ export default function ProjectsPage() {
     if (search.trim()) params.set('q', search.trim())
     if (statusFilter) params.set('status', statusFilter)
     if (stageFilter) params.set('stage', stageFilter)
+    if (warrantyFilter) params.set('warranty', 'open')
     if (page > 1) params.set('page', String(page))
 
     const queryString = params.toString()
@@ -67,7 +70,7 @@ export default function ProjectsPage() {
     if (queryString !== currentString) {
       router.replace(`/dashboard/projects${queryString ? `?${queryString}` : ''}`)
     }
-  }, [page, router, search, searchParams, stageFilter, statusFilter])
+  }, [page, router, search, searchParams, stageFilter, statusFilter, warrantyFilter])
 
   const loadFormOptions = useCallback(async () => {
     if (formOptionsLoaded || formOptionsLoading) return
@@ -123,10 +126,10 @@ export default function ProjectsPage() {
         action={{ label: 'Novo Projeto', onClick: openCreateModal }}
       />
 
-      <div className="flex-1 p-6 space-y-4">
+      <div className="flex-1 space-y-4 p-4 sm:p-6">
         {/* Filters */}
-        <div className="flex gap-3 items-center">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-full flex-1 sm:min-w-56">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
             <input
               type="text"
@@ -145,7 +148,8 @@ export default function ProjectsPage() {
               setStatusFilter(e.target.value)
               setPage(1)
             }}
-            className="text-sm bg-white border border-[#D9D9D9] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#FF6B00] shadow-sm"
+            aria-label="Filtrar por status"
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-[#D9D9D9] bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00] sm:flex-none sm:px-4"
           >
             {statusOptions.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,12 +161,26 @@ export default function ProjectsPage() {
               setStageFilter(e.target.value)
               setPage(1)
             }}
-            className="text-sm bg-white border border-[#D9D9D9] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#FF6B00] shadow-sm"
+            aria-label="Filtrar por etapa"
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-[#D9D9D9] bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00] sm:flex-none sm:px-4"
           >
             {stageOptions.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[#D9D9D9] bg-white px-3 text-xs font-semibold text-[#444] shadow-sm">
+            <input
+              type="checkbox"
+              checked={warrantyFilter}
+              onChange={(event) => {
+                setWarrantyFilter(event.target.checked)
+                setPage(1)
+              }}
+              className="h-4 w-4 accent-[#FF6B00]"
+            />
+            <ShieldCheck size={14} />
+            Garantias abertas
+          </label>
         </div>
 
         {/* Loading */}
@@ -180,9 +198,9 @@ export default function ProjectsPage() {
             <FolderOpen size={48} className="mb-3 opacity-20" />
             <p className="text-base font-medium">Nenhum projeto encontrado</p>
             <p className="text-sm mt-1">
-              {search || statusFilter || stageFilter ? 'Tente outros filtros' : 'Comece criando seu primeiro projeto'}
+              {search || statusFilter || stageFilter || warrantyFilter ? 'Tente outros filtros' : 'Comece criando seu primeiro projeto'}
             </p>
-            {!search && !statusFilter && !stageFilter && (
+            {!search && !statusFilter && !stageFilter && !warrantyFilter && (
               <Button className="mt-4" onClick={openCreateModal}>
                 <Plus size={16} />
                 Criar Projeto

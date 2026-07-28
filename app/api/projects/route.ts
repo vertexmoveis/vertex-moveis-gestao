@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
   const status = (searchParams.get('status') || '').trim()
   const stage = (searchParams.get('stage') || '').trim()
+  const warranty = (searchParams.get('warranty') || '').trim()
   const paged = searchParams.get('paged') === '1'
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 20), 1), 100)
@@ -43,6 +44,9 @@ export async function GET(req: NextRequest) {
   if (status) where.status = status
   if (stage) {
     where.stage = stage === 'INSTALLATION' ? { in: ['INSTALLATION', 'TRANSPORTATION'] } : stage
+  }
+  if (warranty === 'open') {
+    where.warrantyTickets = { some: { status: { notIn: ['RESOLVED', 'CANCELED'] } } }
   }
 
   const [projects, total] = await Promise.all([

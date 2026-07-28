@@ -14,6 +14,7 @@
     "local:firewall": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows-firewall.ps1",
     "local:startup": "powershell -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1",
     "backup:db": "powershell -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
+    "backup:test-restore": "node scripts/test-cloud-restore.mjs",
     "backup:daily": "powershell -ExecutionPolicy Bypass -File scripts/register-daily-backup-task.ps1",
     "admin:provision": "node scripts/provision-admin.js",
     "prisma:generate": "node scripts/prisma-command.mjs generate",
@@ -51,6 +52,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet.markercluster": "^1.5.6",

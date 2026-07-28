@@ -19,7 +19,7 @@ test('login abre sem erro e exibe os controles de segurança', async ({ page }) 
 
 test('dashboard protegido redireciona visitante para o login', async ({ page }) => {
   await page.goto('/dashboard')
-  await expect(page).toHaveURL(/\/login$/)
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/)
   await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible()
 })
 
