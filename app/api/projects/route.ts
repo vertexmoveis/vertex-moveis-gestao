@@ -5,10 +5,11 @@ import { buildPaymentSchedule } from '@/lib/payments'
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { calculateProjectProductionDates } from '@/lib/business-days'
 import { normalizeEnvironmentNames, serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
-import { badRequest, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
+import { badRequest, forbidden, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { normalizeProductionStage, type ProductionStage } from '@/types'
 import { optionalMoneyValue } from '@/lib/money'
+import { clientWhereForUser } from '@/lib/client-access'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -132,7 +133,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const limited = await rateLimit(`api:projects:post:${auth.user.id}:${getClientIp(req)}`, 30, 60 * 1000).catch((error) => {
@@ -154,6 +155,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = parsed.data
+    const client = await prisma.client.findFirst({
+      where: clientWhereForUser(auth.user, { id: input.clientId }),
+      select: { id: true },
+    })
+    if (!client) return forbidden()
+
     const stage = normalizeProductionStage(input.stage as ProductionStage)
     const environmentNames = normalizeEnvironmentNames(input.environments, input.room)
     const room = environmentNames.length > 0 ? environmentNames.join(', ') : input.room

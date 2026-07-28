@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import {
@@ -26,8 +27,13 @@ import {
   parseQuoteApprovalSnapshot,
   type QuoteApprovalData,
 } from '@/lib/quote-approval'
+import { isValidPublicToken } from '@/lib/public-access'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = {
+  title: 'Proposta | Vertex Móveis',
+  robots: { index: false, follow: false },
+}
 
 const INSTALLMENT_GRID_CLASSES: Record<number, string> = {
   1: 'grid-cols-1',
@@ -50,6 +56,30 @@ function responseMessage(
   if (request.rejectedAt) return 'Foi registrado um pedido de ajuste. A Vertex Móveis entrará em contato.'
   if (isDateOnlyExpired(request.expiresAt)) return 'Este link de aprovação expirou. Peça uma nova proposta à Vertex Móveis.'
   return null
+}
+
+function UnavailableProposal({ message }: { message: string }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#F4F3F0] px-4 py-10">
+      <section className="w-full max-w-lg overflow-hidden rounded-lg border border-[#E5E2DD] bg-white shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
+        <div className="h-2 bg-[#FF6B00]" />
+        <div className="px-6 py-8 sm:px-10">
+          <div className="flex items-center gap-3">
+            <Image src="/vertex-symbol.png" alt="Vertex Móveis" width={48} height={34} className="h-9 w-auto" priority />
+            <div>
+              <p className="font-extrabold text-[#121212]">Vertex Móveis</p>
+              <p className="text-xs text-[#777]">Proposta comercial</p>
+            </div>
+          </div>
+          <h1 className="mt-8 text-xl font-extrabold text-[#121212]">Link indisponível</h1>
+          <p className="mt-3 text-sm leading-6 text-[#5E5E5E]">{message}</p>
+          <p className="mt-6 border-t border-[#ECE9E5] pt-5 text-xs leading-5 text-[#777]">
+            Por segurança, os dados do cliente e os valores não são exibidos em links vencidos ou substituídos.
+          </p>
+        </div>
+      </section>
+    </main>
+  )
 }
 
 function QuoteOptionDetails({
@@ -265,6 +295,8 @@ function QuoteOptionDetails({
 
 export default async function PublicQuoteApprovalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
+  if (!isValidPublicToken(token)) notFound()
+
   const request = await prisma.quoteApprovalRequest.findUnique({
     where: { token },
     include: {
@@ -295,6 +327,15 @@ export default async function PublicQuoteApprovalPage({ params }: { params: Prom
   })
 
   if (!request) notFound()
+  if (request.invalidatedAt) {
+    return <UnavailableProposal message="Esta proposta foi atualizada. Solicite um novo link à Vertex Móveis." />
+  }
+  if (request.rejectedAt) {
+    return <UnavailableProposal message="Esta proposta já recebeu um pedido de ajuste. Solicite a versão atualizada à Vertex Móveis." />
+  }
+  if (isDateOnlyExpired(request.expiresAt) && !request.approvedAt) {
+    return <UnavailableProposal message="Esta proposta expirou. Solicite um novo link à Vertex Móveis." />
+  }
 
   const storedOptions = parseQuoteApprovalOptionsSnapshot(request.snapshot)
   const optionQuotes = request.options.map((option) => option.quote)

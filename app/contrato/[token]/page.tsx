@@ -9,6 +9,7 @@ import {
 } from '@/lib/project-contracts'
 import { formatDateOnly } from '@/lib/date-only'
 import { formatCurrency } from '@/lib/utils'
+import { isValidPublicToken } from '@/lib/public-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,16 +33,44 @@ function contractState(contract: {
   return null
 }
 
+function UnavailableContract({ message }: { message: string }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#EFEFEC] px-4 py-10">
+      <section className="w-full max-w-lg overflow-hidden rounded-lg border border-[#E2E0DC] bg-white shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
+        <div className="h-2 bg-[#FF6B00]" />
+        <div className="px-6 py-8 sm:px-10">
+          <div className="flex items-center gap-3">
+            <Image src="/vertex-symbol.png" alt="Vertex Móveis" width={48} height={34} className="h-9 w-auto" priority />
+            <div>
+              <p className="font-extrabold text-[#121212]">Vertex Móveis</p>
+              <p className="text-xs text-[#777]">Contrato de fornecimento</p>
+            </div>
+          </div>
+          <h1 className="mt-8 text-xl font-extrabold text-[#121212]">Contrato indisponível</h1>
+          <p className="mt-3 text-sm leading-6 text-[#5E5E5E]">{message}</p>
+          <p className="mt-6 border-t border-[#ECE9E5] pt-5 text-xs leading-5 text-[#777]">
+            Os dados pessoais e as condições comerciais foram ocultados por segurança.
+          </p>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 export default async function PublicContractPage({
   params,
 }: {
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
+  if (!isValidPublicToken(token)) notFound()
+
   const contract = await prisma.projectContract.findUnique({
     where: { tokenHash: hashProjectContractToken(token) },
   })
   if (!contract) notFound()
+  const unavailableMessage = contractState(contract)
+  if (unavailableMessage) return <UnavailableContract message={unavailableMessage} />
 
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
   if (!snapshot) notFound()

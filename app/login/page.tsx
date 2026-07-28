@@ -77,6 +77,8 @@ export default function LoginPage() {
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
                 <input
                   type="email"
+                  aria-label="Email"
+                  autoComplete="username"
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -89,6 +91,8 @@ export default function LoginPage() {
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
                 <input
                   type="password"
+                  aria-label="Senha"
+                  autoComplete="current-password"
                   placeholder="Sua senha"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -100,6 +104,7 @@ export default function LoginPage() {
               <div className="relative">
                 <ShieldCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" />
                 <input
+                  aria-label="Código do autenticador"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   placeholder="Código do autenticador, se ativado"

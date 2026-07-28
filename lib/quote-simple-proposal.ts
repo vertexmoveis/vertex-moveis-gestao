@@ -48,12 +48,14 @@ export function renderSimpleQuoteProposal({
   logoUrl,
   whatsAppHref,
   commercialHref,
+  nonce,
 }: {
   quote: ProposalQuote
   company: CompanyProfileData
   logoUrl: string
   whatsAppHref: string
   commercialHref: string
+  nonce: string
 }) {
   const payment = getQuotePaymentDetails(quote)
   const companyAddress = formatCompanyAddress(company)
@@ -246,8 +248,9 @@ export function renderSimpleQuoteProposal({
   <nav class="actions" aria-label="Ações do orçamento">
     <a href="${escapeHtml(commercialHref)}">Proposta comercial</a>
     ${whatsAppHref ? `<a href="${escapeHtml(whatsAppHref)}" target="_blank" rel="noopener noreferrer">Enviar no WhatsApp</a>` : ''}
-    <button class="primary" type="button" onclick="window.print()">Salvar em PDF</button>
+    <button id="print-simple-proposal" class="primary" type="button">Salvar em PDF</button>
   </nav>
+  <script nonce="${escapeHtml(nonce)}">document.getElementById('print-simple-proposal')?.addEventListener('click',()=>window.print())</script>
 </body>
 </html>`
 }

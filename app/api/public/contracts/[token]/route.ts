@@ -8,6 +8,7 @@ import {
 } from '@/lib/project-contracts'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/security'
+import { isValidPublicToken, publicRateLimitKey } from '@/lib/public-access'
 
 const acceptanceSchema = z.object({
   signatoryName: z.string().trim().min(3, 'Informe o nome completo.').max(120),
@@ -18,10 +19,10 @@ const acceptanceSchema = z.object({
   acceptedTerms: z.literal(true),
 }).strict()
 
-async function publicLimit(req: NextRequest, token: string) {
+async function publicLimit(req: NextRequest, action: 'read' | 'sign') {
   return rateLimit(
-    `api:public:contract:${token}:${getClientIp(req)}`,
-    12,
+    publicRateLimitKey(`contract:${action}`, getClientIp(req)),
+    action === 'read' ? 60 : 12,
     60 * 1000,
   ).catch((error) => {
     if (error instanceof RateLimitUnavailableError) return null
@@ -60,7 +61,11 @@ function publicContract(contract: {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const limited = await publicLimit(req, token)
+  if (!isValidPublicToken(token)) {
+    return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
+  }
+
+  const limited = await publicLimit(req, 'read')
   if (!limited || !limited.allowed) {
     return NextResponse.json({ error: 'Tente novamente em alguns instantes.' }, { status: 429 })
   }
@@ -69,6 +74,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     where: { tokenHash: hashProjectContractToken(token) },
   })
   if (!contract) return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
+  if (contract.voidedAt || contract.status === 'VOID') {
+    return NextResponse.json({ error: 'Este contrato foi cancelado. Solicite um novo link.' }, { status: 410 })
+  }
+  if (contract.expiresAt && contract.expiresAt < new Date() && !contract.signedAt) {
+    return NextResponse.json({ error: 'Este contrato expirou. Solicite um novo link.' }, { status: 410 })
+  }
   const data = publicContract(contract)
   if (!data) return NextResponse.json({ error: 'Contrato inválido.' }, { status: 500 })
   return NextResponse.json(data)
@@ -76,7 +87,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const limited = await publicLimit(req, token)
+  if (!isValidPublicToken(token)) {
+    return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
+  }
+
+  const limited = await publicLimit(req, 'sign')
   if (!limited || !limited.allowed) {
     return NextResponse.json({ error: 'Tente novamente em alguns instantes.' }, { status: 429 })
   }

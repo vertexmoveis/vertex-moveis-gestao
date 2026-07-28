@@ -33,6 +33,11 @@ export function matchesProjectFileSignature(type: string, bytes: Uint8Array) {
   return false
 }
 
+export function canDownloadProjectFile(type: string, status: string) {
+  if (type.toLowerCase() === 'application/pdf') return status === 'CLEAN'
+  return status === 'TYPE_CHECKED' || status === 'CLEAN'
+}
+
 export function projectFileRetentionDays() {
   const configuredDays = Number.parseInt(process.env.PROJECT_FILE_RETENTION_DAYS || '0', 10)
   if (!Number.isFinite(configuredDays) || configuredDays <= 0) return null
@@ -51,7 +56,15 @@ async function scanWithConfiguredProvider(input: {
   contentType: string
 }) {
   const configuredUrl = process.env.FILE_SCAN_WEBHOOK_URL?.trim()
-  if (!configuredUrl) return { status: 'TYPE_CHECKED' as const, details: 'Formato e assinatura conferidos.' }
+  if (!configuredUrl) {
+    if (input.contentType === 'application/pdf') {
+      return {
+        status: 'ERROR' as const,
+        details: 'PDF mantido em quarentena até a configuração do antivírus externo.',
+      }
+    }
+    return { status: 'TYPE_CHECKED' as const, details: 'Formato e assinatura conferidos.' }
+  }
   const url = new URL(configuredUrl)
   if (url.protocol !== 'https:') {
     return { status: 'ERROR' as const, details: 'O scanner deve usar HTTPS.' }

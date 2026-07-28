@@ -283,7 +283,8 @@ Parcelas recebidas nunca são apagadas automaticamente. Ao editar o projeto, o C
 - Categorias para medição, projeto técnico, produção, instalação e entrega.
 - Arquivos privados, com download autenticado.
 - Conferência da assinatura interna de PDF, JPEG, PNG, WebP, HEIC e HEIF, sem confiar somente na extensão.
-- Integração opcional com scanner de malware externo.
+- Imagens são liberadas após conferência de tipo e assinatura.
+- PDFs permanecem em quarentena até serem aprovados pelo scanner de malware externo.
 - Estado de verificação visível no projeto e opção de verificar novamente.
 - Retenção automática configurável, desativada por padrão.
 - Exclusão controlada e histórico no projeto.
@@ -343,15 +344,18 @@ Contas desativadas perdem o acesso. A versão da sessão permite encerrar sessõ
 - Autenticação com NextAuth e senha protegida por bcrypt.
 - Autenticação em duas etapas opcional por TOTP.
 - Sessão JWT com duração máxima de 12 horas.
-- Limite de 5 tentativas de login a cada 15 minutos por IP e e-mail.
+- Limite global por IP e limite de 5 tentativas a cada 15 minutos por conta existente.
+- Comparação de senha com tempo uniforme para reduzir enumeração de contas.
+- Tentativas de login mantidas por 90 dias por padrão, com limpeza automática.
 - Limites de requisição nas APIs.
 - Rate limit compartilhado pelo PostgreSQL, com suporte opcional ao Upstash Redis.
-- Verificação de função e propriedade dos projetos no servidor.
+- Verificação de função e propriedade de clientes, orçamentos e projetos no servidor.
 - Perfil de consulta bloqueado para qualquer alteração.
-- Tokens aleatórios e com validade para aprovação pública.
+- Tokens aleatórios e com validade para aprovação pública; links vencidos, rejeitados ou substituídos ocultam dados comerciais e pessoais.
 - Tokens do portal armazenados com hash e cópia criptografada para permitir revogação e compartilhamento controlado.
 - IP armazenado como hash no registro de aprovação.
-- Cabeçalhos de segurança, CSP, HSTS em produção e proteção contra abertura em iframe.
+- Cabeçalhos de segurança, CSP com nonce por requisição, HSTS em produção e proteção contra abertura em iframe.
+- CSV financeiro protegido contra execução de fórmulas no Excel.
 - Validação de dados com Zod.
 - Arquivos de ambiente, bancos locais, logs e backups ignorados pelo Git.
 - Registro de atividades, pagamentos, aprovações, backups e erros importantes.
@@ -448,11 +452,12 @@ Variáveis opcionais:
 | `WHATSAPP_TEMPLATE_POST_SALE` | Modelo aprovado para o pós-venda |
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Token usado pela Meta para validar o callback |
 | `WHATSAPP_APP_SECRET` | Segredo do aplicativo usado para conferir a assinatura do webhook |
-| `FILE_SCAN_WEBHOOK_URL` | Scanner HTTPS opcional que recebe o arquivo em `multipart/form-data` |
+| `FILE_SCAN_WEBHOOK_URL` | Scanner HTTPS necessário para liberar PDFs; recebe o arquivo em `multipart/form-data` |
 | `FILE_SCAN_WEBHOOK_SECRET` | Segredo enviado ao scanner no cabeçalho `X-Vertex-Secret` |
 | `OPERATIONS_ALERT_WEBHOOK_URL` | Webhook HTTPS que recebe alertas da saúde operacional |
 | `OPERATIONS_ALERT_WEBHOOK_SECRET` | Segredo opcional enviado no alerta operacional |
 | `PROJECT_FILE_RETENTION_DAYS` | Dias para excluir arquivos expirados; vazio ou `0` mantém os arquivos |
+| `LOGIN_EVENT_RETENTION_DAYS` | Retenção do histórico de login entre 30 e 365 dias; padrão `90` |
 | `ADMIN_NAME` | Nome usado ao provisionar o primeiro administrador |
 | `ADMIN_EMAIL` | E-mail usado ao provisionar o primeiro administrador |
 | `ADMIN_PASSWORD` | Senha usada ao provisionar o primeiro administrador |
@@ -461,7 +466,9 @@ Na Meta, configure o callback do WhatsApp como
 `https://vertex-moveis-gestao.vercel.app/api/public/whatsapp-webhook`.
 O scanner de arquivos deve aceitar `POST` HTTPS com o campo `file` em
 `multipart/form-data` e responder JSON com `{ "clean": true }` ou
-`{ "status": "clean" }` quando o conteúdo estiver liberado.
+`{ "status": "clean" }` quando o conteúdo estiver liberado. Sem esse scanner,
+imagens válidas continuam disponíveis, mas PDFs ficam em quarentena e não podem
+ser baixados.
 
 ## Instalação local
 
@@ -594,7 +601,9 @@ O projeto está preparado para Vercel:
 - Migrações são aplicadas automaticamente apenas no build de produção.
 - O build tenta aplicar as migrações até três vezes antes de falhar.
 - Banco, autenticação e Blob devem estar configurados nas variáveis do projeto.
-- Um push na `main` publica uma nova versão quando o repositório está conectado à Vercel.
+- Alterações devem entrar por pull request, passar por testes, lint e build e só então chegar à `main`.
+- A Vercel publica a versão aprovada quando a atualização chega à `main`.
+- Dependabot verifica dependências npm e GitHub Actions periodicamente.
 
 Publicação manual:
 

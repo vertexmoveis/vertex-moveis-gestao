@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
+import { isIP } from 'node:net'
 import { authOptions } from './auth'
 import type { Role } from '@/types'
 
@@ -62,12 +63,16 @@ export function serviceUnavailable() {
 
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return (
+  const candidate = (
     forwardedFor ||
     req.headers.get('x-real-ip') ||
     req.headers.get('cf-connecting-ip') ||
     'unknown'
-  )
+  ).trim().slice(0, 64)
+
+  if (isIP(candidate)) return candidate
+  const ipv4WithPort = candidate.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/)?.[1]
+  return ipv4WithPort && isIP(ipv4WithPort) ? ipv4WithPort : 'unknown'
 }
 
 export function canAccessProject(user: AuthenticatedUser, managerId: string | null) {

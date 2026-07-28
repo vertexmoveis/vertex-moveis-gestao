@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { clientCreateSchema } from '@/lib/schemas'
-import { badRequest, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
+import { badRequest, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { clientWhereForUser } from '@/lib/client-access'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -24,8 +25,7 @@ export async function GET(req: NextRequest) {
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 24), 1), 100)
 
-  const where: Prisma.ClientWhereInput = {
-    archivedAt: null,
+  const where: Prisma.ClientWhereInput = clientWhereForUser(auth.user, {
     ...(q
       ? {
         OR: [
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         ],
       }
       : {}),
-  }
+  })
 
   if (optionsOnly) {
     const matches = await prisma.client.findMany({
@@ -50,7 +50,10 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true },
     })
     const selected = selectedId && !matches.some((client) => client.id === selectedId)
-      ? await prisma.client.findFirst({ where: { id: selectedId, archivedAt: null }, select: { id: true, name: true } })
+      ? await prisma.client.findFirst({
+          where: clientWhereForUser(auth.user, { id: selectedId }),
+          select: { id: true, name: true },
+        })
       : null
     return NextResponse.json(selected ? [selected, ...matches] : matches, {
       headers: { 'Cache-Control': 'private, max-age=15' },
@@ -110,7 +113,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const limited = await rateLimit(`api:clients:post:${auth.user.id}:${getClientIp(req)}`, 30, 60 * 1000).catch((error) => {
@@ -132,7 +135,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const client = await prisma.client.create({
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        managerId: auth.user.role === 'MANAGER' ? auth.user.id : null,
+      },
       select: {
         id: true,
         name: true,

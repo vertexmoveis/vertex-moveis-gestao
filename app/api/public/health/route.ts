@@ -9,7 +9,13 @@ export async function GET() {
     await prisma.$queryRaw`SELECT 1`
     return NextResponse.json(
       { status: 'ok', service: 'vertex-moveis', checkedAt: new Date().toISOString() },
-      { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=0, must-revalidate',
+          'CDN-Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+          'Vercel-CDN-Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        },
+      },
     )
   } catch {
     return NextResponse.json(

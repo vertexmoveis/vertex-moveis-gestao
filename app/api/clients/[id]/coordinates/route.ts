@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { badRequest, forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
+import { badRequest, forbidden, getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { clientWhereForUser } from '@/lib/client-access'
 
 function validCoordinate(lat: number, lon: number) {
   return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -30,12 +31,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const lon = typeof body === 'object' && body !== null && 'lon' in body ? Number(body.lon) : Number.NaN
   if (!validCoordinate(lat, lon)) return badRequest()
 
-  if (auth.user.role !== 'ADMIN') {
-    const hasAccess = await prisma.project.count({
-      where: { clientId: id, managerId: auth.user.id },
-    })
-    if (hasAccess === 0) return forbidden()
-  }
+  const hasAccess = await prisma.client.findFirst({
+    where: clientWhereForUser(auth.user, { id }),
+    select: { id: true },
+  })
+  if (!hasAccess) return forbidden()
 
   const client = await prisma.client.update({
     where: { id },

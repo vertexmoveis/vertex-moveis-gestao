@@ -12,6 +12,7 @@ import {
 import { getClientIp } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
+import { isValidPublicToken, publicRateLimitKey } from '@/lib/public-access'
 
 const optionalDocument = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
@@ -60,7 +61,11 @@ function responseIpHash(req: NextRequest) {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const limited = await rateLimit(`api:public:quote-approval:${token}:${getClientIp(req)}`, 10, 60 * 1000).catch((error) => {
+  if (!isValidPublicToken(token)) {
+    return NextResponse.json({ error: 'Este link não é válido.' }, { status: 404 })
+  }
+
+  const limited = await rateLimit(publicRateLimitKey('quote-approval:respond', getClientIp(req)), 10, 60 * 1000).catch((error) => {
     if (error instanceof RateLimitUnavailableError) return null
     throw error
   })

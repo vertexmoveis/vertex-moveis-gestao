@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '@/lib/db'
@@ -101,6 +102,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .catch(() => new URL('/vertex-symbol.png', req.url).toString())
   const commercialHref = new URL(`/api/quotes/${quote.id}/proposal`, req.url).toString()
   const simpleHref = new URL(`/api/quotes/${quote.id}/proposal?modelo=simples`, req.url).toString()
+  const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
 
   if (req.nextUrl.searchParams.get('modelo') === 'simples') {
     return new NextResponse(renderSimpleQuoteProposal({
@@ -109,6 +111,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       logoUrl,
       whatsAppHref,
       commercialHref,
+      nonce,
     }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
@@ -425,8 +428,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   <nav class="actions" aria-label="Ações da proposta">
     <a href="${escapeHtml(simpleHref)}">Orçamento simples</a>
     ${whatsAppHref ? `<a href="${whatsAppHref}" target="_blank" rel="noopener noreferrer">Enviar no WhatsApp</a>` : ''}
-    <button class="primary" type="button" onclick="window.print()">Salvar em PDF</button>
+    <button id="print-commercial-proposal" class="primary" type="button">Salvar em PDF</button>
   </nav>
+  <script nonce="${escapeHtml(nonce)}">document.getElementById('print-commercial-proposal')?.addEventListener('click',()=>window.print())</script>
 </body>
 </html>`
 

@@ -13,6 +13,7 @@ import { buildQuoteApprovalSnapshot } from '@/lib/quote-approval'
 import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 import { quoteVariationPriceProfile } from '@/lib/quote-variations'
+import { clientWhereForUser } from '@/lib/client-access'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
   const quote = await prisma.quote.findFirst({
@@ -201,6 +202,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const input = parsed.data
+    const client = await prisma.client.findFirst({
+      where: clientWhereForUser(auth.user, { id: input.clientId }),
+      select: { id: true },
+    })
+    if (!client) return forbidden()
 
     const result = await prisma.$transaction(async (tx) => {
       await ensureDefaultQuoteSettings(tx)

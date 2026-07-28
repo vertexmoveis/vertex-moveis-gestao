@@ -9,27 +9,28 @@ datasource db {
 }
 
 model User {
-  id                String           @id @default(cuid())
+  id                String            @id @default(cuid())
   name              String
-  email             String           @unique
+  email             String            @unique
   password          String
-  role              String           @default("MANAGER")
-  active            Boolean          @default(true)
-  sessionVersion    Int              @default(1)
+  role              String            @default("MANAGER")
+  active            Boolean           @default(true)
+  sessionVersion    Int               @default(1)
   lastLoginAt       DateTime?
   passwordChangedAt DateTime?
-  twoFactorEnabled  Boolean          @default(false)
+  twoFactorEnabled  Boolean           @default(false)
   twoFactorSecret   String?
   avatar            String?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   projects          Project[]
   quotes            Quote[]
   quoteGroups       QuoteGroup[]
+  clients           Client[]
   notes             Note[]
   activities        ActivityLog[]
   paymentHistory    PaymentHistory[]
-  expensesCreated   ProjectExpense[] @relation("ExpenseCreatedBy")
+  expensesCreated   ProjectExpense[]  @relation("ExpenseCreatedBy")
   contractsCreated  ProjectContract[] @relation("ContractCreatedBy")
   warrantyCreated   WarrantyTicket[]  @relation("WarrantyCreatedBy")
   warrantyAssigned  WarrantyTicket[]  @relation("WarrantyAssignedTo")
@@ -37,7 +38,9 @@ model User {
 }
 
 model Client {
-  id           String    @id @default(cuid())
+  id           String       @id @default(cuid())
+  managerId    String?
+  manager      User?        @relation(fields: [managerId], references: [id], onDelete: SetNull)
   name         String
   document     String?
   phone        String?
@@ -55,13 +58,14 @@ model Client {
   geocodedAt   DateTime?
   notes        String?
   archivedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   projects     Project[]
   quotes       Quote[]
   quoteGroups  QuoteGroup[]
 
   @@index([name])
+  @@index([managerId])
   @@index([city])
   @@index([zipCode])
   @@index([archivedAt])
@@ -134,55 +138,55 @@ model Project {
 }
 
 model Quote {
-  id                   String                 @id @default(cuid())
-  number               Int                    @unique @default(autoincrement())
-  groupId              String
-  group                QuoteGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  clientId             String
-  client               Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdById          String?
-  createdBy            User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  convertedProjectId   String?                @unique
-  convertedProject     Project?               @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
-  title                String
-  variationType        String                 @default("STANDARD")
-  variationName        String                 @default("Padrão")
-  variationOrder       Int                    @default(0)
-  status               String                 @default("DRAFT")
-  validUntil           DateTime?
-  deliveryBusinessDays Int                    @default(30)
-  firstInstallmentDate DateTime?
-  pricePerM2           Decimal                @default(1250) @db.Decimal(14, 2)
-  materialCostPerM2    Decimal                @default(650) @db.Decimal(14, 2)
-  installationFee      Decimal                @default(0) @db.Decimal(14, 2)
-  marginPercent        Float                  @default(35)
-  discount             Decimal                @default(0) @db.Decimal(14, 2)
-  manualDiscount       Decimal                @default(0) @db.Decimal(14, 2)
-  paymentDiscount      Decimal                @default(0) @db.Decimal(14, 2)
-  paymentMethod        String                 @default("TO_DEFINE")
-  cardInstallments     Int                    @default(1)
-  cardDownPayment      Decimal                @default(0) @db.Decimal(14, 2)
-  cardFeePercent       Float                  @default(0)
-  cardFeeAmount        Decimal                @default(0) @db.Decimal(14, 2)
-  subtotal             Decimal                @default(0) @db.Decimal(14, 2)
-  costTotal            Decimal                @default(0) @db.Decimal(14, 2)
-  total                Decimal                @default(0) @db.Decimal(14, 2)
-  notes                String?
-  customerNotes        String?
-  lossReason           String?
-  sentAt               DateTime?
-  approvedAt           DateTime?
-  soldAt               DateTime?
-  lostAt               DateTime?
-  archivedAt           DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  items                QuoteItem[]
-  revisions            QuoteRevision[]
+  id                         String                 @id @default(cuid())
+  number                     Int                    @unique @default(autoincrement())
+  groupId                    String
+  group                      QuoteGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  clientId                   String
+  client                     Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById                String?
+  createdBy                  User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  convertedProjectId         String?                @unique
+  convertedProject           Project?               @relation("QuoteConvertedProject", fields: [convertedProjectId], references: [id], onDelete: SetNull)
+  title                      String
+  variationType              String                 @default("STANDARD")
+  variationName              String                 @default("Padrão")
+  variationOrder             Int                    @default(0)
+  status                     String                 @default("DRAFT")
+  validUntil                 DateTime?
+  deliveryBusinessDays       Int                    @default(30)
+  firstInstallmentDate       DateTime?
+  pricePerM2                 Decimal                @default(1250) @db.Decimal(14, 2)
+  materialCostPerM2          Decimal                @default(650) @db.Decimal(14, 2)
+  installationFee            Decimal                @default(0) @db.Decimal(14, 2)
+  marginPercent              Float                  @default(35)
+  discount                   Decimal                @default(0) @db.Decimal(14, 2)
+  manualDiscount             Decimal                @default(0) @db.Decimal(14, 2)
+  paymentDiscount            Decimal                @default(0) @db.Decimal(14, 2)
+  paymentMethod              String                 @default("TO_DEFINE")
+  cardInstallments           Int                    @default(1)
+  cardDownPayment            Decimal                @default(0) @db.Decimal(14, 2)
+  cardFeePercent             Float                  @default(0)
+  cardFeeAmount              Decimal                @default(0) @db.Decimal(14, 2)
+  subtotal                   Decimal                @default(0) @db.Decimal(14, 2)
+  costTotal                  Decimal                @default(0) @db.Decimal(14, 2)
+  total                      Decimal                @default(0) @db.Decimal(14, 2)
+  notes                      String?
+  customerNotes              String?
+  lossReason                 String?
+  sentAt                     DateTime?
+  approvedAt                 DateTime?
+  soldAt                     DateTime?
+  lostAt                     DateTime?
+  archivedAt                 DateTime?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  items                      QuoteItem[]
+  revisions                  QuoteRevision[]
   approvalRequests           QuoteApprovalRequest[] @relation("QuoteApprovalPrimary")
   comparisonApprovalRequests QuoteApprovalRequest[] @relation("QuoteApprovalComparison")
   selectedApprovalRequests   QuoteApprovalRequest[] @relation("QuoteApprovalSelected")
-  approvalOptions             QuoteApprovalOption[]
+  approvalOptions            QuoteApprovalOption[]
 
   @@unique([groupId, variationOrder])
   @@index([groupId])
@@ -299,20 +303,20 @@ model QuotePriceRule {
 }
 
 model MaterialCatalogItem {
-  id               String            @id @default(cuid())
-  name             String            @unique
+  id               String                  @id @default(cuid())
+  name             String                  @unique
   category         String?
   defaultFinish    String?
-  unit             String            @default("m2")
-  unitCost         Decimal           @default(0) @db.Decimal(14, 2)
+  unit             String                  @default("m2")
+  unitCost         Decimal                 @default(0) @db.Decimal(14, 2)
   supplier         String?
-  active           Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  active           Boolean                 @default(true)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
   projectMaterials ProjectMaterial[]
   supplierPrices   MaterialSupplierPrice[]
-  stockQuantity    Float             @default(0)
-  minimumStock     Float             @default(0)
+  stockQuantity    Float                   @default(0)
+  minimumStock     Float                   @default(0)
   location         String?
 
   @@index([active])
@@ -421,16 +425,16 @@ model InstallationSchedule {
 }
 
 model QuoteApprovalRequest {
-  id                        String    @id @default(cuid())
+  id                        String                @id @default(cuid())
   quoteId                   String
-  quote                     Quote     @relation("QuoteApprovalPrimary", fields: [quoteId], references: [id], onDelete: Cascade)
+  quote                     Quote                 @relation("QuoteApprovalPrimary", fields: [quoteId], references: [id], onDelete: Cascade)
   comparisonQuoteId         String?
-  comparisonQuote           Quote?    @relation("QuoteApprovalComparison", fields: [comparisonQuoteId], references: [id], onDelete: SetNull)
+  comparisonQuote           Quote?                @relation("QuoteApprovalComparison", fields: [comparisonQuoteId], references: [id], onDelete: SetNull)
   selectedQuoteId           String?
-  selectedQuote             Quote?    @relation("QuoteApprovalSelected", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
-  token                     String    @unique
-  sentAt                    DateTime  @default(now())
-  reminderCount             Int       @default(0)
+  selectedQuote             Quote?                @relation("QuoteApprovalSelected", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
+  token                     String                @unique
+  sentAt                    DateTime              @default(now())
+  reminderCount             Int                   @default(0)
   lastReminderAt            DateTime?
   approvedAt                DateTime?
   rejectedAt                DateTime?
@@ -446,8 +450,8 @@ model QuoteApprovalRequest {
   responseDocument          String?
   acceptedTermsAt           DateTime?
   message                   String?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
   options                   QuoteApprovalOption[]
 
   @@index([quoteId])
@@ -658,19 +662,20 @@ model LoginEvent {
   @@index([userId, createdAt])
   @@index([email, createdAt])
   @@index([success, createdAt])
+  @@index([createdAt])
 }
 
 model ProjectPortalAccess {
-  id           String    @id @default(cuid())
-  projectId    String
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tokenHash    String    @unique
+  id             String    @id @default(cuid())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tokenHash      String    @unique
   tokenEncrypted String
-  expiresAt    DateTime?
-  revokedAt    DateTime?
-  lastViewedAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastViewedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([projectId])
   @@index([expiresAt])
@@ -678,14 +683,14 @@ model ProjectPortalAccess {
 }
 
 model ProjectContract {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   projectId         String
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdById       String?
-  createdBy         User?    @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  version           Int      @default(1)
-  status            String   @default("DRAFT")
-  tokenHash         String   @unique
+  createdBy         User?     @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  version           Int       @default(1)
+  status            String    @default("DRAFT")
+  tokenHash         String    @unique
   tokenEncrypted    String
   snapshot          Json
   sentAt            DateTime?
@@ -696,8 +701,8 @@ model ProjectContract {
   signatoryDocument String?
   acceptedIpHash    String?
   acceptedUserAgent String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([projectId, version])
   @@index([projectId, status])
@@ -705,23 +710,23 @@ model ProjectContract {
 }
 
 model WarrantyTicket {
-  id            String    @id @default(cuid())
-  projectId     String
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdById   String?
-  createdBy     User?     @relation("WarrantyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  assignedToId  String?
-  assignedTo    User?     @relation("WarrantyAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  title         String
-  description   String
-  priority      String    @default("NORMAL")
-  status        String    @default("OPEN")
-  openedAt      DateTime  @default(now())
-  scheduledAt   DateTime?
-  resolvedAt    DateTime?
-  resolution    String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById  String?
+  createdBy    User?     @relation("WarrantyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedToId String?
+  assignedTo   User?     @relation("WarrantyAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  title        String
+  description  String
+  priority     String    @default("NORMAL")
+  status       String    @default("OPEN")
+  openedAt     DateTime  @default(now())
+  scheduledAt  DateTime?
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([projectId, status])
   @@index([status, priority, openedAt])

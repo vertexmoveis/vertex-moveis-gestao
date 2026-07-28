@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'node:crypto'
 import { prisma } from '@/lib/db'
 import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   })
   if (!payment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
 
   const html = `<!doctype html>
 <html lang="pt-BR">
@@ -83,8 +85,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       <div><div class="label">Valor recebido</div><div class="value total">${moneyValue(payment.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div></div>
     </div>
     <p class="muted">Documento gerado pelo sistema Vertex Móveis em ${new Date().toLocaleString('pt-BR')}.</p>
-    <div class="actions"><button type="button" onclick="window.print()">Imprimir / salvar PDF</button></div>
+    <div class="actions"><button id="print-receipt" type="button">Imprimir / salvar PDF</button></div>
   </div>
+  <script nonce="${escapeHtml(nonce)}">document.getElementById('print-receipt')?.addEventListener('click',()=>window.print())</script>
 </body>
 </html>`
 

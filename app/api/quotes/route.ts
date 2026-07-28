@@ -7,7 +7,7 @@ import {
   calculateQuoteTotals,
   serializeQuote,
 } from '@/lib/quotes'
-import { badRequest, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
+import { badRequest, forbidden, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { ensureDefaultQuoteSettings, getActiveQuotePriceRules } from '@/lib/quote-price-rules'
 import {
@@ -20,6 +20,7 @@ import {
   type QuoteGroupStatus,
 } from '@/lib/quote-group-list'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
+import { clientWhereForUser } from '@/lib/client-access'
 
 function resolveGroupStatus(quotes: Array<{ status: string }>) {
   return QUOTE_GROUP_STATUS_PRIORITY.find((status) => quotes.some((quote) => quote.status === status))
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const limited = await rateLimit(`api:quotes:post:${auth.user.id}:${getClientIp(req)}`, 30, 60 * 1000).catch((error) => {
@@ -143,6 +144,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = parsed.data
+    const client = await prisma.client.findFirst({
+      where: clientWhereForUser(auth.user, { id: input.clientId }),
+      select: { id: true },
+    })
+    if (!client) return forbidden()
+
     if (input.status === 'APPROVED' || input.status === 'SOLD') {
       return badRequest('A aprovação e a venda devem seguir o fluxo de aceite do cliente.')
     }

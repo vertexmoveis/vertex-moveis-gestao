@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { isProjectBlobUrl } from '@/lib/project-files'
 import { canAccessProject, forbidden, requireAuth, serverError } from '@/lib/security'
+import { canDownloadProjectFile } from '@/lib/project-file-security'
 
 async function getFileWithAccess(projectId: string, fileId: string) {
   return prisma.projectFile.findFirst({
@@ -19,8 +20,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const file = await getFileWithAccess(id, fileId)
   if (!file) return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 })
   if (!canAccessProject(auth.user, file.project.managerId)) return forbidden()
-  if (!['TYPE_CHECKED', 'CLEAN'].includes(file.securityStatus)) {
-    return NextResponse.json({ error: 'O arquivo ainda não foi liberado pela verificação de segurança.' }, { status: 423 })
+  if (!canDownloadProjectFile(file.type, file.securityStatus)) {
+    const message = file.type === 'application/pdf' && file.securityStatus === 'TYPE_CHECKED'
+      ? 'Este PDF está em quarentena até passar pelo antivírus configurado.'
+      : 'O arquivo ainda não foi liberado pela verificação de segurança.'
+    return NextResponse.json({ error: message }, { status: 423 })
   }
   if (!isProjectBlobUrl(file.url, id)) return NextResponse.json({ error: 'Arquivo indisponível.' }, { status: 404 })
 
@@ -38,8 +42,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     })
     if (result.statusCode === 304) return new NextResponse(null, { status: 304, headers })
 
-    headers.set('Content-Type', result.blob.contentType || file.type || 'application/octet-stream')
-    headers.set('Content-Disposition', result.blob.contentDisposition || `inline; filename="${file.name}"`)
+    const contentType = result.blob.contentType || file.type || 'application/octet-stream'
+    const safeName = file.name.replace(/["\\\r\n]/g, '_')
+    headers.set('Content-Type', contentType)
+    headers.set(
+      'Content-Disposition',
+      contentType === 'application/pdf'
+        ? `attachment; filename="${safeName}"`
+        : result.blob.contentDisposition || `inline; filename="${safeName}"`,
+    )
     return new NextResponse(result.stream, { status: 200, headers })
   } catch {
     return serverError()

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, formatCompanyAddress, withCompanyProfileDefaults } from '@/lib/company-profile'
@@ -10,6 +10,11 @@ import {
 } from '@/lib/quote-approval'
 import { quoteDisplayCode } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
+import {
+  isValidPublicToken,
+  maskPersonalDocument,
+  publicClientLocation,
+} from '@/lib/public-access'
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -30,6 +35,10 @@ function formatDateTime(value: Date) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
+  if (!isValidPublicToken(token)) {
+    return NextResponse.json({ error: 'Comprovante de aprovação não encontrado.' }, { status: 404 })
+  }
+
   const [request, rawCompany] = await Promise.all([
     prisma.quoteApprovalRequest.findUnique({
       where: { token },
@@ -67,13 +76,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const code = quoteDisplayCode(approvedQuote || quote)
   const certificateCode = `VERTEX-${code}-${request.id.slice(-8).toUpperCase()}`
   const snapshotHash = createHash('sha256').update(request.snapshot || '').digest('hex')
-  const clientAddress = approvedClient.address || [
-    [approvedClient.street, approvedClient.number].filter(Boolean).join(', '),
-    approvedClient.neighborhood,
-    [approvedClient.city, approvedClient.state].filter(Boolean).join('/'),
-    approvedClient.zipCode,
-  ].filter(Boolean).join(' - ')
+  const clientLocation = publicClientLocation(approvedClient)
   const companyAddress = formatCompanyAddress(company).join(' | ')
+  const nonce = _req.headers.get('x-nonce') || randomBytes(16).toString('base64')
   const items = approvedItems.map((item, index) => `
     <tr>
       <td>${index + 1}</td>
@@ -113,10 +118,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
           <h2>Identificação</h2>
           <div class="grid">
             <div class="field"><span>Cliente do orçamento</span><strong>${escapeHtml(approvedClient.name)}</strong></div>
-            <div class="field"><span>CPF/CNPJ do cadastro</span><strong>${escapeHtml(approvedClient.document || 'Não informado')}</strong></div>
+            <div class="field"><span>CPF/CNPJ do cadastro</span><strong>${escapeHtml(maskPersonalDocument(approvedClient.document))}</strong></div>
             <div class="field"><span>Responsável pelo aceite</span><strong>${escapeHtml(request.responseName || approvedClient.name)}</strong></div>
-            <div class="field"><span>CPF/CNPJ informado no aceite</span><strong>${escapeHtml(request.responseDocument || 'Não informado')}</strong></div>
-            <div class="field"><span>Endereço do cliente</span><strong>${escapeHtml(clientAddress || 'Não informado')}</strong></div>
+            <div class="field"><span>CPF/CNPJ informado no aceite</span><strong>${escapeHtml(maskPersonalDocument(request.responseDocument))}</strong></div>
+            <div class="field"><span>Localidade do cliente</span><strong>${escapeHtml(clientLocation)}</strong></div>
             <div class="field"><span>Validade da proposta</span><strong>${escapeHtml(formatDateOnly(approvedValidity))}</strong></div>
           </div>
         </section>
@@ -135,7 +140,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
         </section>
         <footer><span>Este documento registra o aceite eletrônico da proposta e preserva a identificação do conteúdo apresentado.</span><span>${escapeHtml(company.email || '')} | ${escapeHtml(company.phone || '')}</span></footer>
       </article>
-      <div class="actions"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
+      <div class="actions"><button id="print-certificate" type="button">Imprimir / Salvar PDF</button></div>
+      <script nonce="${escapeHtml(nonce)}">document.getElementById('print-certificate')?.addEventListener('click',()=>window.print())</script>
     </body>
   </html>`
 
@@ -144,6 +150,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'private, no-store',
       'X-Robots-Tag': 'noindex, nofollow',
+      'Content-Security-Policy': `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`,
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 }

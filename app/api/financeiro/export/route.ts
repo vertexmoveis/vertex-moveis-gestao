@@ -6,6 +6,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { moneyValue } from '@/lib/money'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { formatDateOnly } from '@/lib/date-only'
+import { csvCell } from '@/lib/csv'
 
 function parseMonth(value: string | null) {
   const now = new Date()
@@ -18,11 +19,6 @@ function parseMonth(value: string | null) {
   const dueEnd = new Date(Date.UTC(year, monthIndex + 1, 1))
   const key = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
   return { key, paidStart, paidEnd, dueStart, dueEnd }
-}
-
-function csvCell(value: string | number | null | undefined) {
-  const text = value === null || value === undefined ? '' : String(value)
-  return `"${text.replace(/"/g, '""')}"`
 }
 
 export async function GET(req: NextRequest) {

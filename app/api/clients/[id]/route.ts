@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { clientUpdateSchema } from '@/lib/schemas'
-import { badRequest, forbidden, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
+import { badRequest, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { optionalMoneyValue } from '@/lib/money'
+import { clientWhereForUser } from '@/lib/client-access'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth()
@@ -17,16 +18,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-  if (auth.user.role !== 'ADMIN') {
-    const allowed = await prisma.client.findFirst({
-      where: { id, archivedAt: null, projects: { some: { managerId: auth.user.id, archivedAt: null } } },
-      select: { id: true },
-    })
-    if (!allowed) return forbidden()
-  }
-
   const client = await prisma.client.findFirst({
-    where: { id, archivedAt: null },
+    where: clientWhereForUser(auth.user, { id }),
     select: {
       id: true,
       name: true,
