@@ -6,6 +6,7 @@ import { KanbanBoard } from '@/components/kanban/kanban-board'
 import type { ProjectData } from '@/types'
 import { serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
 import { optionalMoneyValue } from '@/lib/money'
+import { getProductionProjectState } from '@/lib/production-board'
 
 type DashboardUser = { id?: string; role?: string }
 
@@ -115,38 +116,29 @@ export default async function ProductionPage() {
 
   const totalActive = projects.filter((p) => p.stage !== 'COMPLETED').length
   const totalCompleted = projects.filter((p) => p.stage === 'COMPLETED').length
-  const totalDelayed = projects.filter((p) => p.status === 'DELAYED').length
+  const referenceDate = new Date()
+  const projectStates = projects.map((project) => getProductionProjectState(project, referenceDate))
+  const totalDelayed = projectStates.filter((state) => state.overdue).length
+  const totalBlocked = projectStates.filter((state) => state.blocked).length
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <Header
         title="Produção"
-        subtitle={`${totalActive} projetos em andamento · ${totalCompleted} concluídos recentes · ${totalDelayed > 0 ? `${totalDelayed} atrasados ⚠` : `concluídos somem após ${COMPLETED_VISIBLE_DAYS} dias`}`}
+        subtitle={`${totalActive} em andamento · ${totalDelayed} atrasado${totalDelayed === 1 ? '' : 's'} · ${totalBlocked} bloqueado${totalBlocked === 1 ? '' : 's'} · ${totalCompleted} concluído${totalCompleted === 1 ? '' : 's'} recente${totalCompleted === 1 ? '' : 's'}`}
         userName={session?.user?.name || ''}
       />
 
-      <div className="flex-1 p-6 overflow-hidden">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4 text-xs text-[#9E9E9E]">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#9E9E9E]" />
-              Arraste os cards entre as colunas
-            </span>
-            <span className="text-[#D9D9D9]">|</span>
-            <span>{projects.length} projeto{projects.length !== 1 ? 's' : ''} total</span>
-          </div>
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 lg:p-6">
         {production.limited ? (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
             Mostrando os {PRODUCTION_PROJECT_LIMIT} projetos mais atualizados. Use Projetos para localizar os demais.
           </div>
         ) : null}
-        <div className="h-full overflow-hidden">
-          <KanbanBoard
-            key={projects.map((p) => `${p.id}:${p.stage}:${p.status}:${p.updatedAt}`).join('|')}
-            initialProjects={projects}
-          />
-        </div>
+        <KanbanBoard
+          initialProjects={projects}
+          referenceDate={referenceDate.toISOString()}
+        />
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { AlertTriangle, LockKeyhole } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KanbanCard } from './kanban-card'
 import { type ProductionStage, type ProjectData } from '@/types'
@@ -11,52 +12,90 @@ interface KanbanColumnProps {
   label: string
   color: string
   projects: ProjectData[]
+  referenceDate: Date
+  overdueCount: number
+  blockedCount: number
+  pendingIds: Set<string>
+  onMove: (project: ProjectData, direction: -1 | 1) => void
+  onToggleBlock: (project: ProjectData) => void
+  onEditDeadline: (project: ProjectData) => void
 }
 
-export function KanbanColumn({ stage, label, color, projects }: KanbanColumnProps) {
+export function KanbanColumn({
+  stage,
+  label,
+  color,
+  projects,
+  referenceDate,
+  overdueCount,
+  blockedCount,
+  pendingIds,
+  onMove,
+  onToggleBlock,
+  onEditDeadline,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
 
   return (
-    <div className="flex min-w-[260px] flex-1 flex-col">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-3 py-2.5 rounded-t-xl"
+    <section className="flex min-h-0 min-w-[285px] flex-1 flex-col">
+      <header
+        className="flex min-h-[52px] items-center justify-between gap-2 border-b border-white/60 px-3 py-2"
         style={{ background: color + '18' }}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-          <span className="text-xs font-semibold text-[#121212]">{label}</span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+            <h2 className="truncate text-xs font-semibold text-[#121212]">{label}</h2>
+          </div>
+          {overdueCount > 0 || blockedCount > 0 ? (
+            <div className="mt-1 flex items-center gap-2 pl-[18px] text-[9px] font-semibold">
+              {overdueCount > 0 ? (
+                <span className="flex items-center gap-1 text-red-700"><AlertTriangle size={9} /> {overdueCount} atrasado{overdueCount === 1 ? '' : 's'}</span>
+              ) : null}
+              {blockedCount > 0 ? (
+                <span className="flex items-center gap-1 text-amber-800"><LockKeyhole size={9} /> {blockedCount} bloqueado{blockedCount === 1 ? '' : 's'}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <span
-          className="text-xs font-bold px-1.5 py-0.5 rounded-md"
-          style={{ background: color + '30', color }}
+          className="shrink-0 px-2 py-1 text-xs font-bold"
+          style={{ background: color + '25', color }}
+          title={`${projects.length} projeto${projects.length === 1 ? '' : 's'} nesta etapa`}
         >
           {projects.length}
         </span>
-      </div>
+      </header>
 
-      {/* Drop zone */}
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 min-h-[480px] p-2 rounded-b-xl space-y-2 transition-all duration-150',
+          'min-h-[280px] flex-1 space-y-2 overflow-y-auto p-2 transition-colors',
           isOver
-            ? 'bg-orange-50 border-2 border-dashed border-orange-200'
-            : 'bg-[#F0F0F0]'
+            ? 'border-2 border-dashed border-orange-300 bg-orange-50'
+            : 'border-2 border-transparent bg-[#F2F2F2]',
         )}
       >
-        <SortableContext items={projects.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={projects.map((project) => project.id)} strategy={verticalListSortingStrategy}>
           {projects.map((project) => (
-            <KanbanCard key={project.id} project={project} />
+            <KanbanCard
+              key={project.id}
+              project={project}
+              referenceDate={referenceDate}
+              isPending={pendingIds.has(project.id)}
+              onMove={onMove}
+              onToggleBlock={onToggleBlock}
+              onEditDeadline={onEditDeadline}
+            />
           ))}
         </SortableContext>
 
-        {projects.length === 0 && !isOver && (
-          <div className="flex items-center justify-center h-20 text-[#BDBDBD] text-xs text-center">
-            Arraste projetos aqui
+        {projects.length === 0 && !isOver ? (
+          <div className="flex h-20 items-center justify-center text-center text-xs text-[#AAA]">
+            Sem projetos
           </div>
-        )}
+        ) : null}
       </div>
-    </div>
+    </section>
   )
 }
