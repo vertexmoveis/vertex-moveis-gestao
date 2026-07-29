@@ -17,9 +17,11 @@ import { formatDateOnly } from '@/lib/date-only'
 import type { QuoteApprovalData } from '@/lib/quote-approval'
 import {
   getQuotePaymentDetails,
+  QUOTE_PRICE_PROFILE_LABELS,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
   quoteVariationDisplayName,
+  safeQuotePriceProfile,
 } from '@/lib/quotes'
 
 const colors = {
@@ -420,7 +422,7 @@ function SimpleQuotePdf({
                 item.placement,
                 `${quoteCentimetersToMillimeters(item.width)} x ${quoteCentimetersToMillimeters(item.height)} mm`,
                 item.material || 'MDF',
-                item.priceProfile || 'Acabamento externo não informado',
+                QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)],
                 item.finish || 'Acabamento interno não informado',
                 item.notes,
               ].filter(Boolean).join(' | ')

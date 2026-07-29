@@ -44,6 +44,7 @@ test('mantém a laca externa em R$ 4.800 por m²', () => {
 })
 
 test('separa acabamento externo do acabamento interno padrão', () => {
+  assert.equal(QUOTE_PRICE_PROFILE_LABELS.STANDARD, 'Branco TX externo')
   assert.equal(QUOTE_PRICE_PROFILE_LABELS.WOODGRAIN, 'Madeirado externo')
   assert.equal(QUOTE_PRICE_PROFILE_LABELS.PROVENCAL, 'Provençal externo')
   assert.equal(DEFAULT_QUOTE_INTERNAL_FINISH, 'Branco interno')

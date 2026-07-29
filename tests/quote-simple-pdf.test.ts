@@ -91,10 +91,15 @@ test('gera o orçamento simples como um PDF válido', async () => {
 test('gera um nome de arquivo seguro e identificável', () => {
   assert.equal(
     simpleQuotePdfFileName(quote),
-    'orcamento-0042-madeirado.pdf',
+    'orcamento-0042-madeirado-externo.pdf',
   )
   assert.equal(
-    simpleQuotePdfFileName({ ...quote, variationName: 'Padrão' }),
+    simpleQuotePdfFileName({
+      ...quote,
+      variationType: 'STANDARD',
+      variationName: 'Padrão',
+      items: quote.items.map((item) => ({ ...item, priceProfile: 'STANDARD' })),
+    }),
     'orcamento-0042-branco-tx-externo.pdf',
   )
 })

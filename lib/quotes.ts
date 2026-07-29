@@ -2,7 +2,13 @@ import type { Quote, QuoteItem } from '@prisma/client'
 import { addMonthsToDateOnly } from '@/lib/date-only'
 import { roundCurrency } from '@/lib/payments'
 import type { QuoteCalculationMode } from '@/lib/quote-catalog'
-import { getQuoteAutomaticPricing, safeQuotePriceProfile, type QuotePriceProfile } from '@/lib/quote-pricing'
+import {
+  getQuoteAutomaticPricing,
+  QUOTE_PRICE_PROFILE_LABELS,
+  QUOTE_PRICE_PROFILES,
+  safeQuotePriceProfile,
+  type QuotePriceProfile,
+} from '@/lib/quote-pricing'
 import type { QuotePriceRule } from '@/lib/quote-price-rules'
 import { moneyValue, numberValue, optionalMoneyValue, type NumericValue } from '@/lib/money'
 
@@ -450,10 +456,44 @@ export function quoteDisplayCode(quote: { id: string; number?: number | null }) 
 }
 
 export function quoteVariationDisplayName(quote: {
+  variationType?: string | null
   variationName?: string | null
   title?: string | null
+  items?: ReadonlyArray<{ priceProfile?: string | null }> | null
 }) {
   const variationName = quote.variationName?.trim()
+  const variationType = quote.variationType?.trim()
+  const itemProfiles = Array.from(new Set(
+    (quote.items || [])
+      .map((item) => item.priceProfile)
+      .filter((profile): profile is QuotePriceProfile => (
+        typeof profile === 'string'
+        && QUOTE_PRICE_PROFILES.includes(profile as QuotePriceProfile)
+      )),
+  ))
+  const actualExternalFinish = itemProfiles.length > 0
+    ? itemProfiles.map((profile) => QUOTE_PRICE_PROFILE_LABELS[profile]).join(' + ')
+    : null
+  const catalogOptionNames = new Set([
+    'padrao',
+    'padrao externo',
+    'branco tx',
+    'branco tx externo',
+    'madeirado',
+    'madeirado externo',
+    'provencal',
+    'provencal externo',
+    'laca',
+    'laca externa',
+  ])
+  const isCatalogVariation = variationType
+    ? QUOTE_PRICE_PROFILES.includes(variationType as QuotePriceProfile)
+    : Boolean(variationName && catalogOptionNames.has(normalizeText(variationName)))
+
+  if (actualExternalFinish && isCatalogVariation) return actualExternalFinish
+  if (variationType && QUOTE_PRICE_PROFILES.includes(variationType as QuotePriceProfile)) {
+    return QUOTE_PRICE_PROFILE_LABELS[variationType as QuotePriceProfile]
+  }
   if (!variationName) return quote.title?.trim() || 'Branco TX externo'
   return normalizeText(variationName) === 'padrao' ? 'Branco TX externo' : variationName
 }

@@ -4,7 +4,7 @@ import { findQuotePriceRule, type QuotePriceRule } from '@/lib/quote-price-rules
 export type QuotePriceProfile = 'STANDARD' | 'WOODGRAIN' | 'PROVENCAL' | 'EXTERNAL_LACQUER'
 
 export const QUOTE_PRICE_PROFILE_LABELS: Record<QuotePriceProfile, string> = {
-  STANDARD: 'Padrão externo',
+  STANDARD: 'Branco TX externo',
   WOODGRAIN: 'Madeirado externo',
   PROVENCAL: 'Provençal externo',
   EXTERNAL_LACQUER: 'Laca externa',

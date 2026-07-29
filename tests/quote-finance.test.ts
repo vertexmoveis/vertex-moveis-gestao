@@ -46,14 +46,46 @@ const pricing = {
   cardDownPayment: 500,
 }
 
-test('troca o nome genérico da opção pelo acabamento externo', () => {
+test('mostra na opção o acabamento externo realmente usado pelos móveis', () => {
   assert.equal(
-    quoteVariationDisplayName({ variationName: 'Padrão', title: 'Cozinha' }),
+    quoteVariationDisplayName({
+      variationType: 'STANDARD',
+      variationName: 'Padrão',
+      items: [{ priceProfile: 'STANDARD' }],
+    }),
     'Branco TX externo',
   )
   assert.equal(
-    quoteVariationDisplayName({ variationName: 'Madeirado', title: 'Cozinha' }),
-    'Madeirado',
+    quoteVariationDisplayName({
+      variationType: 'STANDARD',
+      variationName: 'Padrão',
+      items: [{ priceProfile: 'WOODGRAIN' }],
+    }),
+    'Madeirado externo',
+  )
+  assert.equal(
+    quoteVariationDisplayName({
+      variationType: 'WOODGRAIN',
+      variationName: 'Madeirado',
+      items: [{ priceProfile: 'PROVENCAL' }],
+    }),
+    'Provençal externo',
+  )
+  assert.equal(
+    quoteVariationDisplayName({
+      variationType: 'EXTERNAL_LACQUER',
+      variationName: 'Laca',
+      items: [{ priceProfile: 'EXTERNAL_LACQUER' }],
+    }),
+    'Laca externa',
+  )
+  assert.equal(
+    quoteVariationDisplayName({
+      variationType: 'CUSTOM',
+      variationName: 'Opção econômica',
+      items: [{ priceProfile: 'STANDARD' }],
+    }),
+    'Opção econômica',
   )
 })
 
