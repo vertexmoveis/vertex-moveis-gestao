@@ -14,6 +14,7 @@ import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 import { quoteVariationPriceProfile } from '@/lib/quote-variations'
 import { clientWhereForUser } from '@/lib/client-access'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 async function canAccessQuote(id: string, user: { id: string; role: string }) {
   const quote = await prisma.quote.findFirst({
@@ -454,6 +455,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
       })
 
+      const activityAt = new Date()
+      await syncClientRelationshipStage(tx, input.clientId, { activityAt })
+      if (existing.clientId !== input.clientId) {
+        await syncClientRelationshipStage(tx, existing.clientId)
+      }
+
       return { quote: updated, approvalReset }
     })
 
@@ -493,7 +500,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
-  const currentQuote = await prisma.quote.findFirst({ where: { id, archivedAt: null }, select: { status: true, convertedProjectId: true } })
+  const currentQuote = await prisma.quote.findFirst({
+    where: { id, archivedAt: null },
+    select: { status: true, convertedProjectId: true, clientId: true },
+  })
   if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
     return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
   }
@@ -512,19 +522,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const now = new Date()
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: {
-      status: parsed.data.status,
-      lossReason: parsed.data.status === 'LOST' ? parsed.data.lossReason || null : null,
-      sentAt: ['SENT', 'WAITING_APPROVAL'].includes(parsed.data.status) ? now : undefined,
-      approvedAt: parsed.data.status === 'APPROVED' ? now : undefined,
-      lostAt: parsed.data.status === 'LOST' ? now : null,
-    },
-    include: {
-      client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
-      items: { orderBy: { position: 'asc' } },
-    },
+  const quote = await prisma.$transaction(async (tx) => {
+    const updated = await tx.quote.update({
+      where: { id },
+      data: {
+        status: parsed.data.status,
+        lossReason: parsed.data.status === 'LOST' ? parsed.data.lossReason || null : null,
+        sentAt: ['SENT', 'WAITING_APPROVAL'].includes(parsed.data.status) ? now : undefined,
+        approvedAt: parsed.data.status === 'APPROVED' ? now : undefined,
+        lostAt: parsed.data.status === 'LOST' ? now : null,
+      },
+      include: {
+        client: { select: { id: true, name: true, phone: true, whatsapp: true, email: true } },
+        items: { orderBy: { position: 'asc' } },
+      },
+    })
+    await syncClientRelationshipStage(tx, updated.clientId, { activityAt: now })
+    return updated
   })
 
   return NextResponse.json(serializeQuote(quote))
@@ -545,11 +559,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const access = await canAccessQuote(id, auth.user)
   if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
 
-  const currentQuote = await prisma.quote.findFirst({ where: { id, archivedAt: null }, select: { status: true, convertedProjectId: true } })
+  const currentQuote = await prisma.quote.findFirst({
+    where: { id, archivedAt: null },
+    select: { status: true, convertedProjectId: true, clientId: true },
+  })
   if (currentQuote?.convertedProjectId || currentQuote?.status === 'SOLD') {
     return badRequest('O orçamento vendido faz parte do histórico do projeto e não pode ser excluído.')
   }
 
-  await prisma.quote.update({ where: { id }, data: { archivedAt: new Date() } })
+  await prisma.$transaction(async (tx) => {
+    await tx.quote.update({ where: { id }, data: { archivedAt: new Date() } })
+    if (currentQuote) await syncClientRelationshipStage(tx, currentQuote.clientId)
+  })
   return NextResponse.json({ success: true, archived: true })
 }

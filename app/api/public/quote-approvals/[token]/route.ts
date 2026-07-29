@@ -13,6 +13,7 @@ import { getClientIp } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import { isValidPublicToken, publicRateLimitKey } from '@/lib/public-access'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const optionalDocument = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
@@ -205,6 +206,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       data: { invalidatedAt: now },
     })
 
+    await syncClientRelationshipStage(tx, request.quote.clientId, { activityAt: now })
     return {
       status: 200,
       selectedQuoteId: parsed.data.decision === 'APPROVE' ? selectedQuote.id : null,

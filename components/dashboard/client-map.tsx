@@ -13,6 +13,7 @@ type ClientMapClient = {
   latitude?: number | null
   longitude?: number | null
   projectsCount: number
+  relationshipStage?: string
 }
 
 type Coordinates = {

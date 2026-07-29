@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { isProjectBlobUrl } from '@/lib/project-files'
 import { badRequest, getClientIp, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 type TrashType = 'client' | 'project' | 'quote'
 
@@ -30,25 +31,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ty
 
   try {
     if (type === 'client') {
-      await prisma.$transaction([
-        prisma.client.update({ where: { id }, data: { archivedAt: null } }),
-        prisma.project.updateMany({ where: { clientId: id }, data: { archivedAt: null } }),
-        prisma.quote.updateMany({ where: { clientId: id }, data: { archivedAt: null } }),
-      ])
+      await prisma.$transaction(async (tx) => {
+        await tx.client.update({ where: { id }, data: { archivedAt: null } })
+        await tx.project.updateMany({ where: { clientId: id }, data: { archivedAt: null } })
+        await tx.quote.updateMany({ where: { clientId: id }, data: { archivedAt: null } })
+        await syncClientRelationshipStage(tx, id, { activityAt: new Date() })
+      })
     } else if (type === 'project') {
       const project = await prisma.project.findUnique({ where: { id }, select: { clientId: true } })
       if (!project) return NextResponse.json({ error: 'Registro não encontrado.' }, { status: 404 })
-      await prisma.$transaction([
-        prisma.client.update({ where: { id: project.clientId }, data: { archivedAt: null } }),
-        prisma.project.update({ where: { id }, data: { archivedAt: null } }),
-      ])
+      await prisma.$transaction(async (tx) => {
+        await tx.client.update({ where: { id: project.clientId }, data: { archivedAt: null } })
+        await tx.project.update({ where: { id }, data: { archivedAt: null } })
+        await syncClientRelationshipStage(tx, project.clientId, { activityAt: new Date() })
+      })
     } else {
       const quote = await prisma.quote.findUnique({ where: { id }, select: { clientId: true } })
       if (!quote) return NextResponse.json({ error: 'Registro não encontrado.' }, { status: 404 })
-      await prisma.$transaction([
-        prisma.client.update({ where: { id: quote.clientId }, data: { archivedAt: null } }),
-        prisma.quote.update({ where: { id }, data: { archivedAt: null } }),
-      ])
+      await prisma.$transaction(async (tx) => {
+        await tx.client.update({ where: { id: quote.clientId }, data: { archivedAt: null } })
+        await tx.quote.update({ where: { id }, data: { archivedAt: null } })
+        await syncClientRelationshipStage(tx, quote.clientId, { activityAt: new Date() })
+      })
     }
     return NextResponse.json({ success: true })
   } catch {
@@ -72,6 +76,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
       if (!quote) return NextResponse.json({ error: 'Registro não encontrado na lixeira.' }, { status: 404 })
       await prisma.quote.delete({ where: { id } })
       return NextResponse.json({ success: true })
+    }
+
+    if (type === 'client') {
+      const client = await prisma.client.findFirst({
+        where: { id, archivedAt: { not: null } },
+        select: { _count: { select: { projects: true, quotes: true } } },
+      })
+      if (!client) return NextResponse.json({ error: 'Registro não encontrado na lixeira.' }, { status: 404 })
+      if (client._count.projects > 0 || client._count.quotes > 0) {
+        return NextResponse.json({
+          error: 'Este cliente possui histórico e não pode ser apagado definitivamente. Restaure o cadastro e use a classificação comercial.',
+        }, { status: 409 })
+      }
     }
 
     const projects = type === 'project'

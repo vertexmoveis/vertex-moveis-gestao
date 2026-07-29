@@ -17,6 +17,9 @@ export const DEFAULT_COMPANY_PROFILE = {
   state: 'SP',
   zipCode: '06702-170',
   defaultDeliveryBusinessDays: 30,
+  quoteReminderDays: 3,
+  leadNoResponseDays: 30,
+  leadCloseSuggestionDays: 90,
 } as const
 
 export type CompanyProfileData = Omit<CompanyProfile, 'createdAt' | 'updatedAt'> & {
@@ -40,6 +43,9 @@ export function withCompanyProfileDefaults(profile?: Partial<CompanyProfile> | n
     state: profile?.state ?? DEFAULT_COMPANY_PROFILE.state,
     zipCode: profile?.zipCode ?? DEFAULT_COMPANY_PROFILE.zipCode,
     defaultDeliveryBusinessDays: profile?.defaultDeliveryBusinessDays || DEFAULT_COMPANY_PROFILE.defaultDeliveryBusinessDays,
+    quoteReminderDays: profile?.quoteReminderDays || DEFAULT_COMPANY_PROFILE.quoteReminderDays,
+    leadNoResponseDays: profile?.leadNoResponseDays || DEFAULT_COMPANY_PROFILE.leadNoResponseDays,
+    leadCloseSuggestionDays: profile?.leadCloseSuggestionDays || DEFAULT_COMPANY_PROFILE.leadCloseSuggestionDays,
   }
 }
 

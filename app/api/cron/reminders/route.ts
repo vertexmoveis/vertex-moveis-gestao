@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { runAutomatedWhatsAppReminders } from '@/lib/whatsapp-reminders'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
+import { reconcileClientRelationshipStages } from '@/lib/client-relationship'
+import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -51,7 +53,12 @@ export async function GET(req: NextRequest) {
 
   const today = startOfDay()
   const nextWeek = addDays(today, 7)
-  const threeDaysAgo = addDays(today, -3)
+  const profile = await prisma.companyProfile.findUnique({
+    where: { id: COMPANY_PROFILE_ID },
+    select: { quoteReminderDays: true },
+  })
+  const quoteReminderDays = profile?.quoteReminderDays ?? DEFAULT_COMPANY_PROFILE.quoteReminderDays
+  const quoteReminderDate = addDays(today, -quoteReminderDays)
   const source = `daily-reminders:${dayKey(today)}`
   const existing = await prisma.systemEvent.findFirst({ where: { source }, select: { id: true } })
   if (existing) return NextResponse.json({ success: true, skipped: true, reason: 'already_processed' })
@@ -84,7 +91,7 @@ export async function GET(req: NextRequest) {
             some: {
               approvedAt: null,
               rejectedAt: null,
-              sentAt: { lte: threeDaysAgo },
+              sentAt: { lte: quoteReminderDate },
             },
           },
         },
@@ -110,7 +117,10 @@ export async function GET(req: NextRequest) {
       }),
     ])
     const dashboardOrigin = process.env.NEXTAUTH_URL?.replace(/\/$/, '') || req.nextUrl.origin
-    const whatsapp = await runAutomatedWhatsAppReminders({ today, origin: dashboardOrigin })
+    const [whatsapp, reconciliation] = await Promise.all([
+      runAutomatedWhatsAppReminders({ today, origin: dashboardOrigin, quoteReminderDays }),
+      reconcileClientRelationshipStages(prisma),
+    ])
 
     const payload = {
       date: dayKey(today),
@@ -123,6 +133,7 @@ export async function GET(req: NextRequest) {
         blocked: blocked.length,
         whatsappSent: whatsapp.sent,
         whatsappFailed: whatsapp.failed,
+        clientsReconciled: reconciliation.classified,
       },
       production,
       deliveries,

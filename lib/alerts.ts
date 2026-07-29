@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { addBusinessDays } from '@/lib/business-days'
 import { unstable_cache } from 'next/cache'
 import { dateOnlyKeyInTimeZone, endOfDateInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
+import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 
 export type AlertTone = 'danger' | 'warning' | 'info'
 
@@ -41,10 +42,33 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
   const isAdmin = user.role === 'ADMIN'
   const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }) }
   const quoteScope = { archivedAt: null, ...(isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }) }
+  const clientScope = {
+    archivedAt: null,
+    ...(isAdmin
+      ? {}
+      : {
+        OR: [
+          { managerId: user.id || '__sem_usuario__' },
+          { projects: { some: { managerId: user.id || '__sem_usuario__', archivedAt: null } } },
+          { quotes: { some: { createdById: user.id || '__sem_usuario__', archivedAt: null } } },
+        ],
+      }),
+  }
   const todayStart = startOfDay()
   const todayEnd = endOfDay()
   const nextWeek = addDays(todayStart, 7)
   const nextSevenBusinessDays = addBusinessDays(todayStart, 7) || nextWeek
+  const profile = await prisma.companyProfile.findUnique({
+    where: { id: COMPANY_PROFILE_ID },
+    select: {
+      quoteReminderDays: true,
+      leadNoResponseDays: true,
+      leadCloseSuggestionDays: true,
+    },
+  })
+  const quoteReminderDays = profile?.quoteReminderDays ?? DEFAULT_COMPANY_PROFILE.quoteReminderDays
+  const noResponseDays = profile?.leadNoResponseDays ?? DEFAULT_COMPANY_PROFILE.leadNoResponseDays
+  const closeSuggestionDays = profile?.leadCloseSuggestionDays ?? DEFAULT_COMPANY_PROFILE.leadCloseSuggestionDays
 
   const [
     overduePayments,
@@ -55,6 +79,8 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     quotesWaitingApproval,
     approvalFollowUpDue,
     expiredQuotes,
+    negotiationsWithoutResponse,
+    negotiationsToClose,
     postSaleDue,
     openWarrantyTickets,
   ] = await Promise.all([
@@ -103,7 +129,7 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
           some: {
             approvedAt: null,
             rejectedAt: null,
-            sentAt: { lte: addDays(todayStart, -3) },
+            sentAt: { lte: addDays(todayStart, -quoteReminderDays) },
             OR: [{ expiresAt: null }, { expiresAt: { gte: todayStart } }],
           },
         },
@@ -114,6 +140,23 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
         ...quoteScope,
         status: { in: ['DRAFT', 'SENT', 'WAITING_APPROVAL', 'APPROVED'] },
         validUntil: { lt: todayStart },
+      },
+    }),
+    prisma.client.count({
+      where: {
+        ...clientScope,
+        relationshipStage: { in: ['CONTACT', 'NEGOTIATING'] },
+        lastCommercialActivityAt: {
+          lte: addDays(todayStart, -noResponseDays),
+          gt: addDays(todayStart, -closeSuggestionDays),
+        },
+      },
+    }),
+    prisma.client.count({
+      where: {
+        ...clientScope,
+        relationshipStage: { in: ['CONTACT', 'NEGOTIATING'] },
+        lastCommercialActivityAt: { lte: addDays(todayStart, -closeSuggestionDays) },
       },
     }),
     prisma.project.count({
@@ -184,7 +227,7 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     {
       id: 'approval-follow-up',
       title: 'Lembretes de aprovação',
-      body: `${approvalFollowUpDue} ${plural(approvalFollowUpDue, 'orçamento está', 'orçamentos estão')} há mais de 3 dias sem resposta.`,
+      body: `${approvalFollowUpDue} ${plural(approvalFollowUpDue, 'orçamento está', 'orçamentos estão')} há mais de ${quoteReminderDays} dias sem resposta.`,
       href: '/dashboard/quotes?status=WAITING_APPROVAL',
       count: approvalFollowUpDue,
       tone: 'warning',
@@ -195,6 +238,22 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
       body: `${expiredQuotes} ${plural(expiredQuotes, 'orçamento passou', 'orçamentos passaram')} da validade.`,
       href: '/dashboard/quotes?expired=1',
       count: expiredQuotes,
+      tone: 'danger',
+    },
+    {
+      id: 'negotiations-without-response',
+      title: 'Negociações sem retorno',
+      body: `${negotiationsWithoutResponse} ${plural(negotiationsWithoutResponse, 'contato está', 'contatos estão')} há mais de ${noResponseDays} dias sem andamento.`,
+      href: '/dashboard/clients?segment=negotiating',
+      count: negotiationsWithoutResponse,
+      tone: 'warning',
+    },
+    {
+      id: 'negotiations-to-close',
+      title: 'Revisar negociações antigas',
+      body: `${negotiationsToClose} ${plural(negotiationsToClose, 'negociação passou', 'negociações passaram')} de ${closeSuggestionDays} dias sem retorno.`,
+      href: '/dashboard/clients?segment=negotiating',
+      count: negotiationsToClose,
       tone: 'danger',
     },
     {
@@ -218,7 +277,7 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
 
 const getCachedAppAlerts = unstable_cache(
   async (id: string, role: string) => getAppAlertsUncached({ id, role }),
-  ['app-alerts-v2'],
+  ['app-alerts-v3'],
   { revalidate: 30 },
 )
 

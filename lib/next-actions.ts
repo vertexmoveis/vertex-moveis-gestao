@@ -2,8 +2,9 @@ import { prisma } from '@/lib/db'
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 import { unstable_cache } from 'next/cache'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
+import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 
-export type NextActionKind = 'quote' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
+export type NextActionKind = 'client' | 'quote' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
 
 export type DashboardNextAction = {
   id: string
@@ -35,11 +36,56 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
   const isAdmin = user.role === 'ADMIN'
   const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id || '__sem_usuario__' }) }
   const quoteScope = { archivedAt: null, ...(isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }) }
+  const clientScope = {
+    archivedAt: null,
+    ...(isAdmin
+      ? {}
+      : {
+        OR: [
+          { managerId: user.id || '__sem_usuario__' },
+          { projects: { some: { managerId: user.id || '__sem_usuario__', archivedAt: null } } },
+          { quotes: { some: { createdById: user.id || '__sem_usuario__', archivedAt: null } } },
+        ],
+      }),
+  }
   const today = startOfDay()
   const nextWeek = addDays(today, 7)
-  const threeDaysAgo = addDays(today, -3)
+  const profile = await prisma.companyProfile.findUnique({
+    where: { id: COMPANY_PROFILE_ID },
+    select: {
+      quoteReminderDays: true,
+      leadNoResponseDays: true,
+      leadCloseSuggestionDays: true,
+    },
+  })
+  const quoteReminderDays = profile?.quoteReminderDays ?? DEFAULT_COMPANY_PROFILE.quoteReminderDays
+  const noResponseDays = profile?.leadNoResponseDays ?? DEFAULT_COMPANY_PROFILE.leadNoResponseDays
+  const closeSuggestionDays = profile?.leadCloseSuggestionDays ?? DEFAULT_COMPANY_PROFILE.leadCloseSuggestionDays
+  const reminderCutoff = addDays(today, -quoteReminderDays)
+  const noResponseCutoff = addDays(today, -noResponseDays)
+  const closeCutoff = addDays(today, -closeSuggestionDays)
 
-  const [quoteFollowUps, projectsToStart, deliveries, installations, materials, postSales] = await Promise.all([
+  const [staleClients, quoteFollowUps, projectsToStart, deliveries, installations, materials, postSales] = await Promise.all([
+    prisma.client.findMany({
+      where: {
+        ...clientScope,
+        relationshipStage: { in: ['CONTACT', 'NEGOTIATING'] },
+        lastCommercialActivityAt: { lte: noResponseCutoff },
+      },
+      select: {
+        id: true,
+        name: true,
+        lastCommercialActivityAt: true,
+        quotes: {
+          where: { archivedAt: null, ...(isAdmin ? {} : { createdById: user.id || '__sem_usuario__' }) },
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: { id: true, title: true },
+        },
+      },
+      orderBy: { lastCommercialActivityAt: 'asc' },
+      take: 4,
+    }),
     prisma.quote.findMany({
       where: {
         ...quoteScope,
@@ -48,7 +94,7 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
           some: {
             approvedAt: null,
             rejectedAt: null,
-            sentAt: { lte: threeDaysAgo },
+            sentAt: { lte: reminderCutoff },
             OR: [{ expiresAt: null }, { expiresAt: { gte: today } }],
           },
         },
@@ -135,6 +181,23 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
   ])
 
   const actions: DashboardNextAction[] = [
+    ...staleClients.map((client) => {
+      const shouldClose = Boolean(
+        client.lastCommercialActivityAt
+        && client.lastCommercialActivityAt.getTime() <= closeCutoff.getTime(),
+      )
+      return {
+        id: `client-${client.id}`,
+        kind: 'client' as const,
+        title: shouldClose ? 'Revisar negociação antiga' : 'Retomar contato',
+        detail: `${client.name}${client.quotes[0] ? ` · ${client.quotes[0].title}` : ''}`,
+        href: client.quotes[0]
+          ? `/dashboard/quotes/${client.quotes[0].id}`
+          : `/dashboard/clients/${client.id}`,
+        dueAt: client.lastCommercialActivityAt?.toISOString() || today.toISOString(),
+        priority: shouldClose ? 0 : 1,
+      }
+    }),
     ...quoteFollowUps.map((quote) => ({
       id: `quote-${quote.id}`,
       kind: 'quote' as const,
@@ -198,7 +261,7 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
 
 const getCachedDashboardNextActions = unstable_cache(
   async (id: string, role: string, limit: number) => getDashboardNextActionsUncached({ id, role }, limit),
-  ['dashboard-next-actions-v2'],
+  ['dashboard-next-actions-v3'],
   { revalidate: 30 },
 )
 

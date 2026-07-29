@@ -16,6 +16,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const requestSchema = z.object({
   reminder: z.boolean().optional(),
@@ -257,6 +258,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         },
       })
     }
+    await syncClientRelationshipStage(tx, quote.clientId, { activityAt: now })
     return approvalRequest
   })
 

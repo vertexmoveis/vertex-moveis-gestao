@@ -21,6 +21,7 @@ import {
 } from '@/lib/quote-group-list'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 import { clientWhereForUser } from '@/lib/client-access'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 function resolveGroupStatus(quotes: Array<{ status: string }>) {
   return QUOTE_GROUP_STATUS_PRIORITY.find((status) => quotes.some((quote) => quote.status === status))
@@ -235,6 +236,7 @@ export async function POST(req: NextRequest) {
         createdQuotes.push(created)
       }
 
+      await syncClientRelationshipStage(tx, input.clientId, { activityAt: new Date() })
       return { primary: createdQuotes[0], variants: createdQuotes }
     })
 

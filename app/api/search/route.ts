@@ -5,6 +5,7 @@ import { getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { QUOTE_STATUS_LABELS, safeQuoteStatus } from '@/lib/quotes'
 import { PROJECT_STATUS_LABELS, PRODUCTION_STAGE_LABELS, type ProjectStatus, type ProductionStage } from '@/types'
+import { CLIENT_RELATIONSHIP_LABELS, type ClientRelationshipStage } from '@/lib/client-relationship'
 
 type SearchResult = {
   id: string
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
     : {
         archivedAt: null,
         OR: [
+          { managerId: auth.user.id },
           { projects: { some: { managerId: auth.user.id, archivedAt: null } } },
           { quotes: { some: { createdById: auth.user.id, archivedAt: null } } },
         ],
@@ -79,6 +81,7 @@ export async function GET(req: NextRequest) {
         city: true,
         state: true,
         zipCode: true,
+        relationshipStage: true,
       },
     }),
     prisma.project.findMany({
@@ -123,7 +126,9 @@ export async function GET(req: NextRequest) {
       id: client.id,
       type: 'client' as const,
       title: client.name,
-      subtitle: formatClientAddress(client) || client.whatsapp || client.phone || 'Cliente cadastrado',
+      subtitle: `${CLIENT_RELATIONSHIP_LABELS[client.relationshipStage as ClientRelationshipStage] || 'Cadastro'} | ${
+        formatClientAddress(client) || client.whatsapp || client.phone || 'Sem contato informado'
+      }`,
       href: `/dashboard/clients/${client.id}`,
     })),
     ...projects.map((project) => ({

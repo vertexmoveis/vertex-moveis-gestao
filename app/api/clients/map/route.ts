@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db'
 import { formatClientAddress } from '@/lib/address'
 import { getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { clientWhereForUser } from '@/lib/client-access'
+import { CLIENT_RELATIONSHIP_STAGES } from '@/lib/client-relationship'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -17,19 +19,26 @@ export async function GET(req: NextRequest) {
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   const query = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 120)
-  const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'active'
+  const requestedScope = req.nextUrl.searchParams.get('scope')
+  const scope = requestedScope === 'negotiating' || requestedScope === 'all'
+    ? requestedScope
+    : 'customers'
   const requestedLimit = Number.parseInt(req.nextUrl.searchParams.get('limit') || '200', 10)
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 200, 50), 500)
-  const managedProjectWhere: Prisma.ProjectWhereInput = {
-    archivedAt: null,
-    ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
-    ...(scope === 'active' ? { stage: { not: 'COMPLETED' } } : {}),
-  }
-  const where: Prisma.ClientWhereInput = {
-    archivedAt: null,
-    ...(auth.user.role === 'ADMIN' && scope === 'all'
-      ? {}
-      : { projects: { some: managedProjectWhere } }),
+  const relationshipWhere: Prisma.ClientWhereInput = scope === 'customers'
+    ? { relationshipStage: CLIENT_RELATIONSHIP_STAGES.CUSTOMER }
+    : scope === 'negotiating'
+      ? {
+        relationshipStage: {
+          in: [
+            CLIENT_RELATIONSHIP_STAGES.CONTACT,
+            CLIENT_RELATIONSHIP_STAGES.NEGOTIATING,
+          ],
+        },
+      }
+      : {}
+  const where = clientWhereForUser(auth.user, {
+    ...relationshipWhere,
     ...(query
       ? {
           OR: [
@@ -41,7 +50,7 @@ export async function GET(req: NextRequest) {
           ],
         }
       : {}),
-  }
+  })
 
   const [clients, total] = await Promise.all([
     prisma.client.findMany({
@@ -60,7 +69,17 @@ export async function GET(req: NextRequest) {
       zipCode: true,
       latitude: true,
       longitude: true,
-      _count: { select: { projects: { where: { archivedAt: null } } } },
+      relationshipStage: true,
+      _count: {
+        select: {
+          projects: {
+            where: {
+              archivedAt: null,
+              ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
+            },
+          },
+        },
+      },
     },
     }),
     prisma.client.count({ where }),
@@ -73,6 +92,7 @@ export async function GET(req: NextRequest) {
       address: formatClientAddress(client),
       latitude: client.latitude,
       longitude: client.longitude,
+      relationshipStage: client.relationshipStage,
       projectsCount: client._count.projects,
     })),
     meta: {

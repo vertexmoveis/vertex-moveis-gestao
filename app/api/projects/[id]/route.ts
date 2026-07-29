@@ -29,6 +29,7 @@ import {
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, optionalMoneyValue } from '@/lib/money'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 function addCalendarDays(date: Date, days: number) {
   const result = new Date(date)
@@ -377,6 +378,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             details: `Status: ${updatedProject.status} | Etapa: ${updatedProject.stage}`,
           },
         })
+      }
+
+      await syncClientRelationshipStage(tx, input.clientId, { activityAt: new Date() })
+      if (existing.clientId !== input.clientId) {
+        await syncClientRelationshipStage(tx, existing.clientId)
       }
 
       return updatedProject

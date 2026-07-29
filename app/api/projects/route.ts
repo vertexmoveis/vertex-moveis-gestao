@@ -10,6 +10,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { normalizeProductionStage, type ProductionStage } from '@/types'
 import { optionalMoneyValue } from '@/lib/money'
 import { clientWhereForUser } from '@/lib/client-access'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -178,70 +179,73 @@ export async function POST(req: NextRequest) {
       firstInstallmentDate: input.firstInstallmentDate,
       baseDate: input.startDate || new Date(),
     })
-    const project = await prisma.project.create({
-      data: {
-        clientId: input.clientId,
-        name: input.name,
-        room,
-        status: input.status,
-        stage,
-        approvalDate: input.approvalDate,
-        paymentConfirmedAt: input.paymentConfirmedAt,
-        deliveryBusinessDays: input.deliveryBusinessDays,
-        deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
-        productionReminderBusinessDays: input.productionReminderBusinessDays,
-        productionStartReminderDate: productionDates.productionStartReminderDate,
-        startDate: input.startDate,
-        estimatedEndDate,
-        value: auth.user.role === 'ADMIN' ? input.value : null,
-        productionCost: auth.user.role === 'ADMIN' ? input.productionCost || 0 : 0,
-        downPayment: auth.user.role === 'ADMIN' ? schedule.terms.downPayment : 0,
-        downPaymentDate: auth.user.role === 'ADMIN' ? input.downPaymentDate : null,
-        installmentCount: auth.user.role === 'ADMIN' ? schedule.terms.installmentCount : 0,
-        installmentValue: auth.user.role === 'ADMIN' ? schedule.terms.installmentValue : 0,
-        firstInstallmentDate: auth.user.role === 'ADMIN' ? input.firstInstallmentDate : null,
-        managerId: auth.user.role === 'ADMIN' ? input.managerId : auth.user.id,
-        internalNotes: auth.user.role === 'ADMIN' ? input.internalNotes : null,
-        payments: auth.user.role === 'ADMIN'
-          ? {
+    const project = await prisma.$transaction(async (tx) => {
+      const created = await tx.project.create({
+        data: {
+          clientId: input.clientId,
+          name: input.name,
+          room,
+          status: input.status,
+          stage,
+          approvalDate: input.approvalDate,
+          paymentConfirmedAt: input.paymentConfirmedAt,
+          deliveryBusinessDays: input.deliveryBusinessDays,
+          deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
+          productionReminderBusinessDays: input.productionReminderBusinessDays,
+          productionStartReminderDate: productionDates.productionStartReminderDate,
+          startDate: input.startDate,
+          estimatedEndDate,
+          value: auth.user.role === 'ADMIN' ? input.value : null,
+          productionCost: auth.user.role === 'ADMIN' ? input.productionCost || 0 : 0,
+          downPayment: auth.user.role === 'ADMIN' ? schedule.terms.downPayment : 0,
+          downPaymentDate: auth.user.role === 'ADMIN' ? input.downPaymentDate : null,
+          installmentCount: auth.user.role === 'ADMIN' ? schedule.terms.installmentCount : 0,
+          installmentValue: auth.user.role === 'ADMIN' ? schedule.terms.installmentValue : 0,
+          firstInstallmentDate: auth.user.role === 'ADMIN' ? input.firstInstallmentDate : null,
+          managerId: auth.user.role === 'ADMIN' ? input.managerId : auth.user.id,
+          internalNotes: auth.user.role === 'ADMIN' ? input.internalNotes : null,
+          payments: auth.user.role === 'ADMIN'
+            ? {
               create: schedule.payments,
             }
-          : undefined,
-        checklist: {
-          create: buildDefaultChecklistItems(),
-        },
-        environments: environmentNames.length > 0
-          ? {
+            : undefined,
+          checklist: {
+            create: buildDefaultChecklistItems(),
+          },
+          environments: environmentNames.length > 0
+            ? {
               create: environmentNames.map((name, index) => ({
                 name,
                 position: index + 1,
                 status: 'PENDING',
               })),
             }
-          : undefined,
-      },
-      include: {
-        client: { select: { id: true, name: true, phone: true, whatsapp: true } },
-        manager: { select: { id: true, name: true } },
-        environments: { orderBy: { position: 'asc' } },
-      },
-    })
+            : undefined,
+        },
+        include: {
+          client: { select: { id: true, name: true, phone: true, whatsapp: true } },
+          manager: { select: { id: true, name: true } },
+          environments: { orderBy: { position: 'asc' } },
+        },
+      })
 
-    await prisma.timelineEvent.create({
-      data: {
-        projectId: project.id,
-        event: 'Projeto Criado',
-        description: `Projeto "${project.name}" criado no sistema`,
-      },
-    })
-
-    await prisma.activityLog.create({
-      data: {
-        userId: auth.user.id,
-        projectId: project.id,
-        action: 'Projeto criado',
-        details: `Novo projeto: ${project.name}`,
-      },
+      await tx.timelineEvent.create({
+        data: {
+          projectId: created.id,
+          event: 'Projeto Criado',
+          description: `Projeto "${created.name}" criado no sistema`,
+        },
+      })
+      await tx.activityLog.create({
+        data: {
+          userId: auth.user.id,
+          projectId: created.id,
+          action: 'Projeto criado',
+          details: `Novo projeto: ${created.name}`,
+        },
+      })
+      await syncClientRelationshipStage(tx, input.clientId, { activityAt: new Date() })
+      return created
     })
 
     return NextResponse.json({

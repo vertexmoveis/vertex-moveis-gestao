@@ -24,6 +24,9 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
     state: initialProfile.state,
     zipCode: initialProfile.zipCode,
     defaultDeliveryBusinessDays: initialProfile.defaultDeliveryBusinessDays,
+    quoteReminderDays: initialProfile.quoteReminderDays,
+    leadNoResponseDays: initialProfile.leadNoResponseDays,
+    leadCloseSuggestionDays: initialProfile.leadCloseSuggestionDays,
   })
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -57,6 +60,9 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
         state: data.state,
         zipCode: data.zipCode,
         defaultDeliveryBusinessDays: data.defaultDeliveryBusinessDays,
+        quoteReminderDays: data.quoteReminderDays,
+        leadNoResponseDays: data.leadNoResponseDays,
+        leadCloseSuggestionDays: data.leadCloseSuggestionDays,
       })
       setFeedback('Dados da empresa atualizados nos próximos orçamentos.')
     } catch (error) {
@@ -92,6 +98,38 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
             value={profile.defaultDeliveryBusinessDays}
             onChange={(event) => update('defaultDeliveryBusinessDays', Number(event.target.value) || 30)}
           />
+        </div>
+        <div className="border-t border-[#ECECEC] pt-4">
+          <p className="mb-1 text-xs font-semibold uppercase text-[#777]">Acompanhamento comercial</p>
+          <p className="mb-3 text-xs text-[#777]">
+            Define quando o CRM avisa sobre orçamentos e negociações sem resposta.
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Input
+              label="Lembrar orçamento após (dias)"
+              type="number"
+              min={1}
+              max={30}
+              value={profile.quoteReminderDays}
+              onChange={(event) => update('quoteReminderDays', Number(event.target.value) || 3)}
+            />
+            <Input
+              label="Marcar sem retorno após (dias)"
+              type="number"
+              min={1}
+              max={365}
+              value={profile.leadNoResponseDays}
+              onChange={(event) => update('leadNoResponseDays', Number(event.target.value) || 30)}
+            />
+            <Input
+              label="Sugerir encerramento após (dias)"
+              type="number"
+              min={1}
+              max={730}
+              value={profile.leadCloseSuggestionDays}
+              onChange={(event) => update('leadCloseSuggestionDays', Number(event.target.value) || 90)}
+            />
+          </div>
         </div>
         <div className="border-t border-[#ECECEC] pt-4">
           <p className="mb-3 text-xs font-semibold uppercase text-[#777]">Endereço da empresa</p>

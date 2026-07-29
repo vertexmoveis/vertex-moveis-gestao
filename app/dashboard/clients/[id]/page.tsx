@@ -4,18 +4,21 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Phone, Mail, MapPin, FolderOpen, ArrowLeft, MessageCircle,
-  Calendar, User
+  Calendar, User, FileText, Archive, ArchiveRestore
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Modal } from '@/components/ui/modal'
+import { Button } from '@/components/ui/button'
 import { ClientForm } from '@/components/clients/client-form'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { formatClientAddress } from '@/lib/address'
 import Link from 'next/link'
 import type { ClientData, ProjectStatus } from '@/types'
+import { QUOTE_STATUS_BG, QUOTE_STATUS_LABELS, type QuoteStatus } from '@/lib/quotes'
+import { cn } from '@/lib/utils'
 
 interface ClientDetail extends ClientData {
   projects: Array<{
@@ -28,6 +31,17 @@ interface ClientDetail extends ClientData {
     estimatedEndDate: string | null
     value: number | null
     manager: { id: string; name: string } | null
+  }>
+  quotes: Array<{
+    id: string
+    number: number
+    title: string
+    variationName: string
+    status: QuoteStatus
+    total: number | null
+    validUntil: string | null
+    createdAt: string
+    updatedAt: string
   }>
 }
 
@@ -52,11 +66,18 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ClientDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
+  const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     fetch(`/api/clients/${id}`)
-      .then((r) => r.json())
-      .then((data) => { setClient(data); setLoading(false) })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o cadastro.')
+        setClient(data)
+      })
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'Não foi possível carregar o cadastro.'))
+      .finally(() => setLoading(false))
   }, [id])
 
   const handleEdit = async (data: ClientFormData) => {
@@ -66,8 +87,34 @@ export default function ClientDetailPage() {
       body: JSON.stringify(data),
     })
     const updated = await res.json()
+    if (!res.ok) {
+      setFormError(updated?.error || 'Não foi possível salvar o cadastro.')
+      return
+    }
     setClient((prev) => prev ? { ...prev, ...updated } : prev)
+    setFormError('')
     setEditOpen(false)
+  }
+
+  const updateRelationship = async (action: 'INACTIVATE' | 'REACTIVATE') => {
+    const response = await fetch(`/api/clients/${id}/relationship`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        reason: action === 'INACTIVATE' ? 'Negociação encerrada manualmente' : undefined,
+      }),
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) {
+      setError(payload?.error || 'Não foi possível atualizar a classificação.')
+      return
+    }
+    setClient((current) => current ? {
+      ...current,
+      relationshipStage: payload.relationshipStage,
+      inactiveReason: action === 'INACTIVATE' ? 'Negociação encerrada manualmente' : null,
+    } : current)
   }
 
   if (loading) {
@@ -86,7 +133,7 @@ export default function ClientDetailPage() {
   if (!client) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-[#9E9E9E]">Cliente não encontrado</p>
+        <p className="text-[#9E9E9E]">{error || 'Cliente não encontrado'}</p>
       </div>
     )
   }
@@ -94,12 +141,24 @@ export default function ClientDetailPage() {
   const totalValue = client.projects.reduce((sum, p) => sum + (p.value || 0), 0)
   const activeProjects = client.projects.filter((p) => p.stage !== 'COMPLETED').length
   const clientAddress = formatClientAddress(client)
+  const relationshipLabels = {
+    CONTACT: 'Contato',
+    NEGOTIATING: 'Em negociação',
+    CUSTOMER: 'Cliente',
+    INACTIVE: 'Inativo',
+  } as const
+  const relationshipStyles = {
+    CONTACT: 'bg-blue-50 text-blue-700',
+    NEGOTIATING: 'bg-amber-50 text-amber-800',
+    CUSTOMER: 'bg-emerald-50 text-emerald-700',
+    INACTIVE: 'bg-[#F1F1F1] text-[#6B7280]',
+  } as const
 
   return (
     <div className="flex flex-col h-full">
       <Header
         title={client.name}
-        subtitle="Detalhes do cliente"
+        subtitle={relationshipLabels[client.relationshipStage]}
         userName=""
         action={{ label: 'Editar Cliente', onClick: () => setEditOpen(true) }}
       />
@@ -111,6 +170,12 @@ export default function ClientDetailPage() {
           Voltar para Clientes
         </Link>
 
+        {error && (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Client Info */}
           <div className="space-y-4">
@@ -119,7 +184,10 @@ export default function ClientDetailPage() {
                 <div className="flex flex-col items-center text-center py-2">
                   <Avatar name={client.name} size="lg" className="mb-3" />
                   <h2 className="text-base font-bold text-[#121212]">{client.name}</h2>
-                  <p className="text-xs text-[#9E9E9E] mt-1">Cliente desde {formatDate(client.createdAt)}</p>
+                  <span className={cn('mt-2 rounded-full px-2.5 py-1 text-xs font-semibold', relationshipStyles[client.relationshipStage])}>
+                    {relationshipLabels[client.relationshipStage]}
+                  </span>
+                  <p className="text-xs text-[#9E9E9E] mt-2">Cadastro criado em {formatDate(client.createdAt)}</p>
                 </div>
 
                 <div className="mt-4 space-y-3 border-t border-[#F5F5F5] pt-4">
@@ -193,11 +261,30 @@ export default function ClientDetailPage() {
                     <p className="text-xs text-amber-800">{client.notes}</p>
                   </div>
                 )}
+
+                {(client.relationshipStage === 'CONTACT' || client.relationshipStage === 'NEGOTIATING') && (
+                  <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => void updateRelationship('INACTIVATE')}>
+                    <Archive size={15} />
+                    Encerrar negociação
+                  </Button>
+                )}
+                {client.relationshipStage === 'INACTIVE' && (
+                  <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => void updateRelationship('REACTIVATE')}>
+                    <ArchiveRestore size={15} />
+                    Reativar contato
+                  </Button>
+                )}
               </CardBody>
             </Card>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <Card>
+                <CardBody className="text-center py-4">
+                  <p className="text-2xl font-bold text-[#121212]">{client.quotes.length}</p>
+                  <p className="text-[10px] text-[#9E9E9E] uppercase tracking-wide mt-1">Orçamentos</p>
+                </CardBody>
+              </Card>
               <Card>
                 <CardBody className="text-center py-4">
                   <p className="text-2xl font-bold text-[#121212]">{client.projects.length}</p>
@@ -223,7 +310,50 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Projects */}
-          <div className="lg:col-span-2">
+          <div className="space-y-6 lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-[#121212]">
+                  Histórico de orçamentos ({client.quotes.length})
+                </h3>
+              </CardHeader>
+              <CardBody className="p-0">
+                {client.quotes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-[#9E9E9E]">
+                    <FileText size={32} className="mb-2 opacity-20" />
+                    <p className="text-sm">Nenhum orçamento cadastrado</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#F0F0F0]">
+                    {client.quotes.map((quote) => (
+                      <Link
+                        key={quote.id}
+                        href={`/dashboard/quotes/${quote.id}`}
+                        className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-[#FAFAFA]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-[#121212]">
+                              #{String(quote.number).padStart(4, '0')} · {quote.title}
+                            </p>
+                            <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', QUOTE_STATUS_BG[quote.status])}>
+                              {QUOTE_STATUS_LABELS[quote.status]}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-[#777]">
+                            {quote.variationName} · Atualizado em {formatDate(quote.updatedAt)}
+                          </p>
+                        </div>
+                        {quote.total !== null && (
+                          <p className="shrink-0 text-sm font-semibold text-[#121212]">{formatCurrency(quote.total)}</p>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -284,11 +414,12 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Editar Cliente" size="md">
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Editar cliente" size="md">
         <ClientForm
           initialData={{ ...client, id: client.id }}
           onSubmit={handleEdit}
           onCancel={() => setEditOpen(false)}
+          serverError={formError}
         />
       </Modal>
     </div>

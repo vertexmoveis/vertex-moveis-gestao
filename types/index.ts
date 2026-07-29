@@ -140,10 +140,27 @@ export interface ClientData {
   latitude?: number | null
   longitude?: number | null
   geocodedAt?: string | null
-  notes: string | null
+  notes?: string | null
+  relationshipStage: 'CONTACT' | 'NEGOTIATING' | 'CUSTOMER' | 'INACTIVE'
+  relationshipStageChangedAt: string
+  lastCommercialActivityAt: string | null
+  inactivatedAt?: string | null
+  inactiveReason?: string | null
+  latestQuote?: {
+    id: string
+    number: number
+    title: string
+    status: string
+    updatedAt: string
+  } | null
+  attention?: {
+    code: 'NO_RESPONSE' | 'CLOSE_SUGGESTED'
+    label: string
+    elapsedDays: number
+  } | null
   createdAt: string
   updatedAt: string
-  _count?: { projects: number }
+  _count?: { projects: number; quotes?: number }
 }
 
 export interface ProjectData {

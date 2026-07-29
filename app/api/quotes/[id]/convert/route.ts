@@ -10,6 +10,7 @@ import { buildProjectMaterialsFromQuoteItems } from '@/lib/project-materials'
 import { numberValue } from '@/lib/money'
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
@@ -218,6 +219,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         },
       })
 
+      await syncClientRelationshipStage(tx, quote.clientId, { activityAt: paymentConfirmedAt })
       return project
     })
 

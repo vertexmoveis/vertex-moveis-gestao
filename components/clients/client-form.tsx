@@ -29,9 +29,10 @@ interface ClientFormProps {
   initialData?: Partial<Record<keyof FormData, string | null> & { id: string }>
   onSubmit: (data: FormData) => Promise<void>
   onCancel: () => void
+  serverError?: string
 }
 
-export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps) {
+export function ClientForm({ initialData, onSubmit, onCancel, serverError }: ClientFormProps) {
   const [loading, setLoading] = useState(false)
   const [loadingCep, setLoadingCep] = useState(false)
 
@@ -98,6 +99,11 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      {serverError && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {serverError}
+        </div>
+      )}
       <Input
         label="Nome Completo *"
         placeholder="Nome do cliente"

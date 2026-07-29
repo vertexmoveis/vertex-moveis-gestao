@@ -5,6 +5,10 @@ import { badRequest, getClientIp, requireAuth, requireRole, serverError, service
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { optionalMoneyValue } from '@/lib/money'
 import { clientWhereForUser } from '@/lib/client-access'
+import {
+  clientIdentityData,
+  findClientIdentityConflict,
+} from '@/lib/client-relationship'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth()
@@ -35,6 +39,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       state: true,
       zipCode: true,
       notes: auth.user.role === 'ADMIN',
+      relationshipStage: true,
+      relationshipStageChangedAt: true,
+      lastCommercialActivityAt: true,
+      inactivatedAt: true,
+      inactiveReason: true,
       createdAt: true,
       updatedAt: true,
       projects: {
@@ -58,6 +67,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         },
         orderBy: { createdAt: 'desc' },
       },
+      quotes: {
+        where: {
+          archivedAt: null,
+          ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
+        },
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          variationName: true,
+          status: true,
+          total: auth.user.role === 'ADMIN',
+          validUntil: true,
+          sentAt: true,
+          approvedAt: true,
+          soldAt: true,
+          lostAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      },
     },
   })
 
@@ -67,6 +98,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ...client,
     createdAt: client.createdAt.toISOString(),
     updatedAt: client.updatedAt.toISOString(),
+    relationshipStageChangedAt: client.relationshipStageChangedAt.toISOString(),
+    lastCommercialActivityAt: client.lastCommercialActivityAt?.toISOString() || null,
+    inactivatedAt: client.inactivatedAt?.toISOString() || null,
     projects: client.projects.map((p) => ({
       ...p,
       value: optionalMoneyValue(p.value),
@@ -75,6 +109,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       actualEndDate: p.actualEndDate?.toISOString() || null,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
+    })),
+    quotes: client.quotes.map((quote) => ({
+      ...quote,
+      total: optionalMoneyValue(quote.total),
+      validUntil: quote.validUntil?.toISOString() || null,
+      sentAt: quote.sentAt?.toISOString() || null,
+      approvedAt: quote.approvedAt?.toISOString() || null,
+      soldAt: quote.soldAt?.toISOString() || null,
+      lostAt: quote.lostAt?.toISOString() || null,
+      createdAt: quote.createdAt.toISOString(),
+      updatedAt: quote.updatedAt.toISOString(),
     })),
   })
 }
@@ -98,13 +143,52 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return badRequest()
   }
 
-  const parsed = clientUpdateSchema.safeParse(body)
-  if (!parsed.success) return badRequest()
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return badRequest()
+  const rawBody = body as Record<string, unknown>
+  const allowPossibleDuplicate = rawBody.allowPossibleDuplicate === true
+  const clientBody = { ...rawBody }
+  delete clientBody.allowPossibleDuplicate
+  const parsed = clientUpdateSchema.safeParse(clientBody)
+  if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
 
   try {
+    const existing = await prisma.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        documentNormalized: true,
+      },
+    })
+    if (!existing) return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
+
+    const normalizedIdentity = clientIdentityData(parsed.data)
+    const conflict = await findClientIdentityConflict(prisma, {
+      ...parsed.data,
+      document: normalizedIdentity.documentNormalized === existing.documentNormalized
+        ? null
+        : parsed.data.document,
+    }, id)
+    if (conflict?.kind === 'DOCUMENT') {
+      return NextResponse.json({
+        error: 'Já existe outro cadastro com este CPF/CNPJ.',
+        code: 'DUPLICATE_DOCUMENT',
+        existingClient: conflict.client,
+      }, { status: 409 })
+    }
+    if (conflict && !allowPossibleDuplicate) {
+      return NextResponse.json({
+        error: `Já existe outro cadastro com o mesmo telefone, WhatsApp ou e-mail: ${conflict.client.name}.`,
+        code: 'POSSIBLE_DUPLICATE',
+        existingClient: conflict.client,
+      }, { status: 409 })
+    }
+
     const client = await prisma.client.update({
       where: { id },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        ...normalizedIdentity,
+      },
     })
 
     return NextResponse.json({
@@ -134,12 +218,34 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
   try {
-    const archivedAt = new Date()
-    await prisma.$transaction([
-      prisma.client.update({ where: { id }, data: { archivedAt } }),
-      prisma.project.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt } }),
-      prisma.quote.updateMany({ where: { clientId: id, archivedAt: null }, data: { archivedAt } }),
-    ])
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: {
+        name: true,
+        archivedAt: true,
+        _count: { select: { projects: true, quotes: true } },
+      },
+    })
+    if (!client || client.archivedAt) {
+      return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
+    }
+    if (client._count.projects > 0 || client._count.quotes > 0) {
+      return NextResponse.json({
+        error: 'Este cadastro possui histórico de orçamento ou projeto e não pode ir para a lixeira. Use “Inativar” para preservá-lo.',
+        code: 'CLIENT_HAS_HISTORY',
+      }, { status: 409 })
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.client.update({ where: { id }, data: { archivedAt: new Date() } })
+      await tx.activityLog.create({
+        data: {
+          userId: auth.user.id,
+          action: 'Contato movido para a lixeira',
+          details: client.name,
+        },
+      })
+    })
   } catch {
     return serverError()
   }

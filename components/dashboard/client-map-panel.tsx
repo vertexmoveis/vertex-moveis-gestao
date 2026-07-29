@@ -13,10 +13,11 @@ type ClientMapPanelClient = {
   latitude?: number | null
   longitude?: number | null
   projectsCount: number
+  relationshipStage: string
 }
 
 type ClientMapMeta = {
-  scope: 'active' | 'all'
+  scope: 'customers' | 'negotiating' | 'all'
   query: string
   total: number
   returned: number
@@ -39,7 +40,7 @@ export function ClientMapPanel() {
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [scope, setScope] = useState<'active' | 'all'>('active')
+  const [scope, setScope] = useState<'customers' | 'negotiating' | 'all'>('customers')
   const [query, setQuery] = useState('')
   const [meta, setMeta] = useState<ClientMapMeta | null>(null)
   const requestRef = useRef<AbortController | null>(null)
@@ -119,17 +120,28 @@ export function ClientMapPanel() {
 
       {open && (
         <div className="flex flex-col gap-3 rounded-lg border border-[#E8E8E8] bg-white p-3 sm:flex-row sm:items-center">
-          <div className="inline-flex h-10 shrink-0 rounded-lg border border-[#D9D9D9] bg-[#F7F7F7] p-1">
+          <div className="grid h-10 shrink-0 grid-cols-3 rounded-lg border border-[#D9D9D9] bg-[#F7F7F7] p-1">
             <button
               type="button"
-              onClick={() => setScope('active')}
-              aria-pressed={scope === 'active'}
+              onClick={() => setScope('customers')}
+              aria-pressed={scope === 'customers'}
               className={cn(
-                'min-w-28 rounded-md px-3 text-xs font-semibold transition-colors',
-                scope === 'active' ? 'bg-white text-[#121212] shadow-sm' : 'text-[#777] hover:text-[#121212]'
+                'min-w-20 rounded-md px-3 text-xs font-semibold transition-colors',
+                scope === 'customers' ? 'bg-white text-[#121212] shadow-sm' : 'text-[#777] hover:text-[#121212]'
               )}
             >
-              Em andamento
+              Clientes
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('negotiating')}
+              aria-pressed={scope === 'negotiating'}
+              className={cn(
+                'min-w-24 rounded-md px-3 text-xs font-semibold transition-colors',
+                scope === 'negotiating' ? 'bg-white text-[#121212] shadow-sm' : 'text-[#777] hover:text-[#121212]'
+              )}
+            >
+              Negociações
             </button>
             <button
               type="button"

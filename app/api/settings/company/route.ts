@@ -26,7 +26,18 @@ const companyProfileSchema = z.object({
   state: optionalText(40),
   zipCode: optionalText(20),
   defaultDeliveryBusinessDays: z.coerce.number().int().min(1).max(365),
-}).strict()
+  quoteReminderDays: z.coerce.number().int().min(1).max(30),
+  leadNoResponseDays: z.coerce.number().int().min(1).max(365),
+  leadCloseSuggestionDays: z.coerce.number().int().min(1).max(730),
+}).strict().superRefine((value, ctx) => {
+  if (value.leadCloseSuggestionDays <= value.leadNoResponseDays) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['leadCloseSuggestionDays'],
+      message: 'O prazo para sugerir encerramento deve ser maior que o prazo sem retorno.',
+    })
+  }
+})
 
 export async function GET() {
   const auth = await requireAuth()

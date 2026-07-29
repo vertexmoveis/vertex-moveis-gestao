@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { dateOnlyKeyInTimeZone, formatDateOnly } from '@/lib/date-only'
 import { dispatchWhatsAppTemplate } from '@/lib/whatsapp-cloud'
 import { moneyValue, type NumericValue } from '@/lib/money'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -45,8 +46,13 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, callbac
   return results
 }
 
-export async function runAutomatedWhatsAppReminders(input: { today: Date; origin: string }) {
-  const threeDaysAgo = addDays(input.today, -3)
+export async function runAutomatedWhatsAppReminders(input: {
+  today: Date
+  origin: string
+  quoteReminderDays?: number
+}) {
+  const quoteReminderDays = input.quoteReminderDays ?? 3
+  const reminderCutoff = addDays(input.today, -quoteReminderDays)
   const tomorrow = addDays(input.today, 1)
   const dayAfterTomorrow = addDays(input.today, 2)
   const [quoteRequests, overduePayments, installations, postSaleProjects] = await Promise.all([
@@ -55,8 +61,8 @@ export async function runAutomatedWhatsAppReminders(input: { today: Date; origin
         approvedAt: null,
         rejectedAt: null,
         invalidatedAt: null,
-        sentAt: { lte: threeDaysAgo },
-        OR: [{ lastReminderAt: null }, { lastReminderAt: { lte: threeDaysAgo } }],
+        sentAt: { lte: reminderCutoff },
+        OR: [{ lastReminderAt: null }, { lastReminderAt: { lte: reminderCutoff } }],
         quote: { archivedAt: null, status: 'WAITING_APPROVAL' },
       },
       orderBy: { sentAt: 'asc' },
@@ -69,7 +75,7 @@ export async function runAutomatedWhatsAppReminders(input: { today: Date; origin
           select: {
             id: true,
             title: true,
-            client: { select: { name: true, whatsapp: true, phone: true } },
+            client: { select: { id: true, name: true, whatsapp: true, phone: true } },
           },
         },
       },
@@ -142,7 +148,7 @@ export async function runAutomatedWhatsAppReminders(input: { today: Date; origin
     ...quoteRequests.map((request) => ({
       kind: 'quote' as const,
       run: () => dispatchWhatsAppTemplate({
-        dedupeKey: `quote-reminder:${request.id}:${periodKey(input.today, 3)}`,
+        dedupeKey: `quote-reminder:${request.id}:${periodKey(input.today, quoteReminderDays)}`,
         kind: 'QUOTE_REMINDER',
         phone: request.quote.client.whatsapp || request.quote.client.phone,
         clientName: request.quote.client.name,
@@ -153,9 +159,13 @@ export async function runAutomatedWhatsAppReminders(input: { today: Date; origin
           `${input.origin.replace(/\/$/, '')}/proposta/${request.token}`,
         ],
       }),
-      onSent: () => prisma.quoteApprovalRequest.update({
-        where: { id: request.id },
-        data: { reminderCount: { increment: 1 }, lastReminderAt: new Date() },
+      onSent: () => prisma.$transaction(async (tx) => {
+        const now = new Date()
+        await tx.quoteApprovalRequest.update({
+          where: { id: request.id },
+          data: { reminderCount: { increment: 1 }, lastReminderAt: now },
+        })
+        await syncClientRelationshipStage(tx, request.quote.client.id, { activityAt: now })
       }),
     })),
     ...overduePayments.map((payment) => ({

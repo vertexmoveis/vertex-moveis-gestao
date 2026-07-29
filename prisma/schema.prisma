@@ -38,43 +38,59 @@ model User {
 }
 
 model Client {
-  id           String       @id @default(cuid())
-  managerId    String?
-  manager      User?        @relation(fields: [managerId], references: [id], onDelete: SetNull)
-  name         String
-  document     String?
-  phone        String?
-  whatsapp     String?
-  email        String?
-  address      String?
-  street       String?
-  number       String?
-  neighborhood String?
-  city         String?
-  state        String?
-  zipCode      String?
-  latitude     Float?
-  longitude    Float?
-  geocodedAt   DateTime?
-  notes        String?
-  archivedAt   DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  projects     Project[]
-  quotes       Quote[]
-  quoteGroups  QuoteGroup[]
+  id                         String       @id @default(cuid())
+  managerId                  String?
+  manager                    User?        @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  name                       String
+  document                   String?
+  documentNormalized         String?
+  phone                      String?
+  phoneNormalized            String?
+  whatsapp                   String?
+  whatsappNormalized         String?
+  email                      String?
+  emailNormalized            String?
+  address                    String?
+  street                     String?
+  number                     String?
+  neighborhood               String?
+  city                       String?
+  state                      String?
+  zipCode                    String?
+  latitude                   Float?
+  longitude                  Float?
+  geocodedAt                 DateTime?
+  notes                      String?
+  relationshipStage          String       @default("CONTACT")
+  relationshipStageChangedAt DateTime     @default(now())
+  lastCommercialActivityAt   DateTime?
+  inactivatedAt              DateTime?
+  inactiveReason             String?
+  archivedAt                 DateTime?
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  projects                   Project[]
+  quotes                     Quote[]
+  quoteGroups                QuoteGroup[]
 
   @@index([name])
   @@index([managerId])
   @@index([city])
   @@index([zipCode])
   @@index([archivedAt])
+  @@index([documentNormalized])
+  @@index([phoneNormalized])
+  @@index([whatsappNormalized])
+  @@index([emailNormalized])
+  @@index([relationshipStage, archivedAt])
+  @@index([managerId, relationshipStage, archivedAt])
+  @@index([lastCommercialActivityAt])
 }
 
 model Project {
   id                             String                 @id @default(cuid())
   clientId                       String
-  client                         Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client                         Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
   name                           String
   room                           String?
   status                         String                 @default("APPROVED")
@@ -143,7 +159,7 @@ model Quote {
   groupId                    String
   group                      QuoteGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   clientId                   String
-  client                     Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client                     Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
   createdById                String?
   createdBy                  User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
   convertedProjectId         String?                @unique
@@ -202,7 +218,7 @@ model Quote {
 model QuoteGroup {
   id          String   @id @default(cuid())
   clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   title       String
@@ -230,6 +246,9 @@ model CompanyProfile {
   state                       String?
   zipCode                     String?
   defaultDeliveryBusinessDays Int      @default(30)
+  quoteReminderDays           Int      @default(3)
+  leadNoResponseDays          Int      @default(30)
+  leadCloseSuggestionDays     Int      @default(90)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 }

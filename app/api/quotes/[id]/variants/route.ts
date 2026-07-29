@@ -10,6 +10,7 @@ import {
 } from '@/lib/quote-variations'
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const variationSchema = z.object({
   type: z.enum(QUOTE_VARIATION_TYPES),
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         },
       })
       await tx.quoteGroup.update({ where: { id: source.groupId }, data: { updatedAt: new Date() } })
+      await syncClientRelationshipStage(tx, source.clientId, { activityAt: new Date() })
       return quote
     })
 

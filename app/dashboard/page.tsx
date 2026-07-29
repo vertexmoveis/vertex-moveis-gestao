@@ -22,6 +22,7 @@ import {
   Calculator,
   ShoppingCart,
   TrendingUp,
+  UserRoundSearch,
 } from 'lucide-react'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types'
 import { formatDate } from '@/lib/utils'
@@ -38,13 +39,22 @@ async function getDashboardData(user: DashboardUser) {
   const projectScope = { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id }) }
   const clientScope = {
     archivedAt: null,
-    ...(isAdmin ? {} : { projects: { some: { managerId: user.id, archivedAt: null } } }),
+    ...(isAdmin
+      ? {}
+      : {
+        OR: [
+          { managerId: user.id },
+          { projects: { some: { managerId: user.id, archivedAt: null } } },
+          { quotes: { some: { createdById: user.id, archivedAt: null } } },
+        ],
+      }),
   }
   const today = new Date()
   today.setHours(23, 59, 59, 999)
 
   const [
     totalClients,
+    negotiatingClients,
     projectGroups,
     todayDeliveries,
     recentActivities,
@@ -54,7 +64,12 @@ async function getDashboardData(user: DashboardUser) {
     nextActions,
   ] =
     await Promise.all([
-      prisma.client.count({ where: clientScope }),
+      prisma.client.count({
+        where: { ...clientScope, relationshipStage: 'CUSTOMER' },
+      }),
+      prisma.client.count({
+        where: { ...clientScope, relationshipStage: { in: ['CONTACT', 'NEGOTIATING'] } },
+      }),
       prisma.project.groupBy({
         by: ['status', 'stage'],
         where: projectScope,
@@ -129,6 +144,7 @@ async function getDashboardData(user: DashboardUser) {
 
   return {
     totalClients,
+    negotiatingClients,
     activeProjects,
     inProduction,
     completed,
@@ -173,8 +189,8 @@ export default async function DashboardPage() {
   const data = await getDashboardData(user || {})
   const nowTime = new Date().getTime()
   const quickAccessItems = [
-    { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} cadastrados`, color: 'bg-blue-50 text-blue-600' },
-    { href: '/dashboard/sales', icon: TrendingUp, label: 'Vendas', sub: 'Funil comercial', color: 'bg-emerald-50 text-emerald-600' },
+    { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} convertidos`, color: 'bg-blue-50 text-blue-600' },
+    { href: '/dashboard/clients?segment=negotiating', icon: TrendingUp, label: 'Vendas', sub: `${data.negotiatingClients} negociações`, color: 'bg-emerald-50 text-emerald-600' },
     { href: '/dashboard/projects', icon: FolderOpen, label: 'Projetos', sub: `${data.activeProjects} ativos`, color: 'bg-orange-50 text-orange-600' },
     { href: '/dashboard/production', icon: Package, label: 'Produção', sub: 'Kanban board', color: 'bg-purple-50 text-purple-600' },
     { href: '/dashboard/calendar', icon: Calendar, label: 'Calendário', sub: 'Agenda e prazos', color: 'bg-green-50 text-green-600' },
@@ -200,13 +216,14 @@ export default async function DashboardPage() {
 
       <div className="flex-1 p-6 space-y-6 overflow-y-auto">
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-7">
           <StatsCard title="Clientes" value={data.totalClients} icon={Users} color="blue" delay={0} />
-          <StatsCard title="Projetos Ativos" value={data.activeProjects} icon={FolderOpen} color="orange" delay={50} />
-          <StatsCard title="Em Produção" value={data.inProduction} icon={Package} color="purple" delay={100} />
-          <StatsCard title="Concluídos" value={data.completed} icon={CheckCircle} color="green" delay={150} />
-          <StatsCard title="Atrasados" value={data.delayed} icon={AlertTriangle} color="red" delay={200} />
-          <StatsCard title="Entregas Hoje" value={data.todayDeliveries} icon={Truck} color="cyan" delay={250} />
+          <StatsCard title="Em negociação" value={data.negotiatingClients} icon={UserRoundSearch} color="yellow" delay={50} />
+          <StatsCard title="Projetos Ativos" value={data.activeProjects} icon={FolderOpen} color="orange" delay={100} />
+          <StatsCard title="Em Produção" value={data.inProduction} icon={Package} color="purple" delay={150} />
+          <StatsCard title="Concluídos" value={data.completed} icon={CheckCircle} color="green" delay={200} />
+          <StatsCard title="Atrasados" value={data.delayed} icon={AlertTriangle} color="red" delay={250} />
+          <StatsCard title="Entregas Hoje" value={data.todayDeliveries} icon={Truck} color="cyan" delay={300} />
         </div>
 
         <Card>
@@ -515,6 +532,8 @@ function attentionToneConfig(tone: AlertTone) {
 
 function nextActionConfig(kind: NextActionKind) {
   switch (kind) {
+    case 'client':
+      return { icon: UserRoundSearch, className: 'bg-amber-50 text-amber-700' }
     case 'quote':
       return { icon: Calculator, className: 'bg-blue-50 text-blue-600' }
     case 'production':
