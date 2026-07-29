@@ -7,10 +7,11 @@ import {
   type PublicApprovalOption,
 } from '@/components/quotes/public-approval-actions'
 import { prisma } from '@/lib/db'
-import { formatDateOnly, isDateOnlyExpired } from '@/lib/date-only'
+import { isDateOnlyExpired } from '@/lib/date-only'
 import {
   getQuotePaymentSummary,
   quoteDisplayCode,
+  quoteVariationDisplayName,
 } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -97,45 +98,35 @@ function QuotePdfPreview({
   comparison: boolean
 }) {
   const pdfUrl = `/api/public/quote-approvals/${token}/document?quoteId=${encodeURIComponent(quote.id)}`
+  const optionLabel = quoteVariationDisplayName(quote)
 
   return (
-    <section className="border-t border-[#ECE9E5] px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase text-[#FF6B00]">
-            {comparison ? `Opção ${optionNumber}` : 'Orçamento simples'}
-          </p>
-          <h2 className="mt-1 text-lg font-extrabold text-[#121212]">
-            {quote.variationName || quote.title}
-          </h2>
-          <p className="mt-1 text-xs text-[#777]">
-            Orçamento {quoteDisplayCode(quote)} · {formatCurrency(quote.total)}
-          </p>
-        </div>
+    <section className={optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : ''}>
+      <div className="px-4 py-5 sm:hidden">
         <a
           href={pdfUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#D8D5D0] bg-white px-4 text-sm font-semibold text-[#121212] hover:border-[#FF6B00] hover:text-[#FF6B00]"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white"
         >
           <FileText size={16} />
-          Abrir PDF
+          {comparison ? `Abrir PDF - ${optionLabel}` : 'Abrir orçamento em PDF'}
           <ExternalLink size={14} />
         </a>
+        <p className="mt-3 text-center text-xs leading-5 text-[#777]">
+          O documento abrirá no leitor de PDF do seu celular.
+        </p>
       </div>
 
-      <div className="hidden overflow-hidden rounded-lg border border-[#D8D5D0] bg-[#E8E8E8] sm:block">
+      <div className="hidden overflow-hidden bg-[#E8E8E8] sm:block">
         <iframe
           src={`${pdfUrl}#view=FitH`}
           title={`Orçamento ${quoteDisplayCode(quote)} em PDF`}
-          className="h-[72vh] min-h-[520px] w-full bg-white sm:h-[78vh] sm:min-h-[680px]"
+          className="h-[calc(100vh-4rem)] min-h-[680px] w-full bg-white"
           loading={optionNumber === 1 ? 'eager' : 'lazy'}
           referrerPolicy="no-referrer"
         />
       </div>
-      <p className="mt-3 text-xs leading-5 text-[#777] sm:hidden">
-        No celular, toque em “Abrir PDF” para conferir o documento completo.
-      </p>
     </section>
   )
 }
@@ -205,81 +196,21 @@ export default async function PublicQuoteApprovalPage({
     : undefined
   const message = responseMessage(
     request,
-    selectedQuote?.variationName || selectedQuote?.title,
+    selectedQuote ? quoteVariationDisplayName(selectedQuote) : undefined,
   )
   const clientName = quotes[0].client.name
   const approvalOptions: PublicApprovalOption[] = comparison
     ? quotes.map((quote) => ({
         id: quote.id,
-        title: quote.variationName || quote.title,
+        title: quoteVariationDisplayName(quote),
         totalLabel: formatCurrency(quote.total),
         paymentLabel: getQuotePaymentSummary(quote),
       }))
     : []
 
   return (
-    <main className="min-h-screen bg-[#F4F3F0] px-3 py-4 sm:px-6 sm:py-8">
-      <article className="mx-auto max-w-5xl overflow-hidden rounded-lg border border-[#E5E2DD] bg-white shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
-        <div className="h-2 bg-[#FF6B00]" />
-        <header className="flex flex-col gap-6 border-b border-[#ECE9E5] px-6 py-7 sm:flex-row sm:items-start sm:justify-between sm:px-10 sm:py-9">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/vertex-symbol.png"
-              alt="Vertex Móveis"
-              width={56}
-              height={40}
-              className="h-10 w-auto"
-              style={{ width: 'auto' }}
-              priority
-            />
-            <div>
-              <p className="text-lg font-extrabold text-[#121212]">Vertex Móveis</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase text-[#777]">Móveis planejados</p>
-            </div>
-          </div>
-          <div className="sm:max-w-md sm:text-right">
-            <p className="text-[11px] font-bold uppercase text-[#FF6B00]">
-              {comparison ? 'Opções de orçamento' : 'Orçamento em PDF'}
-            </p>
-            <h1 className="mt-2 text-xl font-extrabold text-[#121212] sm:text-2xl">
-              {comparison ? `${quotes.length} opções para o seu projeto` : quotes[0].title}
-            </h1>
-            <p className="mt-2 text-xs text-[#777]">
-              {comparison
-                ? `Orçamentos ${quotes.map(quoteDisplayCode).join(' · ')}`
-                : `Código ${quoteDisplayCode(quotes[0])}`}
-            </p>
-          </div>
-        </header>
-
-        <section className="px-6 py-7 sm:px-10 sm:py-9">
-          <p className="text-[11px] font-bold uppercase text-[#FF6B00]">Preparado para</p>
-          <h2 className="mt-2 text-2xl font-extrabold text-[#121212] sm:text-3xl">{clientName}</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5E5E5E]">
-            {comparison
-              ? 'Confira cada orçamento em PDF, compare os valores e as condições, depois escolha a opção desejada para aprovar.'
-              : 'Confira abaixo o orçamento simples em PDF. Depois, aprove ou solicite os ajustes necessários.'}
-          </p>
-        </section>
-
-        {comparison ? (
-          <section className="border-y border-[#ECE9E5] bg-[#FAFAF8] px-6 py-6 sm:px-10">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {quotes.map((quote, index) => (
-                <div key={quote.id} className="rounded-lg border border-[#E2DED8] bg-white px-4 py-4">
-                  <p className="text-[10px] font-bold uppercase text-[#FF6B00]">Opção {index + 1}</p>
-                  <h2 className="mt-1 font-bold text-[#121212]">{quote.variationName || quote.title}</h2>
-                  <p className="mt-3 text-2xl font-extrabold text-[#121212]">{formatCurrency(quote.total)}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#666]">{getQuotePaymentSummary(quote)}</p>
-                  {quote.validUntil ? (
-                    <p className="mt-2 text-xs text-[#777]">Válido até {formatDateOnly(quote.validUntil)}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
+    <main className="min-h-screen bg-[#F4F3F0] sm:px-6 sm:py-8">
+      <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
         {quotes.map((quote, index) => (
           <QuotePdfPreview
             key={quote.id}
@@ -323,11 +254,6 @@ export default async function PublicQuoteApprovalPage({
             )}
           </div>
         </section>
-
-        <footer className="flex flex-col gap-1 border-t border-[#ECE9E5] px-6 py-5 text-xs text-[#777] sm:flex-row sm:items-center sm:justify-between sm:px-10">
-          <p>Vertex Móveis · Rua Saturno, 6 · Cotia, SP · 06702-170</p>
-          <p>{comparison ? 'Orçamentos' : 'Orçamento'} {quotes.map(quoteDisplayCode).join(' · ')}</p>
-        </footer>
       </article>
     </main>
   )

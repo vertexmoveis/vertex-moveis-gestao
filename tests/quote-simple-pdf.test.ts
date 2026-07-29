@@ -93,4 +93,8 @@ test('gera um nome de arquivo seguro e identificável', () => {
     simpleQuotePdfFileName(quote),
     'orcamento-0042-madeirado.pdf',
   )
+  assert.equal(
+    simpleQuotePdfFileName({ ...quote, variationName: 'Padrão' }),
+    'orcamento-0042-branco-tx-externo.pdf',
+  )
 })

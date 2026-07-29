@@ -449,6 +449,15 @@ export function quoteDisplayCode(quote: { id: string; number?: number | null }) 
   return quote.number ? String(quote.number).padStart(4, '0') : quote.id.slice(-6).toUpperCase()
 }
 
+export function quoteVariationDisplayName(quote: {
+  variationName?: string | null
+  title?: string | null
+}) {
+  const variationName = quote.variationName?.trim()
+  if (!variationName) return quote.title?.trim() || 'Branco TX externo'
+  return normalizeText(variationName) === 'padrao' ? 'Branco TX externo' : variationName
+}
+
 export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?: { name: string } }) {
   return JSON.stringify({
     id: quote.id,
@@ -592,7 +601,7 @@ export function buildQuoteOptionsApprovalMessage(
 ) {
   const clientName = quotes.find((quote) => quote.client?.name)?.client?.name || 'tudo bem'
   const options = quotes.map((quote, index) => (
-    `${index + 1}. ${quote.variationName || quote.title}: ${formatQuoteCurrency(quote.total)}`
+    `${index + 1}. ${quoteVariationDisplayName(quote)}: ${formatQuoteCurrency(quote.total)}`
   ))
   const optionCount = quotes.length
 

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calculateQuoteTotals, getQuoteCardInstallmentPlan, getQuotePaymentDetails } from '@/lib/quotes'
+import {
+  calculateQuoteTotals,
+  getQuoteCardInstallmentPlan,
+  getQuotePaymentDetails,
+  quoteVariationDisplayName,
+} from '@/lib/quotes'
 import { formatDateOnly } from '@/lib/date-only'
 import {
   buildQuoteApprovalBundleSnapshot,
@@ -40,6 +45,17 @@ const pricing = {
   cardInstallments: 10,
   cardDownPayment: 500,
 }
+
+test('troca o nome genérico da opção pelo acabamento externo', () => {
+  assert.equal(
+    quoteVariationDisplayName({ variationName: 'Padrão', title: 'Cozinha' }),
+    'Branco TX externo',
+  )
+  assert.equal(
+    quoteVariationDisplayName({ variationName: 'Madeirado', title: 'Cozinha' }),
+    'Madeirado',
+  )
+})
 
 test('a taxa do cartão reduz o lucro sem alterar o total do cliente', () => {
   const withoutFee = calculateQuoteTotals([item], { ...pricing, paymentMethod: 'CARD', cardFeePercent: 0 })

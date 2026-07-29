@@ -11,7 +11,7 @@ export const QUOTE_VARIATION_TYPES = [
 export type QuoteVariationType = typeof QUOTE_VARIATION_TYPES[number]
 
 export const QUOTE_VARIATION_LABELS: Record<QuoteVariationType, string> = {
-  STANDARD: 'Padrão',
+  STANDARD: 'Branco TX externo',
   WOODGRAIN: 'Madeirado',
   PROVENCAL: 'Provençal',
   EXTERNAL_LACQUER: 'Laca',

@@ -19,6 +19,7 @@ import {
   getQuotePaymentDetails,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
+  quoteVariationDisplayName,
 } from '@/lib/quotes'
 
 const colors = {
@@ -380,7 +381,7 @@ function SimpleQuotePdf({
           <Text style={styles.titleBarMain}>ORÇAMENTO Nº {quoteDisplayCode(quote)}</Text>
           <Text>{formatDateOnly(quote.createdAt)}</Text>
         </View>
-        <Text style={styles.delivery}>OPÇÃO: {quote.variationName || quote.title}</Text>
+        <Text style={styles.delivery}>OPÇÃO: {quoteVariationDisplayName(quote)}</Text>
         <Text style={styles.delivery}>
           PREVISÃO ESTIMADA DE ENTREGA: {formatDateOnly(deliveryForecast)} ({quote.deliveryBusinessDays || 30} dias úteis após aprovação e confirmação do pagamento)
         </Text>
@@ -512,7 +513,7 @@ export async function renderSimpleQuotePdf(input: {
 }
 
 export function simpleQuotePdfFileName(quote: QuoteApprovalData) {
-  const title = `${quoteDisplayCode(quote)}-${quote.variationName || quote.title}`
+  const title = `${quoteDisplayCode(quote)}-${quoteVariationDisplayName(quote)}`
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '-')
