@@ -341,10 +341,10 @@ export default function QuotesPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            title="Abrir proposta"
+                            title="Abrir orçamento em PDF"
                             onClick={(event) => {
                               event.stopPropagation()
-                              window.open(`/api/quotes/${quote.id}/proposal`, '_blank')
+                              window.open(`/api/quotes/${quote.id}/proposal?modelo=simples`, '_blank')
                             }}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#D9D9D9] text-[#777] hover:bg-[#F5F5F5] hover:text-[#121212]"
                           >

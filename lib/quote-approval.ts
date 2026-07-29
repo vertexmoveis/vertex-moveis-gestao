@@ -272,3 +272,14 @@ export function parseQuoteApprovalOptionsSnapshot(value?: string | null): QuoteA
     return null
   }
 }
+
+export function parseQuoteApprovalQuotes(value?: string | null) {
+  const options = parseQuoteApprovalOptionsSnapshot(value)
+  if (options) return options.quotes
+
+  const bundle = parseQuoteApprovalBundleSnapshot(value)
+  if (bundle) return bundle.quotes
+
+  const single = parseQuoteApprovalSnapshot(value)
+  return single ? [single.quote] : null
+}

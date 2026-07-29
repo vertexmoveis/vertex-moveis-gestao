@@ -3,13 +3,13 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { randomUUID } from 'node:crypto'
 
-function contentSecurityPolicy(nonce: string) {
+function contentSecurityPolicy(nonce: string, allowSameOriginFraming = false) {
   const isDevelopment = process.env.NODE_ENV === 'development'
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    `frame-ancestors ${allowSameOriginFraming ? "'self'" : "'none'"}`,
     "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
@@ -26,7 +26,9 @@ function withContentSecurityPolicy(response: NextResponse, policy: string) {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(randomUUID()).toString('base64')
-  const policy = contentSecurityPolicy(nonce)
+  const { pathname } = request.nextUrl
+  const allowSameOriginFraming = /^\/api\/public\/quote-approvals\/[^/]+\/document$/.test(pathname)
+  const policy = contentSecurityPolicy(nonce, allowSameOriginFraming)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', policy)
@@ -37,8 +39,6 @@ export async function proxy(request: NextRequest) {
   } catch {
     token = null
   }
-
-  const { pathname } = request.nextUrl
 
   const validToken = Boolean(
     token

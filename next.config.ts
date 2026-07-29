@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
           ...(isProduction ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }] : []),
         ],
       },
+      {
+        source: '/api/public/quote-approvals/:token/document',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        ],
+      },
     ]
   },
 }

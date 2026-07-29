@@ -538,7 +538,7 @@ export function buildQuoteApprovalMessage(quote: QuoteContactMessage, approvalUr
     `Olá, ${quote.client?.name || 'tudo bem'}!`,
     '',
     `Preparamos o orçamento do seu projeto "${quote.title}" no valor de ${formatQuoteCurrency(quote.total)}.`,
-    `Confira todos os detalhes e aprove a proposta por aqui: ${approvalUrl}`,
+    `Confira o orçamento simples em PDF e aprove por aqui: ${approvalUrl}`,
     '',
     'Ficou alguma dúvida ou deseja ajustar algum item? Pode me responder por aqui.',
   ].join('\n')
@@ -552,7 +552,7 @@ export function buildQuoteFollowUpMessage(quote: QuoteContactMessage, approvalUr
     'Ficou alguma dúvida, algum detalhe que você gostaria de ajustar ou algo que não ficou como imaginava?',
     '',
     'Sua opinião é importante para deixarmos o projeto exatamente como você precisa.',
-    `Você pode rever a proposta e aprovar por aqui: ${approvalUrl}`,
+    `Você pode rever o orçamento em PDF e aprovar por aqui: ${approvalUrl}`,
     '',
     'Fico à disposição.',
   ].join('\n')
@@ -578,8 +578,8 @@ export function buildQuoteComparisonApprovalMessage(
     '',
     reminder
       ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
-      : 'No mesmo link você pode comparar os móveis, acabamentos, valores e formas de pagamento.',
-    `Veja as duas propostas e escolha a sua preferida aqui: ${approvalUrl}`,
+      : 'No mesmo link você pode comparar os orçamentos em PDF, valores e formas de pagamento.',
+    `Veja os dois orçamentos e escolha o seu preferido aqui: ${approvalUrl}`,
     '',
     'Qualquer dúvida, pode me responder por aqui.',
   ].join('\n')
@@ -606,8 +606,8 @@ export function buildQuoteOptionsApprovalMessage(
     '',
     reminder
       ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
-      : 'No mesmo link você pode comparar os móveis, acabamentos, valores e formas de pagamento.',
-    `Veja as propostas e escolha a sua preferida aqui: ${approvalUrl}`,
+      : 'No mesmo link você pode comparar os orçamentos em PDF, valores e formas de pagamento.',
+    `Veja os orçamentos e escolha o seu preferido aqui: ${approvalUrl}`,
     '',
     'Qualquer dúvida, pode me responder por aqui.',
   ].join('\n')

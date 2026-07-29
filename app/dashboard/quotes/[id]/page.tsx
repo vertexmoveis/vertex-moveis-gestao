@@ -327,7 +327,7 @@ export default function QuoteDetailPage() {
 
   const whatsappUrl = useMemo(() => {
     const client = quote?.client
-    if (!client || typeof window === 'undefined') return ''
+    if (!client || !approvalUrl || typeof window === 'undefined') return ''
     const contactNumber = client.whatsapp || client.phone
     if (!contactNumber) return ''
     const phone = contactNumber.replace(/\D/g, '')
@@ -336,12 +336,12 @@ export default function QuoteDetailPage() {
       `Olá, ${client.name}!`,
       '',
       `Segue o orçamento ${quote.title} no valor de ${formatCurrency(quote.total)}.`,
-      `Para conferir e aprovar, abra a proposta: ${window.location.origin}/api/quotes/${quote.id}/proposal`,
+      `Para conferir o orçamento simples em PDF e aprovar, abra: ${approvalUrl}`,
       '',
-      'Se estiver tudo certo, me responda com "aprovado" para iniciarmos o projeto.',
+      'Se precisar ajustar algum detalhe, pode me responder por aqui.',
     ].join('\n')
     return `https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(message)}`
-  }, [quote])
+  }, [approvalUrl, quote])
 
   if (loading) {
     return (
@@ -448,13 +448,13 @@ export default function QuoteDetailPage() {
               <Trash2 size={16} />
               Excluir
             </Button>
-            <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal`, '_blank')}>
-              <FileText size={16} />
-              Proposta comercial
-            </Button>
             <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal?modelo=simples`, '_blank')}>
               <Printer size={16} />
-              Orçamento simples
+              Orçamento do cliente
+            </Button>
+            <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal`, '_blank')}>
+              <FileText size={16} />
+              Proposta detalhada
             </Button>
             {quote.approvalRecord?.token ? (
               <Button variant="outline" onClick={() => window.open(`/api/public/quote-approvals/${quote.approvalRecord?.token}/certificate`, '_blank')}>

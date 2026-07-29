@@ -7,8 +7,15 @@ import { formatClientAddress } from '@/lib/address'
 import { addBusinessDays } from '@/lib/business-days'
 import { COMPANY_PROFILE_ID, formatCompanyAddress, serializeCompanyProfile } from '@/lib/company-profile'
 import { formatDateOnly } from '@/lib/date-only'
-import { renderSimpleQuoteProposal } from '@/lib/quote-simple-proposal'
 import { numberValue, type NumericValue } from '@/lib/money'
+import {
+  buildQuoteApprovalSnapshot,
+  parseQuoteApprovalSnapshot,
+} from '@/lib/quote-approval'
+import {
+  renderSimpleQuotePdf,
+  simpleQuotePdfFileName,
+} from '@/lib/quote-simple-pdf'
 import { forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import {
@@ -100,22 +107,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const logoUrl = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
     .then((file) => `data:image/png;base64,${file.toString('base64')}`)
     .catch(() => new URL('/vertex-symbol.png', req.url).toString())
-  const commercialHref = new URL(`/api/quotes/${quote.id}/proposal`, req.url).toString()
   const simpleHref = new URL(`/api/quotes/${quote.id}/proposal?modelo=simples`, req.url).toString()
   const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
 
   if (req.nextUrl.searchParams.get('modelo') === 'simples') {
-    return new NextResponse(renderSimpleQuoteProposal({
-      quote,
+    const snapshot = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(quote))
+    if (!snapshot) {
+      return NextResponse.json({ error: 'Não foi possível preparar o orçamento.' }, { status: 500 })
+    }
+    const pdf = await renderSimpleQuotePdf({
+      quote: snapshot.quote,
       company,
       logoUrl,
-      whatsAppHref,
-      commercialHref,
-      nonce,
-    }), {
+    })
+
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'private, no-store',
+        'Content-Disposition': `inline; filename="${simpleQuotePdfFileName(snapshot.quote)}"`,
+        'Content-Length': String(pdf.byteLength),
+        'Content-Type': 'application/pdf',
+        'X-Content-Type-Options': 'nosniff',
       },
     })
   }
