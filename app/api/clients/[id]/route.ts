@@ -125,7 +125,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireRole(['ADMIN'])
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -152,8 +152,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
 
   try {
-    const existing = await prisma.client.findUnique({
-      where: { id },
+    const existing = await prisma.client.findFirst({
+      where: clientWhereForUser(auth.user, { id }),
       select: {
         id: true,
         documentNormalized: true,
@@ -183,10 +183,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }, { status: 409 })
     }
 
+    const managerSafeData = { ...parsed.data, notes: undefined }
     const client = await prisma.client.update({
       where: { id },
       data: {
-        ...parsed.data,
+        ...(auth.user.role === 'ADMIN' ? parsed.data : managerSafeData),
         ...normalizedIdentity,
       },
     })

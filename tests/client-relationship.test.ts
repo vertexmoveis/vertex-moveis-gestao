@@ -135,3 +135,15 @@ test('migração comercial é aditiva e não remove registros', async () => {
   assert.doesNotMatch(sql, /\bDELETE\s+FROM\s+"Client"/i)
   assert.doesNotMatch(sql, /\bDROP\s+TABLE\b/i)
 })
+
+test('gerente pode editar apenas clientes dentro do próprio escopo', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const route = await readFile(
+    new URL('../app/api/clients/[id]/route.ts', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(route, /requireRole\(\['ADMIN', 'MANAGER'\]\)/)
+  assert.match(route, /findFirst\(\{\s*where: clientWhereForUser\(auth\.user, \{ id \}\)/)
+  assert.match(route, /auth\.user\.role === 'ADMIN' \? parsed\.data : managerSafeData/)
+})
