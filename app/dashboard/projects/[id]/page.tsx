@@ -18,6 +18,7 @@ import { ProjectContractsCard } from '@/components/projects/project-contracts-ca
 import { ProjectWarrantyCard } from '@/components/projects/project-warranty-card'
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
 import { ProjectClientCard } from '@/components/projects/project-client-card'
+import { buildDeliverySchedulingWhatsAppMessage } from '@/lib/project-whatsapp'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
@@ -410,6 +411,15 @@ export default function ProjectDetailPage() {
     'Assim que você aprovar, conseguimos dar sequência na produção e manter o prazo combinado.',
     'Pode me confirmar, por favor?',
   ].join('\n')
+  const deliverySchedulingMessage = buildDeliverySchedulingWhatsAppMessage({
+    clientName: project.client.name,
+    projectName: projectLabel,
+    suggestedDate: project.deliveryDeadlineDate
+      ? formatDateOnly(project.deliveryDeadlineDate)
+      : project.estimatedEndDate
+        ? formatDateOnly(project.estimatedEndDate)
+        : null,
+  })
   const postSaleMessage = [
     `Olá, ${project.client.name}! Tudo bem?`,
     '',
@@ -750,6 +760,7 @@ export default function ProjectDetailPage() {
               whatsAppNumber={clientWhatsAppNumber}
               approvalMessage={approvalMessage}
               approvalReminderMessage={approvalReminderMessage}
+              deliverySchedulingMessage={deliverySchedulingMessage}
             />
 
             <ProjectPortalCard

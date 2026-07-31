@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MessageCircle, Phone, Send } from 'lucide-react'
+import { CalendarClock, MessageCircle, Phone, Send } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 
@@ -12,6 +12,7 @@ type ProjectClientCardProps = {
   whatsAppNumber: string | null
   approvalMessage: string
   approvalReminderMessage: string
+  deliverySchedulingMessage: string
 }
 
 function whatsAppLink(phone: string, message?: string) {
@@ -24,6 +25,7 @@ export function ProjectClientCard({
   whatsAppNumber,
   approvalMessage,
   approvalReminderMessage,
+  deliverySchedulingMessage,
 }: ProjectClientCardProps) {
   return (
     <Card id="cliente" className="scroll-mt-28">
@@ -78,6 +80,32 @@ export function ProjectClientCard({
               </div>
             </>
           ) : null}
+        </div>
+        <div className="mt-4 border-t border-[#EEEEEE] pt-4">
+          <div className="mb-3 flex items-start gap-2">
+            <CalendarClock size={15} className="mt-0.5 shrink-0 text-[#FF6B00]" />
+            <div>
+              <p className="text-sm font-semibold text-[#121212]">Agendamento da entrega</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-[#777777]">
+                Combine o dia, o período e confirme o endereço com o cliente.
+              </p>
+            </div>
+          </div>
+          {whatsAppNumber ? (
+            <a
+              href={whatsAppLink(whatsAppNumber, deliverySchedulingMessage)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-green-700"
+            >
+              <MessageCircle size={14} />
+              Agendar entrega pelo WhatsApp
+            </a>
+          ) : (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+              Cadastre o WhatsApp ou telefone do cliente para enviar o agendamento.
+            </p>
+          )}
         </div>
       </CardBody>
     </Card>
