@@ -13,6 +13,7 @@ type ProjectClientCardProps = {
   approvalMessage: string
   approvalReminderMessage: string
   deliverySchedulingMessage: string
+  mode?: 'ALL' | 'PREPARATION' | 'DELIVERY' | 'COMPLETED'
 }
 
 function whatsAppLink(phone: string, message?: string) {
@@ -26,7 +27,11 @@ export function ProjectClientCard({
   approvalMessage,
   approvalReminderMessage,
   deliverySchedulingMessage,
+  mode = 'ALL',
 }: ProjectClientCardProps) {
+  const showApproval = mode === 'ALL' || mode === 'PREPARATION'
+  const showDelivery = mode === 'ALL' || mode === 'DELIVERY'
+
   return (
     <Card id="cliente" className="scroll-mt-28">
       <CardHeader>
@@ -58,7 +63,7 @@ export function ProjectClientCard({
               >
                 <MessageCircle size={12} />WhatsApp
               </a>
-              <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
+              {showApproval ? <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
                 <a
                   href={whatsAppLink(whatsAppNumber, approvalMessage)}
                   target="_blank"
@@ -77,11 +82,11 @@ export function ProjectClientCard({
                   <MessageCircle size={13} />
                   Cobrar aprovação
                 </a>
-              </div>
+              </div> : null}
             </>
           ) : null}
         </div>
-        <div className="mt-4 border-t border-[#EEEEEE] pt-4">
+        {showDelivery ? <div className="mt-4 border-t border-[#EEEEEE] pt-4">
           <div className="mb-3 flex items-start gap-2">
             <CalendarClock size={15} className="mt-0.5 shrink-0 text-[#FF6B00]" />
             <div>
@@ -106,7 +111,7 @@ export function ProjectClientCard({
               Cadastre o WhatsApp ou telefone do cliente para enviar o agendamento.
             </p>
           )}
-        </div>
+        </div> : null}
       </CardBody>
     </Card>
   )

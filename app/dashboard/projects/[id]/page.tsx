@@ -18,12 +18,20 @@ import { ProjectContractsCard } from '@/components/projects/project-contracts-ca
 import { ProjectWarrantyCard } from '@/components/projects/project-warranty-card'
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
 import { ProjectClientCard } from '@/components/projects/project-client-card'
+import { ProjectPhaseWorkspace } from '@/components/projects/project-phase-workspace'
 import { buildDeliverySchedulingWhatsAppMessage } from '@/lib/project-whatsapp'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/payment-methods'
 import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
+import {
+  PROJECT_MACRO_PHASE_TARGET_STAGE,
+  getProjectMacroPhase,
+  getProjectPhaseBlockers,
+  getProjectPhaseTasks,
+  type ProjectMacroPhase,
+} from '@/lib/project-phases'
 import {
   PROJECT_ENVIRONMENT_STATUS_BG,
   PROJECT_ENVIRONMENT_STATUS_LABELS,
@@ -146,6 +154,9 @@ export default function ProjectDetailPage() {
   const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, string>>({})
   const [postSaleSaving, setPostSaleSaving] = useState(false)
   const [actualExpensesTotal, setActualExpensesTotal] = useState(0)
+  const [inspectedPhase, setInspectedPhase] = useState<ProjectMacroPhase | null>(null)
+  const [phaseAdvancing, setPhaseAdvancing] = useState(false)
+  const [phaseAdvanceError, setPhaseAdvanceError] = useState('')
 
   const handleCostSummaryChange = useCallback((costSummary: NonNullable<ProjectDetail['costSummary']>) => {
     setProject((current) => current ? { ...current, costSummary } : current)
@@ -327,6 +338,34 @@ export default function ProjectDetailPage() {
     })
   }
 
+  const handlePhaseAdvance = async (overrideReason?: string) => {
+    const targetStage = PROJECT_MACRO_PHASE_TARGET_STAGE[selectedPhase]
+    if (!targetStage) return
+
+    setPhaseAdvancing(true)
+    setPhaseAdvanceError('')
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: targetStage,
+          ...(overrideReason ? { stageOverrideReason: overrideReason } : {}),
+        }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data?.stage) {
+        throw new Error(data?.error || 'Não foi possível avançar o projeto.')
+      }
+      setProject((current) => current ? { ...current, ...data } : current)
+      setInspectedPhase(null)
+    } catch (error) {
+      setPhaseAdvanceError(error instanceof Error ? error.message : 'Não foi possível avançar o projeto.')
+    } finally {
+      setPhaseAdvancing(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!confirm('Mover este projeto para a lixeira? Você poderá restaurá-lo nas Configurações.')) return
     const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
@@ -426,18 +465,21 @@ export default function ProjectDetailPage() {
     `Aqui é da Vertex Móveis. Queríamos saber como ficaram os móveis do projeto "${projectLabel}".`,
     'Está tudo certo? Caso precise de algum ajuste, estamos à disposição.',
   ].join('\n')
-  const projectSections = [
-    { href: '#resumo', label: 'Resumo' },
-    { href: '#producao', label: 'Produção' },
-    { href: '#prazos', label: 'Prazos' },
-    { href: '#cliente', label: 'Cliente' },
-    { href: '#arquivos', label: 'Arquivos' },
-    ...(project.postSaleFollowUpAt || project.stage === 'COMPLETED' ? [{ href: '#pos-venda', label: 'Pós-venda' }] : []),
-    { href: '#financeiro', label: 'Financeiro' },
-    { href: '#materiais', label: 'Materiais' },
-    { href: '#historico', label: 'Histórico' },
-    { href: '#comentarios', label: 'Comentários' },
-  ]
+  const currentPhase = getProjectMacroPhase(project.stage)
+  const selectedPhase = inspectedPhase || currentPhase
+  const phaseInput = {
+    stage: project.stage,
+    approvalDate: project.approvalDate,
+    paymentConfirmedAt: project.paymentConfirmedAt,
+    productionBlockedAt: project.productionBlockedAt,
+    environments,
+    files: project.files,
+    payments: project.payments,
+    clientPhone: clientWhatsAppNumber,
+    postSaleContactedAt: project.postSaleContactedAt,
+  }
+  const phaseTasks = getProjectPhaseTasks(phaseInput, selectedPhase)
+  const phaseBlockers = selectedPhase === currentPhase ? getProjectPhaseBlockers(phaseTasks) : []
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -463,17 +505,21 @@ export default function ProjectDetailPage() {
           </button>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto rounded-xl border border-[#E8E8E8] bg-white p-1 shadow-sm">
-          {projectSections.map((section) => (
-            <a
-              key={section.href}
-              href={section.href}
-              className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-[#6B7280] transition-colors hover:bg-[#FFF3EA] hover:text-[#FF6B00]"
-            >
-              {section.label}
-            </a>
-          ))}
-        </div>
+        <ProjectPhaseWorkspace
+          currentPhase={currentPhase}
+          selectedPhase={selectedPhase}
+          tasks={phaseTasks}
+          blockers={phaseBlockers}
+          stageLabel={PRODUCTION_STAGE_LABELS[project.stage]}
+          deadlineLabel={project.deliveryDeadlineDate ? formatDateOnly(project.deliveryDeadlineDate) : null}
+          environmentProgress={environmentsProgress}
+          financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
+          advancing={phaseAdvancing}
+          advanceError={phaseAdvanceError}
+          onSelect={setInspectedPhase}
+          onAdvance={handlePhaseAdvance}
+          onEdit={() => void openEdit()}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel */}
@@ -558,7 +604,7 @@ export default function ProjectDetailPage() {
             </Card>
 
             {/* Environments */}
-            <Card id="producao" className="scroll-mt-28">
+            {(selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY') ? <Card id="producao" className="scroll-mt-28">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -621,10 +667,10 @@ export default function ProjectDetailPage() {
                   </div>
                 )}
               </CardBody>
-            </Card>
+            </Card> : null}
 
             {/* Dates */}
-            <Card id="prazos" className="scroll-mt-28">
+            {selectedPhase !== 'PRODUCTION' ? <Card id="prazos" className="scroll-mt-28">
               <CardHeader><p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Datas</p></CardHeader>
               <CardBody>
                 <div className="space-y-3">
@@ -706,10 +752,10 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
               </CardBody>
-            </Card>
+            </Card> : null}
 
             {/* Production checklist */}
-            <Card>
+            {selectedPhase !== 'COMPLETED' ? <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -753,30 +799,31 @@ export default function ProjectDetailPage() {
                   </div>
                 )}
               </CardBody>
-            </Card>
+            </Card> : null}
 
-            <ProjectClientCard
+            {selectedPhase !== 'PRODUCTION' ? <ProjectClientCard
               client={project.client}
               whatsAppNumber={clientWhatsAppNumber}
               approvalMessage={approvalMessage}
               approvalReminderMessage={approvalReminderMessage}
               deliverySchedulingMessage={deliverySchedulingMessage}
-            />
+              mode={selectedPhase}
+            /> : null}
 
-            <ProjectPortalCard
+            {selectedPhase === 'PREPARATION' ? <ProjectPortalCard
               projectId={project.id}
               clientName={project.client.name}
               whatsapp={project.client.whatsapp || project.client.phone}
-            />
+            /> : null}
 
-            <ProjectContractsCard
+            {selectedPhase === 'PREPARATION' ? <ProjectContractsCard
               projectId={project.id}
               projectName={project.name}
               clientName={project.client.name}
               whatsapp={project.client.whatsapp || project.client.phone}
-            />
+            /> : null}
 
-            <ProjectProductionControl
+            {(selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY') ? <ProjectProductionControl
               projectId={project.id}
               value={{
                 productionBlockedAt: project.productionBlockedAt,
@@ -784,9 +831,9 @@ export default function ProjectDetailPage() {
                 stageDeadlineDate: project.stageDeadlineDate,
               }}
               onChange={(control) => setProject((current) => current ? { ...current, ...control } : current)}
-            />
+            /> : null}
 
-            {(project.postSaleFollowUpAt || project.stage === 'COMPLETED') && (
+            {selectedPhase === 'COMPLETED' && (project.postSaleFollowUpAt || project.stage === 'COMPLETED') && (
               <Card id="pos-venda" className="scroll-mt-28">
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
@@ -851,10 +898,10 @@ export default function ProjectDetailPage() {
               </Card>
             )}
 
-            <ProjectWarrantyCard
+            {selectedPhase === 'COMPLETED' ? <ProjectWarrantyCard
               projectId={project.id}
               warrantyEndsAt={project.warrantyEndsAt}
-            />
+            /> : null}
 
             {/* Manager */}
             {project.manager && (
@@ -876,7 +923,7 @@ export default function ProjectDetailPage() {
           {/* Center / Right */}
           <div className="lg:col-span-2 space-y-4">
             {/* Payments */}
-            <Card id="financeiro" className="scroll-mt-28">
+            {selectedPhase !== 'PRODUCTION' ? <Card id="financeiro" className="scroll-mt-28">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[#121212]">Pagamentos</h3>
@@ -950,18 +997,18 @@ export default function ProjectDetailPage() {
                   </div>
                 )}
               </CardBody>
-            </Card>
+            </Card> : null}
 
-            <ProjectMaterialsCard
+            {selectedPhase === 'PRODUCTION' ? <ProjectMaterialsCard
               projectId={project.id}
               projectValue={project.value}
               baseCost={project.productionCost}
               canManage={project.value !== null}
               actualExpensesTotal={actualExpensesTotal}
               onCostSummaryChange={handleCostSummaryChange}
-            />
+            /> : null}
 
-            {project.value !== null ? (
+            {selectedPhase === 'PRODUCTION' && project.value !== null ? (
               <ProjectExpensesCard projectId={project.id} onExpensesChange={setActualExpensesTotal} />
             ) : null}
 
@@ -972,7 +1019,7 @@ export default function ProjectDetailPage() {
             />
 
             {/* Timeline */}
-            <Card id="historico" className="scroll-mt-28">
+            {selectedPhase === 'COMPLETED' ? <Card id="historico" className="scroll-mt-28">
               <CardHeader>
                 <h3 className="text-sm font-semibold text-[#121212]">Histórico do Projeto</h3>
               </CardHeader>
@@ -1001,7 +1048,7 @@ export default function ProjectDetailPage() {
                   </div>
                 )}
               </CardBody>
-            </Card>
+            </Card> : null}
 
             {/* Internal notes */}
             {project.internalNotes && (

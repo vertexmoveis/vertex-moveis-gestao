@@ -466,7 +466,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         : nextStage
           ? parsed.data.actualEndDate ?? null
           : parsed.data.actualEndDate
-    const { productionBlocked, ...patchData } = parsed.data
+    const { productionBlocked, stageOverrideReason, ...patchData } = parsed.data
     const data = {
       ...patchData,
       ...(nextStage ? { stage: nextStage } : {}),
@@ -507,12 +507,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     })
 
-    if (nextStage === 'COMPLETED' && existing.stage !== 'COMPLETED') {
+    if (nextStage && nextStage !== existing.stage) {
       await prisma.timelineEvent.create({
         data: {
           projectId: id,
-          event: 'Projeto concluído',
-          description: 'Pós-venda agendado automaticamente para 30 dias após a conclusão.',
+          event: nextStage === 'COMPLETED' ? 'Projeto concluído' : 'Etapa atualizada',
+          description: nextStage === 'COMPLETED'
+            ? 'Pós-venda agendado automaticamente para 30 dias após a conclusão.'
+            : stageOverrideReason
+              ? `Avanço manual para ${nextStage}. Justificativa: ${stageOverrideReason}`
+              : `Projeto avançou para ${nextStage}.`,
         },
       })
     }
@@ -522,7 +526,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         userId: auth.user.id,
         projectId: id,
         action: 'Projeto atualizado',
-        details: `Status: ${project.status} | Etapa: ${project.stage}`,
+        details: `Status: ${project.status} | Etapa: ${project.stage}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
       },
     })
 
