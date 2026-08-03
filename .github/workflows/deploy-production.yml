@@ -36,7 +36,7 @@ jobs:
         run: npx vercel@58.4.4 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Compilar para produção
-        run: npx vercel@58.4.4 build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: npm run build
 
       - name: Publicar na Vercel
-        run: npx vercel@58.4.4 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel@58.4.4 deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
