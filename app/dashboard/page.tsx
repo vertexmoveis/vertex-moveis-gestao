@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   TrendingUp,
   UserRoundSearch,
+  FileSignature,
 } from 'lucide-react'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types'
 import { formatDate } from '@/lib/utils'
@@ -536,6 +537,8 @@ function nextActionConfig(kind: NextActionKind) {
       return { icon: UserRoundSearch, className: 'bg-amber-50 text-amber-700' }
     case 'quote':
       return { icon: Calculator, className: 'bg-blue-50 text-blue-600' }
+    case 'contract':
+      return { icon: FileSignature, className: 'bg-amber-50 text-amber-700' }
     case 'production':
       return { icon: Package, className: 'bg-orange-50 text-[#FF6B00]' }
     case 'delivery':

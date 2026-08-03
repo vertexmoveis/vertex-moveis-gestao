@@ -16,7 +16,12 @@ import {
   summarizeEnvironments,
   syncProjectEnvironments,
 } from '@/lib/project-environments'
-import { normalizeProductionStage, PRODUCTION_STAGE_STATUS, type ProductionStage } from '@/types'
+import {
+  normalizeProductionStage,
+  PRODUCTION_STAGE_STATUS,
+  type ProductionStage,
+  type ProjectEnvironmentStatus,
+} from '@/types'
 import {
   badRequest,
   canAccessProject,
@@ -32,6 +37,17 @@ import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, optionalMoneyValue } from '@/lib/money'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { calculateProjectPaymentPlan } from '@/lib/project-payment-plan'
+import {
+  getProjectContractReadiness,
+  getProjectFinancialReadiness,
+  type ProjectContractWorkflowStatus,
+} from '@/lib/project-workflow'
+import {
+  getProjectMacroPhase,
+  getProjectMacroPhaseIndex,
+  getProjectPhaseBlockers,
+  getProjectPhaseTasks,
+} from '@/lib/project-phases'
 
 function addCalendarDays(date: Date, days: number) {
   const result = new Date(date)
@@ -57,7 +73,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-  const access = await prisma.project.findFirst({ where: { id, archivedAt: null }, select: { managerId: true } })
+  const access = await prisma.project.findFirst({
+    where: { id, archivedAt: null },
+    select: {
+      managerId: true,
+      downPayment: true,
+      paymentConfirmedAt: true,
+      payments: { select: { type: true, amount: true, paidAt: true, dueDate: true } },
+    },
+  })
   if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canAccessProject(auth.user, access.managerId)) return forbidden()
 
@@ -96,6 +120,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       productionBlockedAt: true,
       productionBlockReason: true,
       stageDeadlineDate: true,
+      contractRevisionRequiredAt: true,
       createdAt: true,
       updatedAt: true,
       client: {
@@ -161,6 +186,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       expenses: auth.user.role === 'ADMIN'
         ? { select: { amount: true } }
         : false,
+      contracts: {
+        orderBy: { version: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          version: true,
+          status: true,
+          sentAt: true,
+          viewedAt: true,
+          expiresAt: true,
+          signedAt: true,
+          signatoryName: true,
+        },
+      },
     },
   })
 
@@ -176,6 +215,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         'expenses' in project && Array.isArray(project.expenses) ? project.expenses : [],
       )
     : null
+  const currentContract = project.contracts[0] || null
+  const contractStatus = currentContract?.expiresAt
+    && currentContract.expiresAt.getTime() < Date.now()
+    && !currentContract.signedAt
+      ? 'EXPIRED'
+      : (currentContract?.status || 'NONE') as ProjectContractWorkflowStatus
+  const financialReadiness = getProjectFinancialReadiness({
+    paymentConfirmedAt: access.paymentConfirmedAt,
+    downPayment: access.downPayment,
+    payments: access.payments,
+  })
+  const contractReadiness = getProjectContractReadiness({
+    createdAt: project.createdAt,
+    contractStatus,
+    viewedAt: currentContract?.viewedAt,
+    revisionRequiredAt: project.contractRevisionRequiredAt,
+  })
 
   return NextResponse.json({
     ...project,
@@ -197,10 +253,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     warrantyEndsAt: project.warrantyEndsAt?.toISOString() || null,
     productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
     stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
+    contractRevisionRequiredAt: project.contractRevisionRequiredAt?.toISOString() || null,
     downPaymentDate: 'downPaymentDate' in project && project.downPaymentDate ? project.downPaymentDate.toISOString() : null,
     firstInstallmentDate: 'firstInstallmentDate' in project && project.firstInstallmentDate ? project.firstInstallmentDate.toISOString() : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+    canOverridePhase: auth.user.role === 'ADMIN',
+    workflow: {
+      financial: financialReadiness,
+      contract: contractReadiness,
+    },
+    contractSummary: currentContract ? {
+      ...currentContract,
+      status: contractStatus,
+      sentAt: currentContract.sentAt?.toISOString() || null,
+      viewedAt: currentContract.viewedAt?.toISOString() || null,
+      expiresAt: currentContract.expiresAt?.toISOString() || null,
+      signedAt: currentContract.signedAt?.toISOString() || null,
+    } : null,
+    contracts: undefined,
     client: {
       ...project.client,
       createdAt: project.client.createdAt.toISOString(),
@@ -279,6 +350,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               paidAt: true,
             },
           },
+          contracts: {
+            orderBy: { version: 'desc' },
+            take: 1,
+            select: { id: true, status: true },
+          },
         },
       })
       if (!existing) throw new PaymentScheduleConflictError('Projeto não encontrado.')
@@ -330,6 +406,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const room = environments.length > 0
         ? environments.map((environment) => environment.name).join(', ')
         : input.room
+      const dateTime = (value: Date | null | undefined) => value?.getTime() || 0
+      const contractTermsChanged = Boolean(
+        existing.contracts.length > 0
+        && (
+          existing.clientId !== input.clientId
+          || existing.name !== input.name
+          || (existing.room || '') !== (room || '')
+          || moneyValue(existing.value) !== moneyValue(input.value)
+          || existing.paymentMethod !== paymentPlan.paymentMethod
+          || moneyValue(existing.paymentDiscount) !== paymentPlan.paymentDiscount
+          || Number(existing.cardFeePercent) !== paymentPlan.cardFeePercent
+          || moneyValue(existing.cardFeeAmount) !== paymentPlan.cardFeeAmount
+          || moneyValue(existing.downPayment) !== schedule.terms.downPayment
+          || existing.installmentCount !== schedule.terms.installmentCount
+          || dateTime(existing.firstInstallmentDate) !== dateTime(effectiveFirstInstallmentDate)
+          || existing.deliveryBusinessDays !== input.deliveryBusinessDays
+          || dateTime(existing.approvalDate) !== dateTime(input.approvalDate)
+        )
+      )
+      const contractRevisionRequiredAt = contractTermsChanged
+        ? new Date()
+        : existing.contractRevisionRequiredAt
 
       const updatedProject = await tx.project.update({
         where: { id },
@@ -363,6 +461,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           firstInstallmentDate: effectiveFirstInstallmentDate,
           managerId: input.managerId,
           internalNotes: input.internalNotes,
+          contractRevisionRequiredAt,
         },
         include: {
           client: { select: { id: true, name: true, phone: true, whatsapp: true } },
@@ -407,6 +506,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         })
       }
 
+      if (contractTermsChanged) {
+        await tx.projectContract.updateMany({
+          where: {
+            projectId: id,
+            status: { in: ['DRAFT', 'SENT'] },
+            signedAt: null,
+            voidedAt: null,
+          },
+          data: { status: 'VOID', voidedAt: contractRevisionRequiredAt },
+        })
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: 'Contrato precisa de nova versão',
+            description: 'Os dados comerciais do projeto foram alterados. O link anterior foi cancelado.',
+          },
+        })
+        await tx.activityLog.create({
+          data: {
+            userId: auth.user.id,
+            projectId: id,
+            action: 'Contrato invalidado após alteração',
+            details: 'Uma nova versão deve ser gerada com os dados atualizados.',
+          },
+        })
+      }
+
       await syncClientRelationshipStage(tx, input.clientId, { activityAt: new Date() })
       if (existing.clientId !== input.clientId) {
         await syncClientRelationshipStage(tx, existing.clientId)
@@ -439,6 +565,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       environmentSummary: summarizeEnvironments(project.environments),
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
+      contractRevisionRequiredAt: project.contractRevisionRequiredAt?.toISOString() || null,
     })
   } catch (error) {
     if (error instanceof PaymentScheduleConflictError) {
@@ -477,10 +604,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       select: {
         managerId: true,
         stage: true,
+        createdAt: true,
+        approvalDate: true,
+        paymentConfirmedAt: true,
+        downPayment: true,
         actualEndDate: true,
         postSaleFollowUpAt: true,
         warrantyEndsAt: true,
         productionBlockedAt: true,
+        contractRevisionRequiredAt: true,
+        environments: { select: { status: true } },
+        files: {
+          where: { securityStatus: { not: 'REJECTED' } },
+          select: { category: true },
+        },
+        payments: { select: { type: true, amount: true, paidAt: true, dueDate: true } },
+        contracts: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { status: true, viewedAt: true, expiresAt: true, signedAt: true },
+        },
+        client: { select: { whatsapp: true, phone: true } },
+        postSaleContactedAt: true,
       },
     })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -489,13 +634,60 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const nextStage = parsed.data.stage
       ? normalizeProductionStage(parsed.data.stage as ProductionStage)
       : undefined
+    const stageOverrideReason = parsed.data.stageOverrideReason?.trim() || null
+    if (stageOverrideReason && auth.user.role !== 'ADMIN') return forbidden()
+
+    if (nextStage && nextStage !== existing.stage) {
+      const currentPhase = getProjectMacroPhase(existing.stage as ProductionStage)
+      const targetPhase = getProjectMacroPhase(nextStage)
+      const advancingMacroPhase = getProjectMacroPhaseIndex(targetPhase) > getProjectMacroPhaseIndex(currentPhase)
+
+      if (advancingMacroPhase) {
+        const currentContract = existing.contracts[0] || null
+        const contractStatus = currentContract?.expiresAt
+          && currentContract.expiresAt.getTime() < Date.now()
+          && !currentContract.signedAt
+            ? 'EXPIRED'
+            : (currentContract?.status || 'NONE') as ProjectContractWorkflowStatus
+        const financialReadiness = getProjectFinancialReadiness({
+          paymentConfirmedAt: existing.paymentConfirmedAt,
+          downPayment: existing.downPayment,
+          payments: existing.payments,
+        })
+        const blockers = getProjectPhaseBlockers(getProjectPhaseTasks({
+          stage: existing.stage as ProductionStage,
+          createdAt: existing.createdAt.toISOString(),
+          approvalDate: existing.approvalDate?.toISOString() || null,
+          paymentConfirmedAt: existing.paymentConfirmedAt?.toISOString() || null,
+          downPayment: moneyValue(existing.downPayment),
+          financialReady: financialReadiness.ready,
+          contractStatus,
+          contractViewedAt: currentContract?.viewedAt?.toISOString() || null,
+          contractRevisionRequiredAt: existing.contractRevisionRequiredAt?.toISOString() || null,
+          productionBlockedAt: existing.productionBlockedAt?.toISOString() || null,
+          environments: existing.environments.map((environment) => ({ status: environment.status as ProjectEnvironmentStatus })),
+          files: existing.files,
+          payments: existing.payments,
+          clientPhone: existing.client.whatsapp || existing.client.phone,
+          postSaleContactedAt: existing.postSaleContactedAt?.toISOString() || null,
+        }, currentPhase))
+
+        if (blockers.length > 0 && !stageOverrideReason) {
+          return NextResponse.json({
+            error: `Resolva antes de avançar: ${blockers.join('; ')}.`,
+            blockers,
+          }, { status: 409 })
+        }
+      }
+    }
     const actualEndDate =
       nextStage === 'COMPLETED'
         ? parsed.data.actualEndDate ?? existing.actualEndDate ?? new Date()
         : nextStage
           ? parsed.data.actualEndDate ?? null
           : parsed.data.actualEndDate
-    const { productionBlocked, stageOverrideReason, ...patchData } = parsed.data
+    const { productionBlocked, stageOverrideReason: _stageOverrideReason, ...patchData } = parsed.data
+    void _stageOverrideReason
     const data = {
       ...patchData,
       ...(nextStage ? { stage: nextStage } : {}),

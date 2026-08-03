@@ -1,4 +1,10 @@
 import type { ProductionStage, ProjectEnvironmentStatus } from '@/types'
+import {
+  getProjectContractReadiness,
+  getProjectFinancialReadiness,
+  type ProjectContractWorkflowStatus,
+  type ProjectWorkflowPayment,
+} from '@/lib/project-workflow'
 
 export const PROJECT_MACRO_PHASES = [
   'PREPARATION',
@@ -38,12 +44,18 @@ export type ProjectPhaseTask = {
 
 export type ProjectPhaseInput = {
   stage: ProductionStage
+  createdAt: string
   approvalDate?: string | null
   paymentConfirmedAt?: string | null
+  downPayment?: number | null
+  financialReady?: boolean
+  contractStatus?: ProjectContractWorkflowStatus | null
+  contractViewedAt?: string | null
+  contractRevisionRequiredAt?: string | null
   productionBlockedAt?: string | null
   environments: { status: ProjectEnvironmentStatus }[]
   files: { category: string }[]
-  payments: { paidAt: string | null }[]
+  payments: ProjectWorkflowPayment[]
   clientPhone?: string | null
   postSaleContactedAt?: string | null
 }
@@ -83,6 +95,18 @@ function allEnvironmentsMatch(input: ProjectPhaseInput, statuses: ProjectEnviron
 
 export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMacroPhase): ProjectPhaseTask[] {
   if (phase === 'PREPARATION') {
+    const financial = getProjectFinancialReadiness({
+      paymentConfirmedAt: input.paymentConfirmedAt,
+      downPayment: input.downPayment,
+      payments: input.payments,
+    })
+    const contract = getProjectContractReadiness({
+      createdAt: input.createdAt,
+      contractStatus: input.contractStatus,
+      viewedAt: input.contractViewedAt,
+      revisionRequiredAt: input.contractRevisionRequiredAt,
+    })
+
     return [
       { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true },
       { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: true },
@@ -90,9 +114,15 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
       { key: 'approval', label: 'Aprovação do cliente registrada', completed: Boolean(input.approvalDate), required: true },
       {
         key: 'payment',
-        label: 'Pagamento confirmado',
-        completed: Boolean(input.paymentConfirmedAt) || input.payments.some((payment) => Boolean(payment.paidAt)),
+        label: financial.label,
+        completed: input.financialReady ?? financial.ready,
         required: true,
+      },
+      {
+        key: 'contract',
+        label: contract.label,
+        completed: contract.ready,
+        required: contract.required,
       },
     ]
   }

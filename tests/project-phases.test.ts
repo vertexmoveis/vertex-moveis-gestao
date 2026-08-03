@@ -9,6 +9,7 @@ import {
 
 const input = (overrides: Partial<ProjectPhaseInput> = {}): ProjectPhaseInput => ({
   stage: 'PENDING_START',
+  createdAt: '2026-08-04T12:00:00.000Z',
   approvalDate: null,
   paymentConfirmedAt: null,
   productionBlockedAt: null,
@@ -34,7 +35,63 @@ test('preparação só libera quando os dados essenciais estão completos', () =
     environments: [{ status: 'PENDING' }],
     files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
     approvalDate: '2026-07-30',
-    payments: [{ paidAt: '2026-07-30' }],
+    paymentConfirmedAt: '2026-07-30',
+    contractStatus: 'SIGNED',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+})
+
+test('projeto antigo pode avançar com contrato ainda aguardando assinatura', () => {
+  const tasks = getProjectPhaseTasks(input({
+    createdAt: '2026-06-17T12:00:00.000Z',
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-07-30',
+    paymentConfirmedAt: '2026-07-30',
+    contractStatus: 'SENT',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Projeto antigo: contrato em aberto')
+})
+
+test('projeto novo exige contrato assinado antes da produção', () => {
+  const tasks = getProjectPhaseTasks(input({
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-08-04',
+    paymentConfirmedAt: '2026-08-04',
+    contractStatus: 'SENT',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Contrato enviado'])
+})
+
+test('alteração comercial em projeto novo exige nova versão assinada', () => {
+  const tasks = getProjectPhaseTasks(input({
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-08-04',
+    paymentConfirmedAt: '2026-08-04',
+    contractStatus: 'SIGNED',
+    contractRevisionRequiredAt: '2026-08-05T12:00:00.000Z',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Nova versão do contrato necessária'])
+})
+
+test('entrada recebida libera produção sem exigir parcelas futuras', () => {
+  const tasks = getProjectPhaseTasks(input({
+    createdAt: '2026-06-17T12:00:00.000Z',
+    downPayment: 15000,
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-07-30',
+    payments: [
+      { type: 'DOWN_PAYMENT', amount: 15000, paidAt: '2026-07-30' },
+      { type: 'INSTALLMENT', amount: 19900, paidAt: null },
+    ],
   }), 'PREPARATION')
 
   assert.deepEqual(getProjectPhaseBlockers(tasks), [])

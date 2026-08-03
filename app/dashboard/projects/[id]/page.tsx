@@ -87,6 +87,7 @@ interface ProjectDetail {
   productionBlockedAt: string | null
   productionBlockReason: string | null
   stageDeadlineDate: string | null
+  contractRevisionRequiredAt: string | null
   environments: {
     id: string
     name: string
@@ -99,6 +100,32 @@ interface ProjectDetail {
   environmentSummary: { total: number; completed: number }
   createdAt: string
   updatedAt: string
+  canOverridePhase: boolean
+  workflow: {
+    financial: {
+      ready: boolean
+      label: string
+      detail: string
+      hasOverdueInstallments: boolean
+    }
+    contract: {
+      ready: boolean
+      required: boolean
+      legacy: boolean
+      label: string
+      detail: string
+    }
+  }
+  contractSummary: {
+    id: string
+    version: number
+    status: 'NONE' | 'DRAFT' | 'SENT' | 'SIGNED' | 'VOID' | 'EXPIRED'
+    sentAt: string | null
+    viewedAt: string | null
+    expiresAt: string | null
+    signedAt: string | null
+    signatoryName: string | null
+  } | null
   client: {
     id: string; name: string; phone: string | null; whatsapp: string | null;
     email: string | null; address: string | null
@@ -167,8 +194,8 @@ export default function ProjectDetailPage() {
     setProject((current) => current ? { ...current, costSummary } : current)
   }, [])
 
-  const loadProject = useCallback(async () => {
-    setLoading(true)
+  const loadProject = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setLoadError('')
     try {
       const response = await fetch(`/api/projects/${id}`)
@@ -182,10 +209,10 @@ export default function ProjectDetailPage() {
         )
       }
     } catch (error) {
-      setProject(null)
+      if (!silent) setProject(null)
       setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o projeto.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [id])
 
@@ -254,8 +281,8 @@ export default function ProjectDetailPage() {
     if (!res.ok) {
       throw new Error(updated?.error || 'Não foi possível salvar as alterações do projeto.')
     }
-    setProject((prev) => prev ? { ...prev, ...updated } : prev)
     setEditOpen(false)
+    await loadProject(true)
   }
 
   const handleSendNote = async () => {
@@ -490,8 +517,14 @@ export default function ProjectDetailPage() {
   const selectedPhase = inspectedPhase || currentPhase
   const phaseInput = {
     stage: project.stage,
+    createdAt: project.createdAt,
     approvalDate: project.approvalDate,
     paymentConfirmedAt: project.paymentConfirmedAt,
+    downPayment: project.downPayment,
+    financialReady: project.workflow.financial.ready,
+    contractStatus: project.contractSummary?.status || 'NONE' as const,
+    contractViewedAt: project.contractSummary?.viewedAt || null,
+    contractRevisionRequiredAt: project.contractRevisionRequiredAt,
     productionBlockedAt: project.productionBlockedAt,
     environments,
     files: project.files,
@@ -501,6 +534,30 @@ export default function ProjectDetailPage() {
   }
   const phaseTasks = getProjectPhaseTasks(phaseInput, selectedPhase)
   const phaseBlockers = selectedPhase === currentPhase ? getProjectPhaseBlockers(phaseTasks) : []
+  const workflowStatuses = [
+    {
+      key: 'approval',
+      label: project.approvalDate ? 'Projeto técnico aprovado' : 'Projeto técnico aguardando aprovação',
+      detail: project.approvalDate
+        ? `Aprovação registrada em ${formatDateOnly(project.approvalDate)}.`
+        : 'Envie o projeto com as medidas para o cliente aprovar.',
+      completed: Boolean(project.approvalDate),
+    },
+    {
+      key: 'financial',
+      label: project.workflow.financial.label,
+      detail: project.workflow.financial.detail,
+      completed: project.workflow.financial.ready,
+      warning: project.workflow.financial.hasOverdueInstallments,
+    },
+    {
+      key: 'contract',
+      label: project.workflow.contract.label,
+      detail: project.workflow.contract.detail,
+      completed: project.workflow.contract.ready,
+      warning: project.workflow.contract.legacy && project.contractSummary?.status !== 'SIGNED',
+    },
+  ]
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -535,6 +592,8 @@ export default function ProjectDetailPage() {
           deadlineLabel={project.deliveryDeadlineDate ? formatDateOnly(project.deliveryDeadlineDate) : null}
           environmentProgress={environmentsProgress}
           financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
+          workflowStatuses={workflowStatuses}
+          canOverridePhase={project.canOverridePhase}
           advancing={phaseAdvancing}
           advanceError={phaseAdvanceError}
           onSelect={setInspectedPhase}

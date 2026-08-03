@@ -34,6 +34,14 @@ type ProjectPhaseWorkspaceProps = {
   deadlineLabel: string | null
   environmentProgress: number
   financialLabel: string | null
+  workflowStatuses: {
+    key: string
+    label: string
+    detail: string
+    completed: boolean
+    warning?: boolean
+  }[]
+  canOverridePhase: boolean
   advancing: boolean
   advanceError: string
   onSelect: (phase: ProjectMacroPhase) => void
@@ -50,6 +58,8 @@ export function ProjectPhaseWorkspace({
   deadlineLabel,
   environmentProgress,
   financialLabel,
+  workflowStatuses,
+  canOverridePhase,
   advancing,
   advanceError,
   onSelect,
@@ -63,6 +73,7 @@ export function ProjectPhaseWorkspace({
   const isCurrent = currentPhase === selectedPhase
   const isCompleted = selectedPhase === 'COMPLETED'
   const completedTasks = tasks.filter((task) => task.completed).length
+  const nextTask = tasks.find((task) => task.required && !task.completed)
 
   const submitOverride = async () => {
     if (overrideReason.trim().length < 5) return
@@ -140,6 +151,22 @@ export function ProjectPhaseWorkspace({
               </div>
             ))}
           </div>
+
+          {isCurrent ? (
+            <div className={`mt-4 border-l-2 px-3 py-2.5 ${nextTask ? 'border-amber-500 bg-amber-50/70' : 'border-emerald-500 bg-emerald-50/70'}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#777]">Próxima ação</p>
+              <p className="mt-1 text-sm font-semibold text-[#121212]">
+                {nextTask?.label || ACTION_LABELS[selectedPhase] || 'Acompanhar projeto'}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#666]">
+                {nextTask
+                  ? 'Resolva esta pendência para manter o projeto avançando com segurança.'
+                  : isCompleted
+                    ? 'Projeto finalizado; acompanhe garantia e pós-venda.'
+                    : 'Todos os requisitos desta etapa estão concluídos.'}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <aside className="border-l-0 border-[#EEEEEE] lg:border-l lg:pl-5">
@@ -150,6 +177,23 @@ export function ProjectPhaseWorkspace({
             {deadlineLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Prazo</dt><dd className="text-right font-semibold text-[#222]">{deadlineLabel}</dd></div> : null}
             {financialLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Financeiro</dt><dd className="text-right font-semibold text-[#222]">{financialLabel}</dd></div> : null}
           </dl>
+
+          <div className="mt-4 border-t border-[#EEEEEE] pt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Aprovações e liberação</p>
+            <div className="mt-2 space-y-2">
+              {workflowStatuses.map((status) => (
+                <div key={status.key} className="flex items-start gap-2">
+                  {status.completed
+                    ? <CheckCircle2 size={15} className={`mt-0.5 shrink-0 ${status.warning ? 'text-amber-600' : 'text-emerald-600'}`} />
+                    : <Circle size={15} className="mt-0.5 shrink-0 text-amber-600" />}
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-[#222]">{status.label}</p>
+                    <p className="mt-0.5 text-[10px] leading-4 text-[#777]">{status.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {isCurrent && blockers.length > 0 ? (
             <div className="mt-4 border border-amber-200 bg-amber-50 px-3 py-2.5">
@@ -164,7 +208,7 @@ export function ProjectPhaseWorkspace({
                 <CheckCircle2 size={15} />
                 {ACTION_LABELS[selectedPhase]}
               </Button>
-              {blockers.length > 0 ? (
+              {blockers.length > 0 && canOverridePhase ? (
                 <button type="button" onClick={() => setShowOverride((value) => !value)} className="w-full text-center text-[11px] font-semibold text-[#777] hover:text-[#FF6B00]">
                   Liberar manualmente com justificativa
                 </button>
@@ -187,7 +231,7 @@ export function ProjectPhaseWorkspace({
         </aside>
       </div>
 
-      {showOverride ? (
+      {showOverride && canOverridePhase ? (
         <div className="border-t border-amber-200 bg-amber-50 p-4">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-start justify-between gap-3">

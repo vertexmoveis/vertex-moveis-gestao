@@ -20,6 +20,7 @@ type ProjectContract = {
   status: 'DRAFT' | 'SENT' | 'SIGNED' | 'VOID' | 'EXPIRED'
   url: string | null
   sentAt: string | null
+  viewedAt: string | null
   expiresAt: string | null
   signedAt: string | null
   voidedAt: string | null
@@ -186,10 +187,20 @@ export function ProjectContractsCard({
                       timeStyle: 'short',
                     }).format(new Date(current.signedAt))}
                   </p>
-                ) : current.expiresAt && current.status === 'SENT' ? (
-                  <p className="mt-1 text-xs text-[#777]">
-                    Link válido até {new Intl.DateTimeFormat('pt-BR').format(new Date(current.expiresAt))}
-                  </p>
+                ) : current.status === 'SENT' ? (
+                  <div className="mt-1 space-y-0.5 text-xs text-[#777]">
+                    {current.viewedAt ? (
+                      <p className="font-medium text-blue-700">
+                        Visualizado pelo cliente em {new Intl.DateTimeFormat('pt-BR', {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        }).format(new Date(current.viewedAt))}
+                      </p>
+                    ) : <p>Ainda não visualizado pelo cliente</p>}
+                    {current.expiresAt ? (
+                      <p>Link válido até {new Intl.DateTimeFormat('pt-BR').format(new Date(current.expiresAt))}</p>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
               {current.status === 'SIGNED'

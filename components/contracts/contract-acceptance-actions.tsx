@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, Loader2, Printer, ShieldCheck } from 'lucide-react'
 
 export function ContractAcceptanceActions({
@@ -21,6 +21,10 @@ export function ContractAcceptanceActions({
   const [signatoryName, setSignatoryName] = useState(initialSignatoryName)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    void fetch(`/api/public/contracts/${token}`, { cache: 'no-store' }).catch(() => undefined)
+  }, [token])
 
   const submit = async () => {
     setMessage('')

@@ -80,6 +80,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (contract.expiresAt && contract.expiresAt < new Date() && !contract.signedAt) {
     return NextResponse.json({ error: 'Este contrato expirou. Solicite um novo link.' }, { status: 410 })
   }
+  if (!contract.viewedAt) {
+    await prisma.projectContract.updateMany({
+      where: { id: contract.id, viewedAt: null },
+      data: { viewedAt: new Date() },
+    })
+  }
   const data = publicContract(contract)
   if (!data) return NextResponse.json({ error: 'Contrato inválido.' }, { status: 500 })
   return NextResponse.json(data)
@@ -149,6 +155,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         event: 'Contrato aceito',
         description: `Contrato versão ${contract.version} aceito por ${parsed.data.signatoryName}.`,
       },
+    })
+    await tx.project.update({
+      where: { id: contract.projectId },
+      data: { contractRevisionRequiredAt: null },
     })
     return { status: 200, signedAt: now.toISOString() }
   })

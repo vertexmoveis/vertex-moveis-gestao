@@ -61,6 +61,7 @@ function serializeContract(
     status: string
     tokenEncrypted: string
     sentAt: Date | null
+    viewedAt: Date | null
     expiresAt: Date | null
     signedAt: Date | null
     voidedAt: Date | null
@@ -88,6 +89,7 @@ function serializeContract(
     status: expired ? 'EXPIRED' : contract.status,
     url,
     sentAt: contract.sentAt?.toISOString() || null,
+    viewedAt: contract.viewedAt?.toISOString() || null,
     expiresAt: contract.expiresAt?.toISOString() || null,
     signedAt: contract.signedAt?.toISOString() || null,
     voidedAt: contract.voidedAt?.toISOString() || null,

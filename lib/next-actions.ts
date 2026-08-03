@@ -3,8 +3,9 @@ import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedu
 import { unstable_cache } from 'next/cache'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
+import { PROJECT_CONTRACT_WORKFLOW_STARTED_AT } from '@/lib/project-workflow'
 
-export type NextActionKind = 'client' | 'quote' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
+export type NextActionKind = 'client' | 'quote' | 'contract' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
 
 export type DashboardNextAction = {
   id: string
@@ -65,7 +66,7 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
   const noResponseCutoff = addDays(today, -noResponseDays)
   const closeCutoff = addDays(today, -closeSuggestionDays)
 
-  const [staleClients, quoteFollowUps, projectsToStart, deliveries, installations, materials, postSales] = await Promise.all([
+  const [staleClients, quoteFollowUps, contractProjectsRaw, projectsToStart, deliveries, installations, materials, postSales] = await Promise.all([
     prisma.client.findMany({
       where: {
         ...clientScope,
@@ -113,6 +114,27 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
       },
       orderBy: { updatedAt: 'asc' },
       take: 4,
+    }),
+    prisma.project.findMany({
+      where: {
+        ...projectScope,
+        createdAt: { gte: PROJECT_CONTRACT_WORKFLOW_STARTED_AT },
+        stage: { not: 'COMPLETED' },
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        contractRevisionRequiredAt: true,
+        client: { select: { name: true } },
+        contracts: {
+          orderBy: { version: 'desc' },
+          take: 1,
+          select: { id: true, status: true, sentAt: true, signedAt: true, voidedAt: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
     }),
     prisma.project.findMany({
       where: {
@@ -179,6 +201,9 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
       take: 4,
     }),
   ])
+  const contractProjects = contractProjectsRaw
+    .filter((project) => project.contractRevisionRequiredAt || project.contracts[0]?.status !== 'SIGNED')
+    .slice(0, 4)
 
   const actions: DashboardNextAction[] = [
     ...staleClients.map((client) => {
@@ -207,6 +232,19 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
       dueAt: (quote.approvalRequests[0]?.sentAt || quote.updatedAt).toISOString(),
       priority: 0,
     })),
+    ...contractProjects.map((project) => {
+      const contract = project.contracts[0]
+      const sent = Boolean(contract && contract.status === 'SENT' && !contract.voidedAt)
+      return {
+        id: `contract-${project.id}`,
+        kind: 'contract' as const,
+        title: sent ? 'Cobrar assinatura do contrato' : 'Criar e enviar contrato',
+        detail: `${project.client.name} · ${project.name}`,
+        href: `/dashboard/projects/${project.id}#contrato`,
+        dueAt: (contract?.sentAt || project.createdAt).toISOString(),
+        priority: 0,
+      }
+    }),
     ...projectsToStart.map((project) => ({
       id: `production-${project.id}`,
       kind: 'production' as const,
@@ -261,7 +299,7 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
 
 const getCachedDashboardNextActions = unstable_cache(
   async (id: string, role: string, limit: number) => getDashboardNextActionsUncached({ id, role }, limit),
-  ['dashboard-next-actions-v3'],
+  ['dashboard-next-actions-v4'],
   { revalidate: 30 },
 )
 

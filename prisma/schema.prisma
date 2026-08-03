@@ -121,6 +121,7 @@ model Project {
   productionBlockedAt            DateTime?
   productionBlockReason          String?
   stageDeadlineDate              DateTime?
+  contractRevisionRequiredAt     DateTime?
   archivedAt                     DateTime?
   createdAt                      DateTime               @default(now())
   updatedAt                      DateTime               @updatedAt
@@ -156,6 +157,7 @@ model Project {
   @@index([archivedAt])
   @@index([productionBlockedAt])
   @@index([stageDeadlineDate])
+  @@index([contractRevisionRequiredAt])
 }
 
 model Quote {
@@ -718,6 +720,7 @@ model ProjectContract {
   tokenEncrypted    String
   snapshot          Json
   sentAt            DateTime?
+  viewedAt          DateTime?
   expiresAt         DateTime?
   signedAt          DateTime?
   voidedAt          DateTime?
@@ -731,6 +734,7 @@ model ProjectContract {
   @@unique([projectId, version])
   @@index([projectId, status])
   @@index([expiresAt])
+  @@index([viewedAt])
 }
 
 model WarrantyTicket {
