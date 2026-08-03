@@ -157,8 +157,9 @@ export function reconcilePaymentSchedule(
   )
 
   if (paidInstallments.some((payment) => !desiredInstallmentKeys.has(paymentKey(payment)))) {
+    const highestPaidInstallment = Math.max(...paidInstallments.map((payment) => payment.installmentNumber))
     throw new PaymentScheduleConflictError(
-      'Não é possível reduzir as parcelas porque já existem pagamentos recebidos fora da nova quantidade.'
+      `A parcela ${highestPaidInstallment} já foi recebida. Informe no mínimo ${highestPaidInstallment} parcelas no total ou reabra esse pagamento antes de reduzir.`
     )
   }
 
@@ -178,8 +179,9 @@ export function reconcilePaymentSchedule(
   )
 
   if (pendingInstallments.length === 0 && installmentBalance > 0) {
+    const highestPaidInstallment = Math.max(0, ...paidInstallments.map((payment) => payment.installmentNumber))
     throw new PaymentScheduleConflictError(
-      'O parcelamento não possui parcelas suficientes para distribuir o saldo restante.'
+      `A parcela ${highestPaidInstallment} já foi recebida. Para distribuir o saldo restante, informe no mínimo ${highestPaidInstallment + 1} parcelas no total.`
     )
   }
 

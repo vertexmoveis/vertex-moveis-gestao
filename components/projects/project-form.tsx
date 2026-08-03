@@ -53,11 +53,16 @@ interface ProjectFormProps {
   clients: Client[]
   managers: User[]
   initialData?: Partial<Record<keyof FormData, string | null> & { id: string }>
+  paymentSummary?: {
+    paidInstallmentNumbers: number[]
+    paidInstallmentTotal: number
+    paidTotal: number
+  }
   onSubmit: (data: FormData) => Promise<void>
   onCancel: () => void
 }
 
-export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel }: ProjectFormProps) {
+export function ProjectForm({ clients, managers, initialData, paymentSummary, onSubmit, onCancel }: ProjectFormProps) {
   const [loading, setLoading] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const defaultStage = initialData?.stage
@@ -96,6 +101,26 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
   })
 
   const handleFormSubmit = async (data: FormData) => {
+    const nextValue = Math.max(Number(data.value || 0), 0)
+    const nextDownPayment = Math.min(Math.max(Number(data.downPayment || 0), 0), nextValue)
+    const nextInstallmentCount = Math.max(Math.floor(Number(data.installmentCount || 0)), 0)
+    const highestPaidInstallment = Math.max(0, ...(paymentSummary?.paidInstallmentNumbers || []))
+    const balanceAfterPaidInstallments = Math.max(
+      nextValue - nextDownPayment - (paymentSummary?.paidInstallmentTotal || 0),
+      0,
+    )
+
+    if (paymentSummary && nextValue < paymentSummary.paidTotal) {
+      setSubmitError(`O valor do projeto não pode ser menor que o total já recebido (${formatCurrency(paymentSummary.paidTotal)}).`)
+      return
+    }
+    if (balanceAfterPaidInstallments > 0 && nextInstallmentCount <= highestPaidInstallment) {
+      setSubmitError(
+        `A parcela ${highestPaidInstallment} já foi recebida. Para manter ${formatCurrency(balanceAfterPaidInstallments)} em aberto, informe no mínimo ${highestPaidInstallment + 1} parcelas no total.`,
+      )
+      return
+    }
+
     setLoading(true)
     setSubmitError('')
     try {
@@ -124,7 +149,14 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
   const downPayment = Math.min(Number(watchedDownPayment || 0), Number.isFinite(value) ? value : 0)
   const installmentCount = Math.max(Math.floor(Number(watchedInstallmentCount || 0)), 0)
   const remaining = Math.max((Number.isFinite(value) ? value : 0) - (Number.isFinite(downPayment) ? downPayment : 0), 0)
-  const installmentValue = installmentCount > 0 ? remaining / installmentCount : 0
+  const paidInstallmentNumbers = paymentSummary?.paidInstallmentNumbers || []
+  const highestPaidInstallment = Math.max(0, ...paidInstallmentNumbers)
+  const paidInstallmentsWithinPlan = paidInstallmentNumbers.filter((number) => number <= installmentCount).length
+  const pendingInstallmentCount = Math.max(installmentCount - paidInstallmentsWithinPlan, 0)
+  const openBalance = Math.max(remaining - (paymentSummary?.paidInstallmentTotal || 0), 0)
+  const installmentValue = pendingInstallmentCount > 0 ? openBalance / pendingInstallmentCount : 0
+  const minimumInstallmentCount = openBalance > 0 ? highestPaidInstallment + 1 : highestPaidInstallment
+  const installmentCountInvalid = Boolean(paymentSummary && installmentCount < minimumInstallmentCount)
   const profit = Math.max(Number.isFinite(value) ? value : 0, 0) - Math.max(Number.isFinite(productionCost) ? productionCost : 0, 0)
   const deliveryBusinessDays = Math.max(Math.floor(Number(watchedDeliveryBusinessDays || DEFAULT_DELIVERY_BUSINESS_DAYS)), 1)
   const reminderBusinessDays = Math.max(Math.floor(Number(watchedReminderBusinessDays || DEFAULT_PRODUCTION_REMINDER_BUSINESS_DAYS)), 1)
@@ -200,14 +232,20 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
         />
         <Input label="Data da entrada" type="date" {...register('downPaymentDate')} />
         <Input
-          label="Parcelas"
+          label={paymentSummary ? 'Total de parcelas' : 'Parcelas'}
           type="number"
           step="1"
-          min="0"
+          min={minimumInstallmentCount}
           placeholder="0"
           {...register('installmentCount')}
         />
         <Input label="Data da primeira parcela" type="date" {...register('firstInstallmentDate')} />
+        {paymentSummary && highestPaidInstallment > 0 ? (
+          <p className={`col-span-2 -mt-2 text-xs ${installmentCountInvalid ? 'text-red-600' : 'text-[#777]'}`}>
+            {paidInstallmentNumbers.length} parcela{paidInstallmentNumbers.length !== 1 ? 's' : ''} recebida{paidInstallmentNumbers.length !== 1 ? 's' : ''}.
+            {openBalance > 0 ? ` Para manter saldo em aberto, use no mínimo ${minimumInstallmentCount} parcelas no total.` : ''}
+          </p>
+        ) : null}
         <div className="col-span-2 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
           <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <div>
@@ -215,17 +253,19 @@ export function ProjectForm({ clients, managers, initialData, onSubmit, onCancel
               <p className={`mt-1 font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(profit)}</p>
             </div>
             <div>
-              <p className="text-[#9E9E9E]">Restante</p>
-              <p className="mt-1 font-semibold text-[#121212]">{formatCurrency(remaining)}</p>
+              <p className="text-[#9E9E9E]">Saldo a receber</p>
+              <p className="mt-1 font-semibold text-[#121212]">{formatCurrency(openBalance)}</p>
             </div>
             <div>
-              <p className="text-[#9E9E9E]">Valor da parcela</p>
+              <p className="text-[#9E9E9E]">Parcela pendente</p>
               <p className="mt-1 font-semibold text-[#121212]">{formatCurrency(installmentValue)}</p>
             </div>
             <div>
               <p className="text-[#9E9E9E]">Condição</p>
               <p className="mt-1 font-semibold text-[#121212]">
-                {downPayment > 0 ? `${formatCurrency(downPayment)} + ` : ''}{installmentCount}x
+                {paymentSummary && paidInstallmentNumbers.length > 0
+                  ? `${paidInstallmentNumbers.length} paga${paidInstallmentNumbers.length !== 1 ? 's' : ''} + ${pendingInstallmentCount} pendente${pendingInstallmentCount !== 1 ? 's' : ''}`
+                  : <>{downPayment > 0 ? `${formatCurrency(downPayment)} + ` : ''}{installmentCount}x</>}
               </p>
             </div>
           </div>

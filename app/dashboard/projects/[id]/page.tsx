@@ -418,7 +418,16 @@ export default function ProjectDetailPage() {
   const businessDaysLeft = project.deliveryDeadlineDate
     ? businessDaysBetween(new Date(), project.deliveryDeadlineDate)
     : null
-  const totalPaid = project.payments.reduce((sum, payment) => sum + (payment.paidAt ? payment.amount : 0), 0)
+  const paymentSummary = project.payments.reduce((summary, payment) => {
+    if (!payment.paidAt) return summary
+    summary.paidTotal += payment.amount
+    if (payment.type === 'INSTALLMENT') {
+      summary.paidInstallmentNumbers.push(payment.installmentNumber)
+      summary.paidInstallmentTotal += payment.amount
+    }
+    return summary
+  }, { paidInstallmentNumbers: [] as number[], paidInstallmentTotal: 0, paidTotal: 0 })
+  const totalPaid = paymentSummary.paidTotal
   const totalOpen = project.payments.reduce((sum, payment) => sum + (!payment.paidAt ? payment.amount : 0), 0)
   const projectCost = project.costSummary?.adjustedCost ?? project.productionCost ?? 0
   const profit = (project.value || 0) - projectCost
@@ -1124,6 +1133,7 @@ export default function ProjectDetailPage() {
         <ProjectForm
           clients={clients}
           managers={managers}
+          paymentSummary={paymentSummary}
           initialData={{
             ...project,
             clientId: project.client.id,
