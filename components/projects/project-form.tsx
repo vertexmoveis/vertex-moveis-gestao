@@ -232,7 +232,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
         />
         <Input label="Data da entrada" type="date" {...register('downPaymentDate')} />
         <Input
-          label={paymentSummary ? 'Total de parcelas' : 'Parcelas'}
+          label="Parcelas do saldo"
           type="number"
           step="1"
           min={minimumInstallmentCount}
@@ -243,9 +243,11 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
         {paymentSummary && highestPaidInstallment > 0 ? (
           <p className={`col-span-2 -mt-2 text-xs ${installmentCountInvalid ? 'text-red-600' : 'text-[#777]'}`}>
             {paidInstallmentNumbers.length} parcela{paidInstallmentNumbers.length !== 1 ? 's' : ''} recebida{paidInstallmentNumbers.length !== 1 ? 's' : ''}.
-            {openBalance > 0 ? ` Para manter saldo em aberto, use no mínimo ${minimumInstallmentCount} parcelas no total.` : ''}
+            {openBalance > 0 ? ` Para manter saldo em aberto, use no mínimo ${minimumInstallmentCount} parcelas do saldo.` : ''}
           </p>
-        ) : null}
+        ) : (
+          <p className="col-span-2 -mt-2 text-xs text-[#777]">A entrada é separada e não conta como parcela do saldo.</p>
+        )}
         <div className="col-span-2 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
           <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <div>
@@ -265,7 +267,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
               <p className="mt-1 font-semibold text-[#121212]">
                 {paymentSummary && paidInstallmentNumbers.length > 0
                   ? `${paidInstallmentNumbers.length} paga${paidInstallmentNumbers.length !== 1 ? 's' : ''} + ${pendingInstallmentCount} pendente${pendingInstallmentCount !== 1 ? 's' : ''}`
-                  : <>{downPayment > 0 ? `${formatCurrency(downPayment)} + ` : ''}{installmentCount}x</>}
+                  : <>{downPayment > 0 ? `Entrada de ${formatCurrency(downPayment)} + ` : ''}{installmentCount}x do saldo</>}
               </p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { projectPatchSchema, projectUpdateSchema } from '@/lib/schemas'
 import {
   buildPaymentSchedule,
   financialScheduleChanged,
+  PAYMENT_TYPE_INSTALLMENT,
   PaymentScheduleConflictError,
   reconcilePaymentSchedule,
 } from '@/lib/payments'
@@ -298,6 +299,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         baseDate: input.startDate || existing.startDate || existing.createdAt,
       }
       const schedule = buildPaymentSchedule(scheduleInput)
+      const effectiveFirstInstallmentDate = schedule.payments.find(
+        (payment) => payment.type === PAYMENT_TYPE_INSTALLMENT,
+      )?.dueDate || null
       const shouldReconcilePayments = financialScheduleChanged(existing, scheduleInput)
       const paymentChanges = shouldReconcilePayments
         ? reconcilePaymentSchedule(schedule, existing.payments)
@@ -333,7 +337,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           downPaymentDate: input.downPaymentDate,
           installmentCount: schedule.terms.installmentCount,
           installmentValue: schedule.terms.installmentValue,
-          firstInstallmentDate: input.firstInstallmentDate,
+          firstInstallmentDate: effectiveFirstInstallmentDate,
           managerId: input.managerId,
           internalNotes: input.internalNotes,
         },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { projectCreateSchema } from '@/lib/schemas'
-import { buildPaymentSchedule } from '@/lib/payments'
+import { buildPaymentSchedule, PAYMENT_TYPE_INSTALLMENT } from '@/lib/payments'
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { calculateProjectProductionDates } from '@/lib/business-days'
 import { normalizeEnvironmentNames, serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
@@ -179,6 +179,9 @@ export async function POST(req: NextRequest) {
       firstInstallmentDate: input.firstInstallmentDate,
       baseDate: input.startDate || new Date(),
     })
+    const effectiveFirstInstallmentDate = schedule.payments.find(
+      (payment) => payment.type === PAYMENT_TYPE_INSTALLMENT,
+    )?.dueDate || null
     const project = await prisma.$transaction(async (tx) => {
       const created = await tx.project.create({
         data: {
@@ -201,7 +204,7 @@ export async function POST(req: NextRequest) {
           downPaymentDate: auth.user.role === 'ADMIN' ? input.downPaymentDate : null,
           installmentCount: auth.user.role === 'ADMIN' ? schedule.terms.installmentCount : 0,
           installmentValue: auth.user.role === 'ADMIN' ? schedule.terms.installmentValue : 0,
-          firstInstallmentDate: auth.user.role === 'ADMIN' ? input.firstInstallmentDate : null,
+          firstInstallmentDate: auth.user.role === 'ADMIN' ? effectiveFirstInstallmentDate : null,
           managerId: auth.user.role === 'ADMIN' ? input.managerId : auth.user.id,
           internalNotes: auth.user.role === 'ADMIN' ? input.internalNotes : null,
           payments: auth.user.role === 'ADMIN'

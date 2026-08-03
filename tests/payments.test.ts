@@ -37,6 +37,29 @@ const existingPayments = [
   })),
 ]
 
+test('mantém a entrada separada de uma única parcela do saldo', () => {
+  const schedule = buildPaymentSchedule({
+    value: 34900,
+    downPayment: 15000,
+    installmentCount: 1,
+    firstInstallmentDate: new Date('2026-07-12T12:00:00.000Z'),
+  })
+
+  assert.equal(schedule.payments.length, 2)
+  assert.deepEqual(
+    schedule.payments.map((payment) => ({
+      type: payment.type,
+      installmentNumber: payment.installmentNumber,
+      amount: payment.amount,
+      paid: Boolean(payment.paidAt),
+    })),
+    [
+      { type: PAYMENT_TYPE_DOWN_PAYMENT, installmentNumber: 0, amount: 15000, paid: true },
+      { type: PAYMENT_TYPE_INSTALLMENT, installmentNumber: 1, amount: 19900, paid: false },
+    ],
+  )
+})
+
 test('explica o mínimo quando todas as parcelas desejadas já foram recebidas', () => {
   const schedule = buildPaymentSchedule({
     value: 34900,
