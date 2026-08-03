@@ -8,6 +8,7 @@ import {
   Calendar,
   Calculator,
   FolderOpen,
+  FileSignature,
   Kanban,
   LayoutDashboard,
   LogOut,
@@ -63,6 +64,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
     items: [
       { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, adminOnly: true },
       { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
+      { href: '/dashboard/contracts', label: 'Contratos', icon: FileSignature },
     ],
   },
 ]

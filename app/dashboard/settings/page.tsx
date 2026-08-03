@@ -216,7 +216,7 @@ export default async function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-[#121212]">Automação do WhatsApp</h2>
-                  <p className="mt-1 text-xs text-[#777]">Aprovação, cobrança, instalação e pós-venda</p>
+                  <p className="mt-1 text-xs text-[#777]">Aprovação, contratos, cobrança, instalação e pós-venda</p>
                 </div>
                 {whatsAppIntegration.ready
                   ? <CheckCircle2 size={20} className="text-emerald-600" aria-label="WhatsApp configurado" />
@@ -244,11 +244,12 @@ export default async function SettingsPage() {
                   <p className="mt-1 text-xs text-blue-800/70">{whatsAppCounts.get('FAILED') || 0} falhas</p>
                 </div>
               </div>
-              <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-5">
                 {[
                   ['QUOTE_REMINDER', 'Retorno de orçamento'],
                   ['PAYMENT_REMINDER', 'Cobrança de parcela'],
                   ['INSTALLATION_REMINDER', 'Lembrete de instalação'],
+                  ['CONTRACT_REMINDER', 'Aceite de contrato'],
                   ['POST_SALE', 'Pós-venda'],
                 ].map(([kind, label]) => (
                   <div key={kind} className="flex items-center justify-between border-b border-[#ECECEC] py-2">

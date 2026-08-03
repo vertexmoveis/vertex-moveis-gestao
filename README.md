@@ -449,6 +449,7 @@ Variáveis opcionais:
 | `WHATSAPP_TEMPLATE_QUOTE_REMINDER` | Modelo aprovado para cobrar resposta do orçamento |
 | `WHATSAPP_TEMPLATE_PAYMENT_REMINDER` | Modelo aprovado para parcela vencida |
 | `WHATSAPP_TEMPLATE_INSTALLATION_REMINDER` | Modelo aprovado para lembrar a instalação |
+| `WHATSAPP_TEMPLATE_CONTRACT_REMINDER` | Modelo aprovado para cobrar o aceite do contrato |
 | `WHATSAPP_TEMPLATE_POST_SALE` | Modelo aprovado para o pós-venda |
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Token usado pela Meta para validar o callback |
 | `WHATSAPP_APP_SECRET` | Segredo do aplicativo usado para conferir a assinatura do webhook |

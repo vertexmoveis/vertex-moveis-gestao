@@ -1,0 +1,42 @@
+name: Publicar em produção
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vertex-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Carregar configurações da Vercel
+        run: npx vercel@58.4.4 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Compilar para produção
+        run: npx vercel@58.4.4 build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Publicar na Vercel
+        run: npx vercel@58.4.4 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
