@@ -32,6 +32,7 @@ import {
 } from '@/lib/quote-variations'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { QuoteData } from '@/types/quotes'
+import { PAYMENT_METHODS } from '@/lib/payment-methods'
 
 type ClientOption = {
   id: string
@@ -70,9 +71,7 @@ export default function QuoteDetailPage() {
   const [variantError, setVariantError] = useState('')
   const [convertOpen, setConvertOpen] = useState(false)
   const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
-  const [conversionDownPayment, setConversionDownPayment] = useState('0')
-  const [conversionInstallmentCount, setConversionInstallmentCount] = useState('0')
-  const [conversionFirstInstallmentDate, setConversionFirstInstallmentDate] = useState('')
+  const [entryPaymentMethod, setEntryPaymentMethod] = useState('PIX')
 
   const applyLoadedQuote = useCallback((data: QuoteData) => {
     setQuote(data)
@@ -208,13 +207,12 @@ export default function QuoteDetailPage() {
       return
     }
     setPaymentConfirmedAt(todayInputValue())
-    setConversionDownPayment(String(quote.paymentMethod === 'CARD' ? quote.cardDownPayment || 0 : quote.total))
-    setConversionInstallmentCount(String(quote.paymentMethod === 'CARD' ? quote.cardInstallments || 1 : 0))
-    setConversionFirstInstallmentDate(quote.firstInstallmentDate?.slice(0, 10) || '')
+    setEntryPaymentMethod('PIX')
     setConvertOpen(true)
   }
 
   const convertToProject = async () => {
+    if (!quote) return
     setSaving(true)
     setError('')
     const response = await fetch(`/api/quotes/${params.id}/convert`, {
@@ -222,10 +220,9 @@ export default function QuoteDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         paymentConfirmedAt,
-        downPayment: Number(conversionDownPayment) || 0,
-        installmentCount: Number(conversionInstallmentCount) || 0,
-        firstInstallmentDate: conversionFirstInstallmentDate || undefined,
-        downPaymentDate: paymentConfirmedAt,
+        entryPaymentMethod: quote.paymentMethod === 'CARD' && Number(quote.cardDownPayment || 0) > 0
+          ? entryPaymentMethod
+          : undefined,
       }),
     })
     const data = await response.json()
@@ -400,13 +397,19 @@ export default function QuoteDetailPage() {
     router.push(`/dashboard/quotes/${data.id}`)
   }
 
-  const conversionEntry = Math.max(Number(conversionDownPayment) || 0, 0)
+  const conversionEntry = quote.paymentMethod === 'CARD'
+    ? Math.max(Number(quote.cardDownPayment) || 0, 0)
+    : quote.total
   const conversionBalance = Math.max(quote.total - conversionEntry, 0)
-  const conversionInstallments = Math.max(Math.floor(Number(conversionInstallmentCount) || 0), 0)
+  const conversionInstallments = quote.paymentMethod === 'CARD'
+    ? Math.max(Math.floor(Number(quote.cardInstallments) || 0), 0)
+    : 0
   const invalidCardTerms = quote.paymentMethod === 'CARD' && (
     conversionEntry > quote.total ||
-    (conversionBalance > 0 && (conversionInstallments < 1 || !conversionFirstInstallmentDate))
+    (conversionBalance > 0 && (conversionInstallments < 1 || !quote.firstInstallmentDate)) ||
+    (conversionEntry > 0 && !entryPaymentMethod)
   )
+  const invalidPaymentTerms = quote.paymentMethod === 'TO_DEFINE' || invalidCardTerms
   const invalidPaymentDate = !paymentConfirmedAt || paymentConfirmedAt > todayInputValue()
 
   const paymentSummary = getQuotePaymentSummary(quote)
@@ -898,25 +901,35 @@ export default function QuoteDetailPage() {
             onChange={(event) => setPaymentConfirmedAt(event.target.value)}
           />
           {quote.paymentMethod === 'CARD' ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input label="Entrada (R$)" type="number" min={0} max={quote.total} step="0.01" value={conversionDownPayment} onChange={(event) => setConversionDownPayment(event.target.value)} />
-              <Input label="Quantidade de parcelas" type="number" min={conversionBalance > 0 ? 1 : 0} max={24} value={conversionInstallmentCount} onChange={(event) => setConversionInstallmentCount(event.target.value)} />
-              <div className="sm:col-span-2">
-                <Input label="Primeiro vencimento" type="date" disabled={conversionBalance <= 0} value={conversionFirstInstallmentDate} onChange={(event) => setConversionFirstInstallmentDate(event.target.value)} />
+            <div className="space-y-3">
+              <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3 text-sm text-[#333]">
+                <p className="font-semibold">Condição aprovada pelo cliente</p>
+                <p className="mt-1 text-xs leading-5">{paymentSummary}</p>
+                {quote.firstInstallmentDate && conversionBalance > 0 ? (
+                  <p className="mt-1 text-xs text-[#666]">Primeiro vencimento: {formatDate(quote.firstInstallmentDate)}</p>
+                ) : null}
+                <p className="mt-2 text-[11px] text-[#888]">Entrada e parcelas serão copiadas sem alteração.</p>
               </div>
-              <div className="sm:col-span-2 rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#555]">
-                Saldo parcelado: <strong>{formatCurrency(conversionBalance)}</strong>
-                {conversionBalance > 0 && conversionInstallments > 0
-                  ? ` em ${conversionInstallments}x de aproximadamente ${formatCurrency(conversionBalance / conversionInstallments)}`
-                  : ''}
-              </div>
+              {conversionEntry > 0 ? (
+                <Select
+                  label="Como a entrada foi recebida"
+                  options={PAYMENT_METHODS.map((method) => ({ value: method.value, label: method.label }))}
+                  value={entryPaymentMethod}
+                  onChange={(event) => setEntryPaymentMethod(event.target.value)}
+                />
+              ) : null}
             </div>
           ) : (
             <p className="rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#666]">O pagamento via Pix será registrado pelo valor total de {formatCurrency(quote.total)}.</p>
           )}
+          {quote.paymentMethod === 'TO_DEFINE' ? (
+            <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Edite o orçamento e defina a forma de pagamento antes de criar o projeto.
+            </p>
+          ) : null}
           <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
             <Button type="button" variant="outline" onClick={() => setConvertOpen(false)}>Cancelar</Button>
-            <Button type="button" loading={saving} disabled={invalidPaymentDate || invalidCardTerms} onClick={() => void convertToProject()}>
+            <Button type="button" loading={saving} disabled={invalidPaymentDate || invalidPaymentTerms} onClick={() => void convertToProject()}>
               <CheckCircle2 size={16} /> Criar projeto
             </Button>
           </div>

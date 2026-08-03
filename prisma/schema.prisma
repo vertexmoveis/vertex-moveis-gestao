@@ -106,6 +106,10 @@ model Project {
   actualEndDate                  DateTime?
   value                          Decimal?               @db.Decimal(14, 2)
   productionCost                 Decimal?               @default(0) @db.Decimal(14, 2)
+  paymentMethod                  String                 @default("TO_DEFINE")
+  paymentDiscount                Decimal                @default(0) @db.Decimal(14, 2)
+  cardFeePercent                 Float                  @default(0)
+  cardFeeAmount                  Decimal                @default(0) @db.Decimal(14, 2)
   downPayment                    Decimal?               @default(0) @db.Decimal(14, 2)
   downPaymentDate                DateTime?
   installmentCount               Int                    @default(0)
@@ -144,6 +148,7 @@ model Project {
   @@index([estimatedEndDate])
   @@index([approvalDate])
   @@index([paymentConfirmedAt])
+  @@index([paymentMethod])
   @@index([deliveryDeadlineDate])
   @@index([productionStartReminderDate])
   @@index([stage, postSaleFollowUpAt])

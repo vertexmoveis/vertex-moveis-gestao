@@ -20,6 +20,11 @@ import {
   DEFAULT_PRODUCTION_REMINDER_BUSINESS_DAYS,
 } from '@/lib/business-days'
 import { useState } from 'react'
+import {
+  QUOTE_PAYMENT_METHOD_LABELS,
+  QUOTE_PAYMENT_METHODS,
+  safeQuotePaymentMethod,
+} from '@/lib/quotes'
 
 const schema = z.object({
   clientId: z.string().min(1, 'Selecione um cliente'),
@@ -36,6 +41,9 @@ const schema = z.object({
   estimatedEndDate: z.string().optional(),
   value: z.string().optional(),
   productionCost: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  paymentDiscount: z.string().optional(),
+  cardFeePercent: z.string().optional(),
   downPayment: z.string().optional(),
   downPaymentDate: z.string().optional(),
   installmentCount: z.string().optional(),
@@ -91,6 +99,9 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
       estimatedEndDate: initialData?.estimatedEndDate || '',
       value: initialData?.value || '',
       productionCost: initialData?.productionCost || '',
+      paymentMethod: initialData?.paymentMethod || 'TO_DEFINE',
+      paymentDiscount: initialData?.paymentDiscount || '0',
+      cardFeePercent: initialData?.cardFeePercent || '0',
       downPayment: initialData?.downPayment || '',
       downPaymentDate: initialData?.downPaymentDate || '',
       installmentCount: initialData?.installmentCount || '',
@@ -102,8 +113,15 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
 
   const handleFormSubmit = async (data: FormData) => {
     const nextValue = Math.max(Number(data.value || 0), 0)
-    const nextDownPayment = Math.min(Math.max(Number(data.downPayment || 0), 0), nextValue)
-    const nextInstallmentCount = Math.max(Math.floor(Number(data.installmentCount || 0)), 0)
+    const nextPaymentMethod = safeQuotePaymentMethod(data.paymentMethod)
+    const enteredDownPayment = Math.min(Math.max(Number(data.downPayment || 0), 0), nextValue)
+    const enteredInstallmentCount = Math.max(Math.floor(Number(data.installmentCount || 0)), 0)
+    const nextDownPayment = nextPaymentMethod === 'PIX'
+      ? nextValue
+      : nextPaymentMethod === 'CARD'
+        ? enteredDownPayment
+        : 0
+    const nextInstallmentCount = nextPaymentMethod === 'CARD' ? enteredInstallmentCount : 0
     const highestPaidInstallment = Math.max(0, ...(paymentSummary?.paidInstallmentNumbers || []))
     const balanceAfterPaidInstallments = Math.max(
       nextValue - nextDownPayment - (paymentSummary?.paidInstallmentTotal || 0),
@@ -125,7 +143,18 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
     setSubmitError('')
     try {
       const environments = data.environments || data.room || ''
-      await onSubmit({ ...data, room: environments, environments })
+      await onSubmit({
+        ...data,
+        room: environments,
+        environments,
+        paymentMethod: nextPaymentMethod,
+        paymentDiscount: nextPaymentMethod === 'PIX' ? data.paymentDiscount || '0' : '0',
+        cardFeePercent: nextPaymentMethod === 'CARD' ? data.cardFeePercent || '0' : '0',
+        downPayment: String(nextDownPayment),
+        downPaymentDate: nextDownPayment > 0 ? data.downPaymentDate : '',
+        installmentCount: String(nextInstallmentCount),
+        firstInstallmentDate: nextInstallmentCount > 0 ? data.firstInstallmentDate : '',
+      })
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.')
     } finally {
@@ -136,9 +165,13 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({ value, label }))
   const stageOptions = PRODUCTION_STAGE_FLOW.map((value) => ({ value, label: PRODUCTION_STAGE_LABELS[value] }))
   const managerOptions = managers.map((m) => ({ value: m.id, label: m.name }))
-  const [watchedValue, watchedProductionCost, watchedDownPayment, watchedInstallmentCount] = useWatch({
+  const paymentMethodOptions = QUOTE_PAYMENT_METHODS.map((value) => ({
+    value,
+    label: QUOTE_PAYMENT_METHOD_LABELS[value],
+  }))
+  const [watchedValue, watchedProductionCost, watchedPaymentMethod, watchedDownPayment, watchedInstallmentCount, watchedCardFeePercent] = useWatch({
     control,
-    name: ['value', 'productionCost', 'downPayment', 'installmentCount'],
+    name: ['value', 'productionCost', 'paymentMethod', 'downPayment', 'installmentCount', 'cardFeePercent'],
   })
   const [watchedApprovalDate, watchedPaymentConfirmedAt, watchedDeliveryBusinessDays, watchedReminderBusinessDays] = useWatch({
     control,
@@ -146,8 +179,16 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   })
   const value = Number(watchedValue || 0)
   const productionCost = Number(watchedProductionCost || 0)
-  const downPayment = Math.min(Number(watchedDownPayment || 0), Number.isFinite(value) ? value : 0)
-  const installmentCount = Math.max(Math.floor(Number(watchedInstallmentCount || 0)), 0)
+  const paymentMethod = safeQuotePaymentMethod(watchedPaymentMethod)
+  const enteredDownPayment = Math.min(Number(watchedDownPayment || 0), Number.isFinite(value) ? value : 0)
+  const downPayment = paymentMethod === 'PIX'
+    ? Math.max(Number.isFinite(value) ? value : 0, 0)
+    : paymentMethod === 'CARD'
+      ? Math.max(Number.isFinite(enteredDownPayment) ? enteredDownPayment : 0, 0)
+      : 0
+  const installmentCount = paymentMethod === 'CARD'
+    ? Math.max(Math.floor(Number(watchedInstallmentCount || 0)), 0)
+    : 0
   const remaining = Math.max((Number.isFinite(value) ? value : 0) - (Number.isFinite(downPayment) ? downPayment : 0), 0)
   const paidInstallmentNumbers = paymentSummary?.paidInstallmentNumbers || []
   const highestPaidInstallment = Math.max(0, ...paidInstallmentNumbers)
@@ -155,6 +196,10 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   const pendingInstallmentCount = Math.max(installmentCount - paidInstallmentsWithinPlan, 0)
   const openBalance = Math.max(remaining - (paymentSummary?.paidInstallmentTotal || 0), 0)
   const installmentValue = pendingInstallmentCount > 0 ? openBalance / pendingInstallmentCount : 0
+  const cardFeePercent = paymentMethod === 'CARD'
+    ? Math.min(Math.max(Number(watchedCardFeePercent || 0), 0), 30)
+    : 0
+  const cardFeeAmount = Math.round(remaining * (cardFeePercent / 100) * 100) / 100
   const minimumInstallmentCount = openBalance > 0 ? highestPaidInstallment + 1 : highestPaidInstallment
   const installmentCountInvalid = Boolean(paymentSummary && installmentCount < minimumInstallmentCount)
   const profit = Math.max(Number.isFinite(value) ? value : 0, 0) - Math.max(Number.isFinite(productionCost) ? productionCost : 0, 0)
@@ -223,31 +268,66 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
           placeholder="0,00"
           {...register('productionCost')}
         />
-        <Input
-          label="Entrada (R$)"
-          type="number"
-          step="0.01"
-          placeholder="0,00"
-          {...register('downPayment')}
-        />
-        <Input label="Data da entrada" type="date" {...register('downPaymentDate')} />
-        <Input
-          label="Parcelas do saldo"
-          type="number"
-          step="1"
-          min={minimumInstallmentCount}
-          placeholder="0"
-          {...register('installmentCount')}
-        />
-        <Input label="Data da primeira parcela" type="date" {...register('firstInstallmentDate')} />
+        <div className="col-span-2">
+          <Select label="Forma de pagamento combinada" options={paymentMethodOptions} {...register('paymentMethod')} />
+        </div>
+        <input type="hidden" {...register('paymentDiscount')} />
+        {paymentMethod === 'CARD' ? (
+          <>
+            <Input
+              label="Entrada (R$)"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0,00"
+              {...register('downPayment')}
+            />
+            <Input label="Data da entrada" type="date" {...register('downPaymentDate')} />
+            <Input
+              label="Parcelas do saldo"
+              type="number"
+              step="1"
+              min={Math.max(minimumInstallmentCount, 1)}
+              max="24"
+              placeholder="1"
+              {...register('installmentCount')}
+            />
+            <Input label="Data da primeira parcela" type="date" {...register('firstInstallmentDate')} />
+            <Input
+              label="Taxa do cartão (%)"
+              type="number"
+              step="0.01"
+              min="0"
+              max="30"
+              placeholder="0"
+              {...register('cardFeePercent')}
+            />
+            <div className="flex items-end pb-2 text-xs text-[#777]">
+              Taxa registrada: {formatCurrency(cardFeeAmount)}
+            </div>
+          </>
+        ) : (
+          <>
+            <input type="hidden" {...register('downPayment')} />
+            <input type="hidden" {...register('downPaymentDate')} />
+            <input type="hidden" {...register('installmentCount')} />
+            <input type="hidden" {...register('firstInstallmentDate')} />
+            <input type="hidden" {...register('cardFeePercent')} />
+            <p className="col-span-2 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3 text-xs text-[#666]">
+              {paymentMethod === 'PIX'
+                ? 'O valor total do projeto será registrado como pagamento à vista no Pix.'
+                : 'Defina a forma de pagamento antes de gerar parcelas ou registrar o recebimento.'}
+            </p>
+          </>
+        )}
         {paymentSummary && highestPaidInstallment > 0 ? (
           <p className={`col-span-2 -mt-2 text-xs ${installmentCountInvalid ? 'text-red-600' : 'text-[#777]'}`}>
             {paidInstallmentNumbers.length} parcela{paidInstallmentNumbers.length !== 1 ? 's' : ''} recebida{paidInstallmentNumbers.length !== 1 ? 's' : ''}.
             {openBalance > 0 ? ` Para manter saldo em aberto, use no mínimo ${minimumInstallmentCount} parcelas do saldo.` : ''}
           </p>
-        ) : (
+        ) : paymentMethod === 'CARD' ? (
           <p className="col-span-2 -mt-2 text-xs text-[#777]">A entrada é separada e não conta como parcela do saldo.</p>
-        )}
+        ) : null}
         <div className="col-span-2 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
           <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <div>
@@ -265,10 +345,14 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
             <div>
               <p className="text-[#9E9E9E]">Condição</p>
               <p className="mt-1 font-semibold text-[#121212]">
-                {paymentSummary && paidInstallmentNumbers.length > 0
-                  ? `${paidInstallmentNumbers.length} paga${paidInstallmentNumbers.length !== 1 ? 's' : ''} + ${pendingInstallmentCount} pendente${pendingInstallmentCount !== 1 ? 's' : ''}`
-                  : <>{downPayment > 0 ? `Entrada de ${formatCurrency(downPayment)} + ` : ''}{installmentCount}x do saldo</>}
-              </p>
+                {paymentMethod === 'PIX'
+                  ? 'Pix à vista'
+                  : paymentMethod === 'TO_DEFINE'
+                    ? 'A combinar'
+                    : paymentSummary && paidInstallmentNumbers.length > 0
+                      ? `${paidInstallmentNumbers.length} paga${paidInstallmentNumbers.length !== 1 ? 's' : ''} + ${pendingInstallmentCount} pendente${pendingInstallmentCount !== 1 ? 's' : ''}`
+                      : <>{downPayment > 0 ? `Entrada de ${formatCurrency(downPayment)} + ` : ''}{installmentCount}x do saldo</>}
+                </p>
             </div>
           </div>
         </div>

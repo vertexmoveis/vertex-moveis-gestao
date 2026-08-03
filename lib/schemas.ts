@@ -50,6 +50,15 @@ const installmentCountField = z
   })
   .refine((value) => !Number.isNaN(value), 'Invalid installment count')
 
+const percentageField = z
+  .preprocess(emptyToUndefined, z.union([z.string(), z.number()]).optional())
+  .transform((value) => {
+    if (value === undefined) return 0
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 30 ? parsed : Number.NaN
+  })
+  .refine((value) => !Number.isNaN(value), 'Invalid percentage')
+
 const businessDaysField = (fallback: number) =>
   z
     .preprocess(emptyToUndefined, z.union([z.string(), z.number()]).optional())
@@ -106,6 +115,9 @@ export const projectCreateSchema = z.object({
   estimatedEndDate: dateField,
   value: moneyField,
   productionCost: moneyField.default(0),
+  paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD']).default('TO_DEFINE'),
+  paymentDiscount: moneyField.default(0),
+  cardFeePercent: percentageField.default(0),
   downPayment: moneyField.default(null),
   downPaymentDate: dateField,
   installmentCount: installmentCountField.default(0),

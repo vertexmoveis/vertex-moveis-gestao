@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { paymentMethodLabel } from '@/lib/payment-methods'
+import { QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
 import { formatDateOnly } from '@/lib/date-only'
 import { ProfitabilityReport, type ProfitabilityData } from '@/components/finance/profitability-report'
 
@@ -25,7 +26,13 @@ type FinancePayment = {
   dueDate: string
   paidAt: string | null
   paymentMethod: string | null
+  plannedPaymentMethod: string
   status: 'RECEBIDO' | 'PENDENTE' | 'ATRASADO'
+}
+
+function displayedPaymentMethod(payment: FinancePayment) {
+  if (payment.paidAt) return paymentMethodLabel(payment.paymentMethod)
+  return `${QUOTE_PAYMENT_METHOD_LABELS[safeQuotePaymentMethod(payment.plannedPaymentMethod)]} (previsto)`
 }
 
 type Pagination = {
@@ -167,7 +174,11 @@ export default function FinanceiroPage() {
     const response = await fetch(`/api/projects/${payment.projectId}/payments/${payment.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paid: !payment.paidAt, paymentMethod: payment.paymentMethod || 'PIX' }),
+      body: JSON.stringify({
+        paid: !payment.paidAt,
+        paymentMethod: payment.paymentMethod
+          || (safeQuotePaymentMethod(payment.plannedPaymentMethod) === 'CARD' ? 'CARTAO' : 'PIX'),
+      }),
     })
 
     if (response.ok) loadFinance()
@@ -360,7 +371,7 @@ export default function FinanceiroPage() {
                           </Link>
                         </td>
                         <td className="px-4 py-3.5 text-xs text-[#6B7280]">{paymentLabel(payment)}</td>
-                        <td className="px-4 py-3.5 text-xs text-[#6B7280]">{paymentMethodLabel(payment.paymentMethod)}</td>
+                        <td className="px-4 py-3.5 text-xs text-[#6B7280]">{displayedPaymentMethod(payment)}</td>
                         <td className="px-4 py-3.5">
                           <span className={cn('rounded-full px-2 py-1 text-[10px] font-bold', statusClass(payment.status))}>
                             {payment.status === 'RECEBIDO' ? 'Recebido' : payment.status === 'ATRASADO' ? 'Atrasado' : 'Pendente'}

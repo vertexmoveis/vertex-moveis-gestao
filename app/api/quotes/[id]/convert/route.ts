@@ -14,10 +14,7 @@ import { syncClientRelationshipStage } from '@/lib/client-relationship'
 
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
-  downPayment: z.coerce.number().min(0).optional(),
-  installmentCount: z.coerce.number().int().min(0).max(24).optional(),
-  firstInstallmentDate: z.string().date().optional(),
-  downPaymentDate: z.string().date().optional(),
+  entryPaymentMethod: z.enum(['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO', 'TRANSFERENCIA']).optional(),
 }).strict()
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -62,6 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (quote.convertedProjectId) throw new Error('ALREADY_CONVERTED')
       if (quote.status !== 'APPROVED' || !quote.approvedAt) throw new Error('NOT_APPROVED')
       if (quote.approvalRequests.length === 0) throw new Error('APPROVAL_PROOF_REQUIRED')
+      if (quote.paymentMethod === 'TO_DEFINE') throw new Error('PAYMENT_TERMS_REQUIRED')
 
       const approvalDate = quote.approvedAt
       const paymentConfirmedAt = toDateOnlyUtc(parsed.data.paymentConfirmedAt)
@@ -87,20 +85,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
       const quoteTotal = numberValue(quote.total)
       const quoteCostTotal = numberValue(quote.costTotal)
-      const requestedDownPayment = numberValue(parsed.data.downPayment ?? quote.cardDownPayment)
-      if (quote.paymentMethod === 'CARD' && requestedDownPayment > quoteTotal) throw new Error('DOWN_PAYMENT_EXCEEDS_TOTAL')
       const downPayment = quote.paymentMethod === 'PIX'
         ? quoteTotal
-        : Math.min(Math.max(requestedDownPayment, 0), quoteTotal)
+        : Math.min(Math.max(numberValue(quote.cardDownPayment), 0), quoteTotal)
       const remainingBalance = Math.max(quoteTotal - downPayment, 0)
-      const requestedInstallments = Math.max(Math.floor(Number(parsed.data.installmentCount ?? quote.cardInstallments)), 0)
-      const installmentCount = remainingBalance > 0 ? requestedInstallments : 0
+      const installmentCount = quote.paymentMethod === 'CARD' && remainingBalance > 0
+        ? Math.max(Math.floor(Number(quote.cardInstallments)), 0)
+        : 0
       if (remainingBalance > 0 && installmentCount < 1) throw new Error('INSTALLMENTS_REQUIRED')
       const firstInstallmentDate = installmentCount > 0
-        ? (parsed.data.firstInstallmentDate ? toDateOnlyUtc(parsed.data.firstInstallmentDate) : quote.firstInstallmentDate)
+        ? quote.firstInstallmentDate
         : null
       if (installmentCount > 0 && !firstInstallmentDate) throw new Error('FIRST_INSTALLMENT_REQUIRED')
-      const downPaymentDate = parsed.data.downPaymentDate ? toDateOnlyUtc(parsed.data.downPaymentDate) : paymentConfirmedAt
+      if (quote.paymentMethod === 'CARD' && downPayment > 0 && !parsed.data.entryPaymentMethod) {
+        throw new Error('ENTRY_PAYMENT_METHOD_REQUIRED')
+      }
+      const downPaymentDate = paymentConfirmedAt
       const schedule = buildPaymentSchedule({
         value: quoteTotal,
         downPayment,
@@ -111,7 +111,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       const payments = schedule.payments.map((payment) => (
         payment.type === 'DOWN_PAYMENT'
-          ? { ...payment, paidAt: paymentConfirmedAt, paymentMethod: quote.paymentMethod }
+          ? {
+              ...payment,
+              paidAt: paymentConfirmedAt,
+              paymentMethod: quote.paymentMethod === 'PIX' ? 'PIX' : parsed.data.entryPaymentMethod,
+            }
           : payment
       ))
       const materialDrafts = buildProjectMaterialsFromQuoteItems(quote.items)
@@ -140,6 +144,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           estimatedEndDate: productionDates.deliveryDeadlineDate,
           value: quoteTotal,
           productionCost: quoteCostTotal,
+          paymentMethod: quote.paymentMethod,
+          paymentDiscount: quote.paymentDiscount,
+          cardFeePercent: quote.cardFeePercent,
+          cardFeeAmount: quote.cardFeeAmount,
           downPayment: schedule.terms.downPayment,
           downPaymentDate: schedule.terms.downPayment > 0 ? downPaymentDate : null,
           installmentCount: schedule.terms.installmentCount,
@@ -238,20 +246,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error instanceof Error && error.message === 'APPROVAL_PROOF_REQUIRED') {
       return badRequest('O cliente precisa aprovar pelo link antes de transformar o orçamento em projeto.')
     }
+    if (error instanceof Error && error.message === 'PAYMENT_TERMS_REQUIRED') {
+      return badRequest('Defina a forma de pagamento no orçamento antes de criar o projeto.')
+    }
     if (error instanceof Error && error.message === 'INVALID_PAYMENT_DATE') {
       return badRequest('Informe uma data válida para a confirmação do pagamento.')
     }
     if (error instanceof Error && error.message === 'FUTURE_PAYMENT_DATE') {
       return badRequest('A confirmação do pagamento não pode ter uma data futura.')
     }
-    if (error instanceof Error && error.message === 'DOWN_PAYMENT_EXCEEDS_TOTAL') {
-      return badRequest('A entrada não pode ser maior que o total do orçamento.')
-    }
     if (error instanceof Error && error.message === 'INSTALLMENTS_REQUIRED') {
       return badRequest('Informe ao menos uma parcela para distribuir o saldo restante.')
     }
     if (error instanceof Error && error.message === 'FIRST_INSTALLMENT_REQUIRED') {
       return badRequest('Informe a data da primeira parcela antes de criar o projeto.')
+    }
+    if (error instanceof Error && error.message === 'ENTRY_PAYMENT_METHOD_REQUIRED') {
+      return badRequest('Informe como a entrada foi recebida antes de criar o projeto.')
     }
     return serverError()
   }

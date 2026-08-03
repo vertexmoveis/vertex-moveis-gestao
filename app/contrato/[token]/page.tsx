@@ -147,8 +147,12 @@ export default async function PublicContractPage({
 
           <section>
             <h2 className="text-base font-bold text-[#121212]">Resumo comercial</h2>
-            <div className="mt-3 grid overflow-hidden rounded-lg border border-[#E8E8E8] sm:grid-cols-3">
+            <div className="mt-3 grid overflow-hidden rounded-lg border border-[#E8E8E8] sm:grid-cols-2 lg:grid-cols-4">
               <Metric label="Investimento total" value={formatCurrency(snapshot.project.value)} strong />
+              <Metric
+                label="Forma combinada"
+                value={snapshot.payment.methodLabel || snapshot.payment.summary || 'A combinar'}
+              />
               <Metric
                 label="Entrada"
                 value={snapshot.payment.downPayment > 0

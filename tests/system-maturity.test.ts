@@ -30,6 +30,9 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
     room: 'Cozinha',
     value: '10000.00',
     deliveryBusinessDays: 30,
+    paymentMethod: 'CARD',
+    cardFeePercent: 3,
+    cardFeeAmount: '240',
     downPayment: '2000',
     installmentCount: 2,
     installmentValue: '4000',
@@ -49,6 +52,9 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
 
   assert.equal(snapshot.project.value, 10000)
   assert.equal(snapshot.payment.schedule.length, 2)
+  assert.equal(snapshot.payment.methodLabel, 'Cartão parcelado')
+  assert.match(snapshot.payment.summary || '', /Entrada de .*2\.000,00 \+ 2x de .*4\.000,00 no cartão/)
+  assert.equal(snapshot.payment.cardFeeAmount, 240)
   assert.equal(snapshot.client.address, 'Rua A, 10, Cotia - SP')
   assert.equal(parseProjectContractSnapshot(snapshot)?.project.name, 'Cozinha')
 })

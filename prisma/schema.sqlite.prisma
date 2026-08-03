@@ -83,6 +83,10 @@ model Project {
   actualEndDate                  DateTime?
   value                          Float?
   productionCost                 Float?                 @default(0)
+  paymentMethod                  String                 @default("TO_DEFINE")
+  paymentDiscount                Float                  @default(0)
+  cardFeePercent                 Float                  @default(0)
+  cardFeeAmount                  Float                  @default(0)
   downPayment                    Float?                 @default(0)
   downPaymentDate                DateTime?
   installmentCount               Int                    @default(0)
@@ -112,6 +116,7 @@ model Project {
   @@index([managerId])
   @@index([estimatedEndDate])
   @@index([approvalDate])
+  @@index([paymentMethod])
   @@index([deliveryDeadlineDate])
   @@index([productionStartReminderDate])
   @@index([stage, postSaleFollowUpAt])

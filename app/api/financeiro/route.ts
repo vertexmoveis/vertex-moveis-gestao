@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             name: true,
+            paymentMethod: true,
             client: { select: { id: true, name: true } },
           },
         },
@@ -203,6 +204,7 @@ export async function GET(req: NextRequest) {
       dueDate: payment.dueDate.toISOString(),
       paidAt: payment.paidAt?.toISOString() || null,
       paymentMethod: payment.paymentMethod,
+      plannedPaymentMethod: payment.project.paymentMethod,
       status: paymentStatus(payment, today),
     }))
 

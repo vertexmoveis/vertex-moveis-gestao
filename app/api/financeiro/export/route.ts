@@ -5,6 +5,7 @@ import { getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { moneyValue } from '@/lib/money'
 import { paymentMethodLabel } from '@/lib/payment-methods'
+import { QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
 import { formatDateOnly } from '@/lib/date-only'
 import { csvCell } from '@/lib/csv'
 
@@ -76,6 +77,7 @@ export async function GET(req: NextRequest) {
       project: {
         select: {
           name: true,
+          paymentMethod: true,
           client: { select: { name: true } },
         },
       },
@@ -83,14 +85,15 @@ export async function GET(req: NextRequest) {
     orderBy: [{ dueDate: 'asc' }, { installmentNumber: 'asc' }],
   })
 
-  const header = ['Cliente', 'Projeto', 'Tipo', 'Vencimento', 'Pago em', 'Método', 'Valor']
+  const header = ['Cliente', 'Projeto', 'Tipo', 'Vencimento', 'Pago em', 'Condição combinada', 'Método recebido', 'Valor']
   const rows = payments.map((payment) => [
     payment.project.client.name,
     payment.project.name,
     payment.type === 'DOWN_PAYMENT' ? 'Entrada' : `Parcela ${payment.installmentNumber}`,
     formatDateOnly(payment.dueDate),
     payment.paidAt?.toLocaleDateString('pt-BR') || '',
-    paymentMethodLabel(payment.paymentMethod),
+    QUOTE_PAYMENT_METHOD_LABELS[safeQuotePaymentMethod(payment.project.paymentMethod)],
+    payment.paidAt ? paymentMethodLabel(payment.paymentMethod) : '',
     moneyValue(payment.amount).toFixed(2).replace('.', ','),
   ])
 

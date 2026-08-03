@@ -31,6 +31,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, optionalMoneyValue } from '@/lib/money'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { calculateProjectPaymentPlan } from '@/lib/project-payment-plan'
 
 function addCalendarDays(date: Date, days: number) {
   const result = new Date(date)
@@ -82,6 +83,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       warrantyEndsAt: true,
       value: auth.user.role === 'ADMIN',
       productionCost: auth.user.role === 'ADMIN',
+      paymentMethod: auth.user.role === 'ADMIN',
+      paymentDiscount: auth.user.role === 'ADMIN',
+      cardFeePercent: auth.user.role === 'ADMIN',
+      cardFeeAmount: auth.user.role === 'ADMIN',
       downPayment: auth.user.role === 'ADMIN',
       downPaymentDate: auth.user.role === 'ADMIN',
       installmentCount: auth.user.role === 'ADMIN',
@@ -176,6 +181,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ...project,
     value: 'value' in project ? optionalMoneyValue(project.value) : null,
     productionCost: 'productionCost' in project ? optionalMoneyValue(project.productionCost) : null,
+    paymentDiscount: 'paymentDiscount' in project ? optionalMoneyValue(project.paymentDiscount) : null,
+    cardFeeAmount: 'cardFeeAmount' in project ? optionalMoneyValue(project.cardFeeAmount) : null,
     downPayment: 'downPayment' in project ? optionalMoneyValue(project.downPayment) : null,
     installmentValue: 'installmentValue' in project ? optionalMoneyValue(project.installmentValue) : null,
     approvalDate: project.approvalDate?.toISOString() || null,
@@ -289,14 +296,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const warrantyEndsAt = stage === 'COMPLETED'
         ? existing.warrantyEndsAt || addCalendarYear(completedAt || new Date())
         : existing.warrantyEndsAt
-      const scheduleInput = {
+      const paymentPlan = calculateProjectPaymentPlan({
         value: input.value,
+        paymentMethod: input.paymentMethod,
+        paymentDiscount: input.paymentDiscount,
+        cardFeePercent: input.cardFeePercent,
         downPayment: input.downPayment,
         downPaymentDate: input.downPaymentDate,
         installmentCount: input.installmentCount,
         firstInstallmentDate: input.firstInstallmentDate,
-        startDate: input.startDate,
+        paymentConfirmedAt: input.paymentConfirmedAt,
         baseDate: input.startDate || existing.startDate || existing.createdAt,
+      })
+      const scheduleInput = {
+        value: input.value,
+        downPayment: paymentPlan.downPayment,
+        downPaymentDate: paymentPlan.downPaymentDate,
+        installmentCount: paymentPlan.installmentCount,
+        firstInstallmentDate: paymentPlan.firstInstallmentDate,
+        baseDate: paymentPlan.baseDate,
+        startDate: input.startDate,
       }
       const schedule = buildPaymentSchedule(scheduleInput)
       const effectiveFirstInstallmentDate = schedule.payments.find(
@@ -333,8 +352,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           warrantyEndsAt,
           value: input.value,
           productionCost: input.productionCost || 0,
+          paymentMethod: paymentPlan.paymentMethod,
+          paymentDiscount: paymentPlan.paymentDiscount,
+          cardFeePercent: paymentPlan.cardFeePercent,
+          cardFeeAmount: paymentPlan.cardFeeAmount,
           downPayment: schedule.terms.downPayment,
-          downPaymentDate: input.downPaymentDate,
+          downPaymentDate: paymentPlan.downPaymentDate,
           installmentCount: schedule.terms.installmentCount,
           installmentValue: schedule.terms.installmentValue,
           firstInstallmentDate: effectiveFirstInstallmentDate,
@@ -396,6 +419,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...project,
       value: optionalMoneyValue(project.value),
       productionCost: optionalMoneyValue(project.productionCost),
+      paymentDiscount: optionalMoneyValue(project.paymentDiscount),
+      cardFeeAmount: optionalMoneyValue(project.cardFeeAmount),
       downPayment: optionalMoneyValue(project.downPayment),
       installmentValue: optionalMoneyValue(project.installmentValue),
       approvalDate: project.approvalDate?.toISOString() || null,

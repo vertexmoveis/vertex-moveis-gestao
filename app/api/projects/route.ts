@@ -11,6 +11,7 @@ import { normalizeProductionStage, type ProductionStage } from '@/types'
 import { optionalMoneyValue } from '@/lib/money'
 import { clientWhereForUser } from '@/lib/client-access'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { calculateProjectPaymentPlan } from '@/lib/project-payment-plan'
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -74,6 +75,10 @@ export async function GET(req: NextRequest) {
       actualEndDate: true,
       value: auth.user.role === 'ADMIN',
       productionCost: auth.user.role === 'ADMIN',
+      paymentMethod: auth.user.role === 'ADMIN',
+      paymentDiscount: auth.user.role === 'ADMIN',
+      cardFeePercent: auth.user.role === 'ADMIN',
+      cardFeeAmount: auth.user.role === 'ADMIN',
       downPayment: auth.user.role === 'ADMIN',
       downPaymentDate: auth.user.role === 'ADMIN',
       installmentCount: auth.user.role === 'ADMIN',
@@ -103,6 +108,8 @@ export async function GET(req: NextRequest) {
       stageDeadlineDate: p.stageDeadlineDate?.toISOString() || null,
       value: optionalMoneyValue(p.value),
       productionCost: optionalMoneyValue(p.productionCost),
+      paymentDiscount: optionalMoneyValue(p.paymentDiscount),
+      cardFeeAmount: optionalMoneyValue(p.cardFeeAmount),
       downPayment: optionalMoneyValue(p.downPayment),
       installmentValue: optionalMoneyValue(p.installmentValue),
       approvalDate: p.approvalDate?.toISOString() || null,
@@ -171,13 +178,25 @@ export async function POST(req: NextRequest) {
       reminderBusinessDays: input.productionReminderBusinessDays,
     })
     const estimatedEndDate = productionDates.deliveryDeadlineDate || input.estimatedEndDate
-    const schedule = buildPaymentSchedule({
+    const paymentPlan = calculateProjectPaymentPlan({
       value: input.value,
+      paymentMethod: input.paymentMethod,
+      paymentDiscount: input.paymentDiscount,
+      cardFeePercent: input.cardFeePercent,
       downPayment: input.downPayment,
       downPaymentDate: input.downPaymentDate,
       installmentCount: input.installmentCount,
       firstInstallmentDate: input.firstInstallmentDate,
+      paymentConfirmedAt: input.paymentConfirmedAt,
       baseDate: input.startDate || new Date(),
+    })
+    const schedule = buildPaymentSchedule({
+      value: input.value,
+      downPayment: paymentPlan.downPayment,
+      downPaymentDate: paymentPlan.downPaymentDate,
+      installmentCount: paymentPlan.installmentCount,
+      firstInstallmentDate: paymentPlan.firstInstallmentDate,
+      baseDate: paymentPlan.baseDate,
     })
     const effectiveFirstInstallmentDate = schedule.payments.find(
       (payment) => payment.type === PAYMENT_TYPE_INSTALLMENT,
@@ -200,8 +219,12 @@ export async function POST(req: NextRequest) {
           estimatedEndDate,
           value: auth.user.role === 'ADMIN' ? input.value : null,
           productionCost: auth.user.role === 'ADMIN' ? input.productionCost || 0 : 0,
+          paymentMethod: auth.user.role === 'ADMIN' ? paymentPlan.paymentMethod : 'TO_DEFINE',
+          paymentDiscount: auth.user.role === 'ADMIN' ? paymentPlan.paymentDiscount : 0,
+          cardFeePercent: auth.user.role === 'ADMIN' ? paymentPlan.cardFeePercent : 0,
+          cardFeeAmount: auth.user.role === 'ADMIN' ? paymentPlan.cardFeeAmount : 0,
           downPayment: auth.user.role === 'ADMIN' ? schedule.terms.downPayment : 0,
-          downPaymentDate: auth.user.role === 'ADMIN' ? input.downPaymentDate : null,
+          downPaymentDate: auth.user.role === 'ADMIN' ? paymentPlan.downPaymentDate : null,
           installmentCount: auth.user.role === 'ADMIN' ? schedule.terms.installmentCount : 0,
           installmentValue: auth.user.role === 'ADMIN' ? schedule.terms.installmentValue : 0,
           firstInstallmentDate: auth.user.role === 'ADMIN' ? effectiveFirstInstallmentDate : null,
@@ -253,6 +276,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...project,
+      value: optionalMoneyValue(project.value),
+      productionCost: optionalMoneyValue(project.productionCost),
+      paymentDiscount: optionalMoneyValue(project.paymentDiscount),
+      cardFeeAmount: optionalMoneyValue(project.cardFeeAmount),
+      downPayment: optionalMoneyValue(project.downPayment),
+      installmentValue: optionalMoneyValue(project.installmentValue),
       approvalDate: project.approvalDate?.toISOString() || null,
       paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,

@@ -24,6 +24,7 @@ import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/payment-methods'
+import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
 import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
 import {
   PROJECT_MACRO_PHASE_TARGET_STAGE,
@@ -62,6 +63,10 @@ interface ProjectDetail {
   warrantyEndsAt: string | null
   value: number | null
   productionCost: number | null
+  paymentMethod: string
+  paymentDiscount: number
+  cardFeePercent: number
+  cardFeeAmount: number
   costSummary: {
     estimatedCost: number
     adjustedCost: number
@@ -429,6 +434,13 @@ export default function ProjectDetailPage() {
   }, { paidInstallmentNumbers: [] as number[], paidInstallmentTotal: 0, paidTotal: 0 })
   const totalPaid = paymentSummary.paidTotal
   const totalOpen = project.payments.reduce((sum, payment) => sum + (!payment.paidAt ? payment.amount : 0), 0)
+  const plannedPaymentMethod = safeQuotePaymentMethod(project.paymentMethod)
+  const plannedPaymentSummary = getQuotePaymentSummary({
+    total: project.value || 0,
+    paymentMethod: plannedPaymentMethod,
+    cardInstallments: project.installmentCount,
+    cardDownPayment: project.downPayment,
+  })
   const projectCost = project.costSummary?.adjustedCost ?? project.productionCost ?? 0
   const profit = (project.value || 0) - projectCost
   const checklistDone = project.checklist.filter((item) => item.completedAt).length
@@ -561,6 +573,11 @@ export default function ProjectDetailPage() {
                   )}
                   {project.value && (
                     <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#FAFAFA] p-3">
+                      <div className="col-span-2 border-b border-[#E8E8E8] pb-3">
+                        <p className="text-[10px] text-[#9E9E9E]">Forma combinada</p>
+                        <p className="text-sm font-semibold text-[#121212]">{QUOTE_PAYMENT_METHOD_LABELS[plannedPaymentMethod]}</p>
+                        <p className="mt-1 text-[11px] text-[#777]">{plannedPaymentSummary}</p>
+                      </div>
                       <div>
                         <p className="text-[10px] text-[#9E9E9E]">{project.costSummary?.hasActualCosts ? 'Custo ajustado' : 'Custo previsto'}</p>
                         <p className="text-sm font-semibold text-[#121212]">{formatCurrency(projectCost)}</p>
@@ -606,6 +623,18 @@ export default function ProjectDetailPage() {
                         <p className="text-[10px] text-[#9E9E9E]">Aberto</p>
                         <p className="text-sm font-semibold text-orange-600">{formatCurrency(totalOpen)}</p>
                       </div>
+                      {project.paymentDiscount > 0 ? (
+                        <div>
+                          <p className="text-[10px] text-[#9E9E9E]">Desconto no pagamento</p>
+                          <p className="text-sm font-semibold text-green-600">{formatCurrency(project.paymentDiscount)}</p>
+                        </div>
+                      ) : null}
+                      {project.cardFeeAmount > 0 ? (
+                        <div>
+                          <p className="text-[10px] text-[#9E9E9E]">Taxa do cartão ({project.cardFeePercent}%)</p>
+                          <p className="text-sm font-semibold text-[#121212]">{formatCurrency(project.cardFeeAmount)}</p>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -1141,6 +1170,9 @@ export default function ProjectDetailPage() {
             environments: environments.map((environment) => environment.name).join('\n'),
             value: project.value?.toString() || '',
             productionCost: project.productionCost?.toString() || '',
+            paymentMethod: project.paymentMethod || 'TO_DEFINE',
+            paymentDiscount: project.paymentDiscount?.toString() || '0',
+            cardFeePercent: project.cardFeePercent?.toString() || '0',
             downPayment: project.downPayment?.toString() || '',
             downPaymentDate: project.downPaymentDate?.split('T')[0] || '',
             installmentCount: project.installmentCount?.toString() || '',

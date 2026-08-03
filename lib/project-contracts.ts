@@ -6,6 +6,7 @@ import {
   randomBytes,
 } from 'node:crypto'
 import { moneyValue, type NumericValue } from './money'
+import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from './quotes'
 
 export const PROJECT_CONTRACT_SNAPSHOT_VERSION = 1
 
@@ -28,6 +29,10 @@ type ProjectContractSource = {
   approvalDate?: Date | null
   deliveryBusinessDays: number
   deliveryDeadlineDate?: Date | null
+  paymentMethod?: string | null
+  paymentDiscount?: NumericValue
+  cardFeePercent?: number | null
+  cardFeeAmount?: NumericValue
   downPayment: NumericValue
   installmentCount: number
   installmentValue: NumericValue
@@ -85,6 +90,12 @@ export type ProjectContractSnapshot = {
     deliveryDeadlineDate: string | null
   }
   payment: {
+    method?: string
+    methodLabel?: string
+    summary?: string
+    paymentDiscount?: number
+    cardFeePercent?: number
+    cardFeeAmount?: number
     downPayment: number
     installmentCount: number
     installmentValue: number
@@ -180,6 +191,13 @@ export function buildProjectContractSnapshot(
   const value = moneyValue(project.value)
   const downPayment = moneyValue(project.downPayment)
   const installmentValue = moneyValue(project.installmentValue)
+  const paymentMethod = safeQuotePaymentMethod(project.paymentMethod)
+  const paymentSummary = getQuotePaymentSummary({
+    total: value,
+    paymentMethod,
+    cardInstallments: project.installmentCount,
+    cardDownPayment: downPayment,
+  })
   const environmentNames = Array.from(
     new Set(project.environments.map((environment) => environment.name.trim()).filter(Boolean)),
   )
@@ -213,6 +231,12 @@ export function buildProjectContractSnapshot(
       deliveryDeadlineDate: iso(project.deliveryDeadlineDate),
     },
     payment: {
+      method: paymentMethod,
+      methodLabel: QUOTE_PAYMENT_METHOD_LABELS[paymentMethod],
+      summary: paymentSummary,
+      paymentDiscount: moneyValue(project.paymentDiscount),
+      cardFeePercent: Math.max(Number(project.cardFeePercent) || 0, 0),
+      cardFeeAmount: moneyValue(project.cardFeeAmount),
       downPayment,
       installmentCount: project.installmentCount,
       installmentValue,
@@ -239,7 +263,7 @@ export function buildProjectContractSnapshot(
       },
       {
         title: 'Pagamento',
-        text: `O investimento total registrado é de R$ ${value.toFixed(2).replace('.', ',')}. Entrada e parcelas seguem o quadro financeiro deste documento.`,
+        text: `O investimento total registrado é de R$ ${value.toFixed(2).replace('.', ',')}. Condição combinada: ${paymentSummary}. Entrada e parcelas seguem o quadro financeiro deste documento.`,
       },
       {
         title: 'Entrega e instalação',
