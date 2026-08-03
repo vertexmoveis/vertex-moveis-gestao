@@ -21,10 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!file) return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 })
   if (!canAccessProject(auth.user, file.project.managerId)) return forbidden()
   if (!canDownloadProjectFile(file.type, file.securityStatus)) {
-    const message = file.type === 'application/pdf' && file.securityStatus === 'TYPE_CHECKED'
-      ? 'Este PDF está em quarentena até passar pelo antivírus configurado.'
-      : 'O arquivo ainda não foi liberado pela verificação de segurança.'
-    return NextResponse.json({ error: message }, { status: 423 })
+    return NextResponse.json({ error: 'O arquivo ainda não foi liberado pela verificação de segurança.' }, { status: 423 })
   }
   if (!isProjectBlobUrl(file.url, id)) return NextResponse.json({ error: 'Arquivo indisponível.' }, { status: 404 })
 

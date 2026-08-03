@@ -290,8 +290,8 @@ export default async function SettingsPage() {
                 </div>
                 <div className={`border-l-4 p-3 ${scannerConfigured ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
                   <p className="text-xs font-semibold">Scanner de arquivos</p>
-                  <p className="mt-2 text-sm font-bold">{scannerConfigured ? 'Externo ativo' : 'Validação interna'}</p>
-                  <p className="mt-1 text-xs text-[#666]">{scannerConfigured ? 'Conteúdo analisado no envio' : 'Conecte um antivírus por webhook'}</p>
+                  <p className="mt-2 text-sm font-bold">{scannerConfigured ? 'Antivírus externo ativo' : 'Validação interna ativa'}</p>
+                  <p className="mt-1 text-xs text-[#666]">{scannerConfigured ? 'Conteúdo analisado no envio' : 'Assinatura e recursos perigosos são conferidos'}</p>
                 </div>
                 <div className="border-l-4 border-blue-500 bg-blue-50 p-3">
                   <p className="text-xs font-semibold text-blue-800">Endpoint de disponibilidade</p>

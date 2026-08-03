@@ -53,9 +53,10 @@ test('CSV neutraliza formulas antes de abrir no Excel', () => {
   assert.equal(csvCell('@SUM(1,1)'), '"\'@SUM(1,1)"')
 })
 
-test('PDF exige antivirus e imagens podem usar conferencia de assinatura', () => {
-  assert.equal(canDownloadProjectFile('application/pdf', 'TYPE_CHECKED'), false)
+test('arquivos conferidos internamente ou pelo scanner podem ser baixados', () => {
+  assert.equal(canDownloadProjectFile('application/pdf', 'TYPE_CHECKED'), true)
   assert.equal(canDownloadProjectFile('application/pdf', 'CLEAN'), true)
+  assert.equal(canDownloadProjectFile('application/pdf', 'ERROR'), false)
   assert.equal(canDownloadProjectFile('image/png', 'TYPE_CHECKED'), true)
   assert.equal(canDownloadProjectFile('image/png', 'PENDING'), false)
 })

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  hasUnsafePdfFeatures,
   matchesProjectFileSignature,
   projectFileExpiryDate,
 } from '@/lib/project-file-security'
@@ -22,6 +23,13 @@ test('aceita somente assinaturas internas compativeis com o tipo do arquivo', ()
   )
   assert.equal(matchesProjectFileSignature('image/webp', bytes('RIFF0000WEBP')), true)
   assert.equal(matchesProjectFileSignature('image/heic', bytes('0000ftypheic')), true)
+})
+
+test('bloqueia recursos ativos ou protegidos em PDF sem scanner externo', () => {
+  assert.equal(hasUnsafePdfFeatures(bytes('%PDF-1.7\n1 0 obj\n/JavaScript\n%%EOF')), true)
+  assert.equal(hasUnsafePdfFeatures(bytes('%PDF-1.7\n1 0 obj\n/EmbeddedFile\n%%EOF')), true)
+  assert.equal(hasUnsafePdfFeatures(bytes('%PDF-1.7\n1 0 obj\n/Encrypt\n%%EOF')), true)
+  assert.equal(hasUnsafePdfFeatures(bytes('%PDF-1.7\n1 0 obj\n/Type /Page\n%%EOF')), false)
 })
 
 test('retencao fica desativada por padrao e respeita o periodo configurado', () => {

@@ -33,8 +33,24 @@ export function matchesProjectFileSignature(type: string, bytes: Uint8Array) {
   return false
 }
 
+const UNSAFE_PDF_FEATURES = [
+  /\/JavaScript\b/i,
+  /\/JS\b/i,
+  /\/Launch\b/i,
+  /\/EmbeddedFile\b/i,
+  /\/RichMedia\b/i,
+  /\/XFA\b/i,
+  /\/AA\b/i,
+  /\/Encrypt\b/i,
+]
+
+export function hasUnsafePdfFeatures(bytes: Uint8Array) {
+  const content = new TextDecoder('latin1').decode(bytes)
+  return UNSAFE_PDF_FEATURES.some((pattern) => pattern.test(content))
+}
+
 export function canDownloadProjectFile(type: string, status: string) {
-  if (type.toLowerCase() === 'application/pdf') return status === 'CLEAN'
+  if (type.toLowerCase() === 'application/pdf') return status === 'TYPE_CHECKED' || status === 'CLEAN'
   return status === 'TYPE_CHECKED' || status === 'CLEAN'
 }
 
@@ -58,9 +74,15 @@ async function scanWithConfiguredProvider(input: {
   const configuredUrl = process.env.FILE_SCAN_WEBHOOK_URL?.trim()
   if (!configuredUrl) {
     if (input.contentType === 'application/pdf') {
+      if (hasUnsafePdfFeatures(input.bytes)) {
+        return {
+          status: 'REJECTED' as const,
+          details: 'PDF rejeitado porque contém recursos ativos ou protegidos que exigem análise externa.',
+        }
+      }
       return {
-        status: 'ERROR' as const,
-        details: 'PDF mantido em quarentena até a configuração do antivírus externo.',
+        status: 'TYPE_CHECKED' as const,
+        details: 'Formato e estrutura do PDF conferidos pela validação interna.',
       }
     }
     return { status: 'TYPE_CHECKED' as const, details: 'Formato e assinatura conferidos.' }
@@ -120,7 +142,7 @@ export async function inspectProjectBlob(input: {
 
     const scannerConfigured = Boolean(process.env.FILE_SCAN_WEBHOOK_URL?.trim())
     let bytes: Uint8Array
-    if (scannerConfigured) {
+    if (scannerConfigured || contentType === 'application/pdf') {
       bytes = new Uint8Array(await new Response(result.stream).arrayBuffer())
     } else {
       const reader = result.stream.getReader()

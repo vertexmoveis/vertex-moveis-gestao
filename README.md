@@ -284,7 +284,7 @@ Parcelas recebidas nunca são apagadas automaticamente. Ao editar o projeto, o C
 - Arquivos privados, com download autenticado.
 - Conferência da assinatura interna de PDF, JPEG, PNG, WebP, HEIC e HEIF, sem confiar somente na extensão.
 - Imagens são liberadas após conferência de tipo e assinatura.
-- PDFs permanecem em quarentena até serem aprovados pelo scanner de malware externo.
+- PDFs passam por validação interna de tipo, assinatura e recursos ativos; quando configurado, o scanner externo complementa a análise.
 - Estado de verificação visível no projeto e opção de verificar novamente.
 - Retenção automática configurável, desativada por padrão.
 - Exclusão controlada e histórico no projeto.
@@ -467,7 +467,7 @@ Na Meta, configure o callback do WhatsApp como
 O scanner de arquivos deve aceitar `POST` HTTPS com o campo `file` em
 `multipart/form-data` e responder JSON com `{ "clean": true }` ou
 `{ "status": "clean" }` quando o conteúdo estiver liberado. Sem esse scanner,
-imagens válidas continuam disponíveis, mas PDFs ficam em quarentena e não podem
+imagens e PDFs válidos continuam disponíveis após a validação interna e podem
 ser baixados.
 
 ## Instalação local
