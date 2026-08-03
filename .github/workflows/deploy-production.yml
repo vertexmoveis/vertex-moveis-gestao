@@ -35,8 +35,5 @@ jobs:
       - name: Carregar configurações da Vercel
         run: npx vercel@58.4.4 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Compilar para produção
-        run: npm run build
-
       - name: Publicar na Vercel
         run: npx vercel@58.4.4 deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
