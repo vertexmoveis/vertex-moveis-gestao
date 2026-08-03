@@ -21,16 +21,33 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Baixar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Preparar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Verificar dependências de produção
+        run: npm audit --omit=dev
+
+      - name: Executar testes
+        run: npm test
+
+      - name: Verificar código
+        run: npm run lint
+
+      - name: Validar build
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/vertex_ci
+          DATABASE_URL_UNPOOLED: postgresql://ci:ci@127.0.0.1:5432/vertex_ci
+          NEXTAUTH_SECRET: ci-only-secret-that-is-not-used-in-production
+          NEXTAUTH_URL: http://127.0.0.1:3000
+        run: npm run build
 
       - name: Carregar configurações da Vercel
         run: npx vercel@58.4.4 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}

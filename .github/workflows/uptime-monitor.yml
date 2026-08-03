@@ -1,0 +1,67 @@
+name: Monitorar site em produção
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: vertex-uptime-monitor
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEALTH_URL: https://vertex-moveis-gestao.vercel.app/api/public/health
+      ALERT_LABEL: monitoramento
+      ALERT_TITLE: Site da Vertex indisponível
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verificar disponibilidade
+        id: health
+        shell: bash
+        run: |
+          set +e
+          status="$(curl --silent --show-error --location --max-time 20 --retry 2 --retry-delay 3 --output /tmp/health.json --write-out '%{http_code}' "$HEALTH_URL")"
+          curl_exit=$?
+          if [ "$curl_exit" -eq 0 ] && [ "$status" = "200" ] && grep -q '"status":"ok"' /tmp/health.json; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "healthy=false" >> "$GITHUB_OUTPUT"
+          echo "status=${status:-sem-resposta}" >> "$GITHUB_OUTPUT"
+
+      - name: Preparar marcador de alerta
+        if: always()
+        shell: bash
+        run: gh label create "$ALERT_LABEL" --color D93F0B --description "Alertas automáticos de disponibilidade" --force
+
+      - name: Abrir ou atualizar alerta
+        if: steps.health.outputs.healthy != 'true'
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --label "$ALERT_LABEL" --search "\"$ALERT_TITLE\" in:title" --json number --jq '.[0].number // empty')"
+          message="O monitor externo não conseguiu validar o site em $(date -u '+%d/%m/%Y %H:%M UTC'). Código HTTP: ${{ steps.health.outputs.status }}. Verifique a Vercel e o banco de dados."
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --body "$message"
+          else
+            gh issue create --title "$ALERT_TITLE" --label "$ALERT_LABEL" --body "$message"
+          fi
+          exit 1
+
+      - name: Encerrar alerta após recuperação
+        if: steps.health.outputs.healthy == 'true'
+        shell: bash
+        run: |
+          issue_number="$(gh issue list --state open --label "$ALERT_LABEL" --search "\"$ALERT_TITLE\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --body "O site voltou a responder normalmente em $(date -u '+%d/%m/%Y %H:%M UTC')."
+            gh issue close "$issue_number" --reason completed
+          fi

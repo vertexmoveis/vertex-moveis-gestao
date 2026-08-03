@@ -20,6 +20,7 @@ export const DEFAULT_COMPANY_PROFILE = {
   quoteReminderDays: 3,
   leadNoResponseDays: 30,
   leadCloseSuggestionDays: 90,
+  weeklyProductionCapacity: 4,
 } as const
 
 export type CompanyProfileData = Omit<CompanyProfile, 'createdAt' | 'updatedAt'> & {
@@ -46,6 +47,7 @@ export function withCompanyProfileDefaults(profile?: Partial<CompanyProfile> | n
     quoteReminderDays: profile?.quoteReminderDays || DEFAULT_COMPANY_PROFILE.quoteReminderDays,
     leadNoResponseDays: profile?.leadNoResponseDays || DEFAULT_COMPANY_PROFILE.leadNoResponseDays,
     leadCloseSuggestionDays: profile?.leadCloseSuggestionDays || DEFAULT_COMPANY_PROFILE.leadCloseSuggestionDays,
+    weeklyProductionCapacity: profile?.weeklyProductionCapacity || DEFAULT_COMPANY_PROFILE.weeklyProductionCapacity,
   }
 }
 

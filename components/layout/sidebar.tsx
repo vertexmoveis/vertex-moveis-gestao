@@ -18,6 +18,7 @@ import {
   Settings,
   ShoppingCart,
   TrendingUp,
+  Truck,
   Users,
   Wallet,
   X,
@@ -56,6 +57,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
     items: [
       { href: '/dashboard/projects', label: 'Projetos', icon: FolderOpen },
       { href: '/dashboard/production', label: 'Produção', icon: Kanban },
+      { href: '/dashboard/installation', label: 'Instalação', icon: Truck },
       { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
     ],
   },

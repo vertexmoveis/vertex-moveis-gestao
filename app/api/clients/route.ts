@@ -56,7 +56,8 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
   const optionsOnly = searchParams.get('options') === '1'
   const selectedId = (searchParams.get('selectedId') || '').trim().slice(0, 80)
-  const paged = searchParams.get('paged') === '1'
+  const legacyUnpaged = searchParams.get('paged') === '0'
+  const paged = !legacyUnpaged
   const segment = parseSegment(searchParams.get('segment'))
   const page = Math.max(Number(searchParams.get('page') || 1), 1)
   const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 24), 1), 100)
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
         { updatedAt: 'desc' },
       ],
       skip: paged ? (page - 1) * pageSize : undefined,
-      take: paged ? pageSize : undefined,
+      take: paged ? pageSize : 100,
       select: {
         id: true,
         name: true,
@@ -217,7 +218,9 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json(items)
+  return NextResponse.json(items, {
+    headers: { 'X-Result-Limit': '100' },
+  })
 }
 
 export async function POST(req: NextRequest) {

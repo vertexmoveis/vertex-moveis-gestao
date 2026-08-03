@@ -222,6 +222,8 @@ Os cartões podem ser arrastados entre as colunas. A navegação horizontal perm
 
 Projetos bloqueados exibem o motivo diretamente no cartão. Também é possível definir um prazo para a etapa atual, facilitando a cobrança antes do atraso da entrega final.
 
+O painel de capacidade compara as entregas previstas nas próximas quatro semanas com o limite semanal configurado pela marcenaria. Semanas próximas do limite ficam em atenção e semanas acima da capacidade são destacadas antes que o prazo fique comprometido.
+
 ### Calendário e instalações
 
 - Visualização por mês, semana ou dia.
@@ -234,6 +236,9 @@ Projetos bloqueados exibem o motivo diretamente no cartão. Também é possível
 - Reserva de equipe e veículo sem conflito de horário.
 - Estados da instalação: agendado, confirmado, em rota, em instalação, concluído e cancelado.
 - Registro de saída, chegada, conclusão e observações da instalação.
+- Tela **Instalação** otimizada para celular, com agenda dos próximos 30 dias, rota, WhatsApp e acesso direto às fotos do projeto.
+- Avanço operacional por botões grandes: confirmar, iniciar rota, informar chegada e finalizar.
+- Finalização com confirmação explícita e nome do cliente ou responsável que conferiu a entrega.
 
 ### Financeiro
 
@@ -299,6 +304,7 @@ Administradores podem gerenciar:
 - Regras de preço por ambiente, tipo de móvel, modelo e acabamento externo.
 - Materiais, custos, fornecedores e acabamentos internos padrão.
 - Equipes e veículos.
+- Capacidade semanal da produção.
 - Backup e saúde do sistema.
 - Erros recentes registrados pelo servidor.
 - Autenticação em duas etapas com aplicativo autenticador.
@@ -362,6 +368,8 @@ Contas desativadas perdem o acesso. A versão da sessão permite encerrar sessõ
 - Registro de sucesso e falha de login sem guardar o endereço IP em texto aberto.
 - Valores financeiros armazenados em `Decimal(14,2)` para preservar os centavos.
 - Exclusão lógica de clientes, orçamentos e projetos antes da remoção definitiva.
+- Auditoria automática de dependências antes de cada publicação.
+- Monitor externo a cada 15 minutos, com abertura de alerta no GitHub quando o site não responde.
 
 Nunca envie `.env.local`, senhas, tokens, arquivos de backup ou a chave de criptografia para o GitHub.
 
@@ -544,9 +552,9 @@ O processo:
 
 Na produção, `/api/cron/backup` executa diariamente às 18h no horário de São Paulo. A cópia em nuvem também é criptografada, verificada e mantém 30 dias de histórico. A chave de criptografia não deve ser perdida, pois ela é necessária para restaurar os dados.
 
-O comando `npm run backup:test-restore` baixa a cópia mais recente do Vercel Blob, confere a criptografia e restaura todas as tabelas em um schema temporário. Com `RESTORE_TEST_DATABASE_URL`, o teste usa outro banco e registra uma restauração externa real. O workflow `.github/workflows/monthly-restore-test.yml` executa essa conferência todo mês quando os segredos estão cadastrados no GitHub.
+O comando `npm run backup:test-restore` baixa a cópia mais recente do Vercel Blob, confere a criptografia e restaura todas as tabelas em um schema temporário. O workflow `.github/workflows/monthly-restore-test.yml` sobe um PostgreSQL isolado no próprio GitHub Actions e executa essa conferência todo mês sem depender de um segundo banco externo.
 
-A rota pública `/api/public/health` informa apenas disponibilidade, sem nomes de tabelas, credenciais ou detalhes internos. A rotina `/api/cron/health` confere banco, backup, restauração, erros, WhatsApp e scanner diariamente; quando `OPERATIONS_ALERT_WEBHOOK_URL` está configurada, mudanças de estado são enviadas ao monitor externo.
+A rota pública `/api/public/health` informa apenas disponibilidade, sem nomes de tabelas, credenciais ou detalhes internos. A rotina `/api/cron/health` confere banco, backup, restauração, erros, WhatsApp e scanner diariamente; quando `OPERATIONS_ALERT_WEBHOOK_URL` está configurada, mudanças de estado são enviadas ao monitor externo. O workflow `.github/workflows/uptime-monitor.yml` também consulta essa rota a cada 15 minutos e abre ou encerra automaticamente um alerta no GitHub.
 
 Para cadastrar a tarefa diária das 18h no Windows:
 
@@ -593,6 +601,7 @@ Os testes atuais cobrem:
 - Autenticação em duas etapas.
 - Login, redirecionamento protegido e manifesto PWA em desktop e celular.
 - Permissões entre administradores, gerentes e usuários de consulta.
+- Capacidade semanal da produção e sinalização de sobrecarga.
 
 ## Publicação
 
@@ -603,7 +612,7 @@ O projeto está preparado para Vercel:
 - O build tenta aplicar as migrações até três vezes antes de falhar.
 - Banco, autenticação e Blob devem estar configurados nas variáveis do projeto.
 - Alterações devem entrar por pull request, passar por testes, lint e build e só então chegar à `main`.
-- A Vercel publica a versão aprovada quando a atualização chega à `main`.
+- Antes da publicação, o GitHub Actions executa auditoria de dependências, testes, lint e build. A Vercel só recebe a versão quando todas essas etapas passam.
 - Dependabot verifica dependências npm e GitHub Actions periodicamente.
 
 Publicação manual:

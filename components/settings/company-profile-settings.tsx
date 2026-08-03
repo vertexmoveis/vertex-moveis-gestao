@@ -27,6 +27,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
     quoteReminderDays: initialProfile.quoteReminderDays,
     leadNoResponseDays: initialProfile.leadNoResponseDays,
     leadCloseSuggestionDays: initialProfile.leadCloseSuggestionDays,
+    weeklyProductionCapacity: initialProfile.weeklyProductionCapacity,
   })
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -63,6 +64,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
         quoteReminderDays: data.quoteReminderDays,
         leadNoResponseDays: data.leadNoResponseDays,
         leadCloseSuggestionDays: data.leadCloseSuggestionDays,
+        weeklyProductionCapacity: data.weeklyProductionCapacity,
       })
       setFeedback('Dados da empresa atualizados nos próximos orçamentos.')
     } catch (error) {
@@ -128,6 +130,22 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
               max={730}
               value={profile.leadCloseSuggestionDays}
               onChange={(event) => update('leadCloseSuggestionDays', Number(event.target.value) || 90)}
+            />
+          </div>
+        </div>
+        <div className="border-t border-[#ECECEC] pt-4">
+          <p className="mb-1 text-xs font-semibold uppercase text-[#777]">Capacidade da produção</p>
+          <p className="mb-3 text-xs text-[#777]">
+            Quantidade máxima de projetos com entrega prevista na mesma semana.
+          </p>
+          <div className="max-w-xs">
+            <Input
+              label="Projetos por semana"
+              type="number"
+              min={1}
+              max={50}
+              value={profile.weeklyProductionCapacity}
+              onChange={(event) => update('weeklyProductionCapacity', Number(event.target.value) || 4)}
             />
           </div>
         </div>

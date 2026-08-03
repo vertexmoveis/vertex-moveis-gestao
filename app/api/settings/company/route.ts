@@ -29,6 +29,7 @@ const companyProfileSchema = z.object({
   quoteReminderDays: z.coerce.number().int().min(1).max(30),
   leadNoResponseDays: z.coerce.number().int().min(1).max(365),
   leadCloseSuggestionDays: z.coerce.number().int().min(1).max(730),
+  weeklyProductionCapacity: z.coerce.number().int().min(1).max(50),
 }).strict().superRefine((value, ctx) => {
   if (value.leadCloseSuggestionDays <= value.leadNoResponseDays) {
     ctx.addIssue({

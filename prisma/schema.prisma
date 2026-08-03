@@ -265,6 +265,7 @@ model CompanyProfile {
   quoteReminderDays           Int      @default(3)
   leadNoResponseDays          Int      @default(30)
   leadCloseSuggestionDays     Int      @default(90)
+  weeklyProductionCapacity    Int      @default(4)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 }
