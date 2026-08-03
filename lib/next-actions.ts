@@ -3,7 +3,6 @@ import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedu
 import { unstable_cache } from 'next/cache'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
-import { PROJECT_CONTRACT_WORKFLOW_STARTED_AT } from '@/lib/project-workflow'
 
 export type NextActionKind = 'client' | 'quote' | 'contract' | 'production' | 'delivery' | 'installation' | 'purchase' | 'post_sale'
 
@@ -118,19 +117,19 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
     prisma.project.findMany({
       where: {
         ...projectScope,
-        createdAt: { gte: PROJECT_CONTRACT_WORKFLOW_STARTED_AT },
         stage: { not: 'COMPLETED' },
       },
       select: {
         id: true,
         name: true,
         createdAt: true,
+        contractRequirement: true,
         contractRevisionRequiredAt: true,
         client: { select: { name: true } },
         contracts: {
           orderBy: { version: 'desc' },
           take: 1,
-          select: { id: true, status: true, sentAt: true, signedAt: true, voidedAt: true },
+          select: { id: true, status: true, sentAt: true, viewedAt: true, lastReminderAt: true, signedAt: true, voidedAt: true },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -202,7 +201,15 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
     }),
   ])
   const contractProjects = contractProjectsRaw
-    .filter((project) => project.contractRevisionRequiredAt || project.contracts[0]?.status !== 'SIGNED')
+    .filter((project) => {
+      if (project.contractRequirement === 'WAIVED') return false
+      const contract = project.contracts[0]
+      const activeSent = Boolean(contract?.status === 'SENT' && !contract.signedAt && !contract.voidedAt)
+      if (project.contractRequirement === 'OPTIONAL_LEGACY') {
+        return Boolean(project.contractRevisionRequiredAt || activeSent)
+      }
+      return Boolean(project.contractRevisionRequiredAt || contract?.status !== 'SIGNED')
+    })
     .slice(0, 4)
 
   const actions: DashboardNextAction[] = [
@@ -238,10 +245,12 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
       return {
         id: `contract-${project.id}`,
         kind: 'contract' as const,
-        title: sent ? 'Cobrar assinatura do contrato' : 'Criar e enviar contrato',
+        title: sent
+          ? contract?.viewedAt ? 'Cobrar aceite do contrato' : 'Lembrar envio do contrato'
+          : 'Criar e enviar contrato',
         detail: `${project.client.name} · ${project.name}`,
         href: `/dashboard/projects/${project.id}#contrato`,
-        dueAt: (contract?.sentAt || project.createdAt).toISOString(),
+        dueAt: (contract?.lastReminderAt || contract?.sentAt || project.createdAt).toISOString(),
         priority: 0,
       }
     }),
@@ -299,7 +308,7 @@ async function getDashboardNextActionsUncached(user: NextActionUser, limit = 8):
 
 const getCachedDashboardNextActions = unstable_cache(
   async (id: string, role: string, limit: number) => getDashboardNextActionsUncached({ id, role }, limit),
-  ['dashboard-next-actions-v4'],
+  ['dashboard-next-actions-v5'],
   { revalidate: 30 },
 )
 

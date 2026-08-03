@@ -32,6 +32,7 @@ model User {
   paymentHistory    PaymentHistory[]
   expensesCreated   ProjectExpense[]  @relation("ExpenseCreatedBy")
   contractsCreated  ProjectContract[] @relation("ContractCreatedBy")
+  contractWaivers   Project[]         @relation("ContractWaivedBy")
   warrantyCreated   WarrantyTicket[]  @relation("WarrantyCreatedBy")
   warrantyAssigned  WarrantyTicket[]  @relation("WarrantyAssignedTo")
   loginEvents       LoginEvent[]
@@ -121,7 +122,13 @@ model Project {
   productionBlockedAt            DateTime?
   productionBlockReason          String?
   stageDeadlineDate              DateTime?
+  contractRequirement            String                 @default("REQUIRED")
+  contractWaivedAt               DateTime?
+  contractWaivedReason           String?
+  contractWaivedById             String?
+  contractWaivedBy               User?                  @relation("ContractWaivedBy", fields: [contractWaivedById], references: [id], onDelete: SetNull)
   contractRevisionRequiredAt     DateTime?
+  contractRevisionChanges        Json?
   archivedAt                     DateTime?
   createdAt                      DateTime               @default(now())
   updatedAt                      DateTime               @updatedAt
@@ -157,6 +164,8 @@ model Project {
   @@index([archivedAt])
   @@index([productionBlockedAt])
   @@index([stageDeadlineDate])
+  @@index([contractRequirement])
+  @@index([contractWaivedById])
   @@index([contractRevisionRequiredAt])
 }
 
@@ -721,6 +730,8 @@ model ProjectContract {
   snapshot          Json
   sentAt            DateTime?
   viewedAt          DateTime?
+  lastReminderAt    DateTime?
+  reminderCount     Int       @default(0)
   expiresAt         DateTime?
   signedAt          DateTime?
   voidedAt          DateTime?
@@ -735,6 +746,7 @@ model ProjectContract {
   @@index([projectId, status])
   @@index([expiresAt])
   @@index([viewedAt])
+  @@index([lastReminderAt])
 }
 
 model WarrantyTicket {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { projectPatchSchema, projectUpdateSchema } from '@/lib/schemas'
 import {
@@ -45,6 +46,7 @@ import {
 import {
   getProjectMacroPhase,
   getProjectMacroPhaseIndex,
+  getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
 } from '@/lib/project-phases'
@@ -120,7 +122,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       productionBlockedAt: true,
       productionBlockReason: true,
       stageDeadlineDate: true,
+      contractRequirement: true,
+      contractWaivedAt: true,
+      contractWaivedReason: true,
+      contractWaivedBy: { select: { id: true, name: true } },
       contractRevisionRequiredAt: true,
+      contractRevisionChanges: true,
       createdAt: true,
       updatedAt: true,
       client: {
@@ -195,6 +202,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           status: true,
           sentAt: true,
           viewedAt: true,
+          lastReminderAt: true,
+          reminderCount: true,
           expiresAt: true,
           signedAt: true,
           signatoryName: true,
@@ -228,10 +237,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   })
   const contractReadiness = getProjectContractReadiness({
     createdAt: project.createdAt,
+    requirement: project.contractRequirement as 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED',
     contractStatus,
     viewedAt: currentContract?.viewedAt,
     revisionRequiredAt: project.contractRevisionRequiredAt,
+    waivedReason: project.contractWaivedReason,
   })
+  const currentPhase = getProjectMacroPhase(project.stage as ProductionStage)
+  const phaseTasks = getProjectPhaseTasks({
+    stage: project.stage as ProductionStage,
+    createdAt: project.createdAt.toISOString(),
+    approvalDate: project.approvalDate?.toISOString() || null,
+    paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
+    downPayment: moneyValue(access.downPayment),
+    financialReady: financialReadiness.ready,
+    contractStatus,
+    contractRequirement: project.contractRequirement as 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED',
+    contractViewedAt: currentContract?.viewedAt?.toISOString() || null,
+    contractRevisionRequiredAt: project.contractRevisionRequiredAt?.toISOString() || null,
+    contractWaivedReason: project.contractWaivedReason,
+    productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
+    environments: environments.map((environment) => ({ status: environment.status as ProjectEnvironmentStatus })),
+    files: project.files.map((file) => ({ category: file.category })),
+    payments: access.payments,
+    clientPhone: project.client.whatsapp || project.client.phone,
+    postSaleContactedAt: project.postSaleContactedAt?.toISOString() || null,
+  }, currentPhase)
+  const phaseBlockers = getProjectPhaseBlockers(phaseTasks)
 
   return NextResponse.json({
     ...project,
@@ -254,6 +286,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
     stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
     contractRevisionRequiredAt: project.contractRevisionRequiredAt?.toISOString() || null,
+    contractWaivedAt: project.contractWaivedAt?.toISOString() || null,
     downPaymentDate: 'downPaymentDate' in project && project.downPaymentDate ? project.downPaymentDate.toISOString() : null,
     firstInstallmentDate: 'firstInstallmentDate' in project && project.firstInstallmentDate ? project.firstInstallmentDate.toISOString() : null,
     createdAt: project.createdAt.toISOString(),
@@ -262,12 +295,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     workflow: {
       financial: financialReadiness,
       contract: contractReadiness,
+      nextAction: getProjectNextAction(phaseTasks, currentPhase),
+      blockers: phaseBlockers,
     },
     contractSummary: currentContract ? {
       ...currentContract,
       status: contractStatus,
       sentAt: currentContract.sentAt?.toISOString() || null,
       viewedAt: currentContract.viewedAt?.toISOString() || null,
+      lastReminderAt: currentContract.lastReminderAt?.toISOString() || null,
       expiresAt: currentContract.expiresAt?.toISOString() || null,
       signedAt: currentContract.signedAt?.toISOString() || null,
     } : null,
@@ -407,24 +443,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? environments.map((environment) => environment.name).join(', ')
         : input.room
       const dateTime = (value: Date | null | undefined) => value?.getTime() || 0
-      const contractTermsChanged = Boolean(
-        existing.contracts.length > 0
-        && (
-          existing.clientId !== input.clientId
-          || existing.name !== input.name
-          || (existing.room || '') !== (room || '')
-          || moneyValue(existing.value) !== moneyValue(input.value)
-          || existing.paymentMethod !== paymentPlan.paymentMethod
-          || moneyValue(existing.paymentDiscount) !== paymentPlan.paymentDiscount
-          || Number(existing.cardFeePercent) !== paymentPlan.cardFeePercent
-          || moneyValue(existing.cardFeeAmount) !== paymentPlan.cardFeeAmount
-          || moneyValue(existing.downPayment) !== schedule.terms.downPayment
-          || existing.installmentCount !== schedule.terms.installmentCount
-          || dateTime(existing.firstInstallmentDate) !== dateTime(effectiveFirstInstallmentDate)
-          || existing.deliveryBusinessDays !== input.deliveryBusinessDays
-          || dateTime(existing.approvalDate) !== dateTime(input.approvalDate)
-        )
-      )
+      const contractChanges: string[] = []
+      const changed = (condition: boolean, label: string) => {
+        if (condition) contractChanges.push(label)
+      }
+      changed(existing.clientId !== input.clientId, 'cliente')
+      changed(existing.name !== input.name, 'nome do projeto')
+      changed((existing.room || '') !== (room || ''), 'ambientes')
+      changed(moneyValue(existing.value) !== moneyValue(input.value), 'valor total')
+      changed(existing.paymentMethod !== paymentPlan.paymentMethod, 'forma de pagamento')
+      changed(moneyValue(existing.paymentDiscount) !== paymentPlan.paymentDiscount, 'desconto')
+      changed(Number(existing.cardFeePercent) !== paymentPlan.cardFeePercent, 'taxa do cartão')
+      changed(moneyValue(existing.cardFeeAmount) !== paymentPlan.cardFeeAmount, 'valor da taxa')
+      changed(moneyValue(existing.downPayment) !== schedule.terms.downPayment, 'entrada')
+      changed(existing.installmentCount !== schedule.terms.installmentCount, 'quantidade de parcelas')
+      changed(dateTime(existing.firstInstallmentDate) !== dateTime(effectiveFirstInstallmentDate), 'primeiro vencimento')
+      changed(existing.deliveryBusinessDays !== input.deliveryBusinessDays, 'prazo de entrega')
+      changed(dateTime(existing.approvalDate) !== dateTime(input.approvalDate), 'data de aprovação')
+      const contractTermsChanged = existing.contracts.length > 0 && contractChanges.length > 0
       const contractRevisionRequiredAt = contractTermsChanged
         ? new Date()
         : existing.contractRevisionRequiredAt
@@ -462,6 +498,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           managerId: input.managerId,
           internalNotes: input.internalNotes,
           contractRevisionRequiredAt,
+          ...(contractTermsChanged
+            ? { contractRevisionChanges: contractChanges as Prisma.InputJsonValue }
+            : {}),
         },
         include: {
           client: { select: { id: true, name: true, phone: true, whatsapp: true } },
@@ -566,6 +605,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
       contractRevisionRequiredAt: project.contractRevisionRequiredAt?.toISOString() || null,
+      contractRevisionChanges: project.contractRevisionChanges,
     })
   } catch (error) {
     if (error instanceof PaymentScheduleConflictError) {
@@ -612,6 +652,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         postSaleFollowUpAt: true,
         warrantyEndsAt: true,
         productionBlockedAt: true,
+        contractRequirement: true,
+        contractWaivedReason: true,
         contractRevisionRequiredAt: true,
         environments: { select: { status: true } },
         files: {
@@ -636,6 +678,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       : undefined
     const stageOverrideReason = parsed.data.stageOverrideReason?.trim() || null
     if (stageOverrideReason && auth.user.role !== 'ADMIN') return forbidden()
+    if (parsed.data.contractRequirement && auth.user.role !== 'ADMIN') return forbidden()
 
     if (nextStage && nextStage !== existing.stage) {
       const currentPhase = getProjectMacroPhase(existing.stage as ProductionStage)
@@ -662,8 +705,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           downPayment: moneyValue(existing.downPayment),
           financialReady: financialReadiness.ready,
           contractStatus,
+          contractRequirement: existing.contractRequirement as 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED',
           contractViewedAt: currentContract?.viewedAt?.toISOString() || null,
           contractRevisionRequiredAt: existing.contractRevisionRequiredAt?.toISOString() || null,
+          contractWaivedReason: existing.contractWaivedReason,
           productionBlockedAt: existing.productionBlockedAt?.toISOString() || null,
           environments: existing.environments.map((environment) => ({ status: environment.status as ProjectEnvironmentStatus })),
           files: existing.files,
@@ -686,10 +731,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         : nextStage
           ? parsed.data.actualEndDate ?? null
           : parsed.data.actualEndDate
-    const { productionBlocked, stageOverrideReason: _stageOverrideReason, ...patchData } = parsed.data
+    const {
+      productionBlocked,
+      stageOverrideReason: _stageOverrideReason,
+      contractRequirement,
+      contractWaiverReason,
+      ...patchData
+    } = parsed.data
     void _stageOverrideReason
+    const contractPolicyData = contractRequirement
+      ? contractRequirement === 'WAIVED'
+        ? {
+            contractRequirement,
+            contractWaivedAt: new Date(),
+            contractWaivedReason: contractWaiverReason?.trim() || null,
+            contractWaivedById: auth.user.id,
+          }
+        : {
+            contractRequirement,
+            contractWaivedAt: null,
+            contractWaivedReason: null,
+            contractWaivedById: null,
+          }
+      : {}
     const data = {
       ...patchData,
+      ...contractPolicyData,
       ...(nextStage ? { stage: nextStage } : {}),
       status:
         nextStage && !parsed.data.status
@@ -725,6 +792,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         productionBlockedAt: true,
         productionBlockReason: true,
         stageDeadlineDate: true,
+        contractRequirement: true,
+        contractWaivedAt: true,
+        contractWaivedReason: true,
       },
     })
 
@@ -738,6 +808,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             : stageOverrideReason
               ? `Avanço manual para ${nextStage}. Justificativa: ${stageOverrideReason}`
               : `Projeto avançou para ${nextStage}.`,
+        },
+      })
+    }
+
+    if (contractRequirement && contractRequirement !== existing.contractRequirement) {
+      const label = contractRequirement === 'WAIVED'
+        ? 'Contrato dispensado'
+        : contractRequirement === 'OPTIONAL_LEGACY'
+          ? 'Contrato definido como opcional'
+          : 'Contrato definido como obrigatório'
+      await prisma.timelineEvent.create({
+        data: {
+          projectId: id,
+          event: label,
+          description: contractRequirement === 'WAIVED'
+            ? `Justificativa: ${contractWaiverReason?.trim()}`
+            : 'Política contratual atualizada pelo administrador.',
         },
       })
     }
@@ -762,6 +849,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
       productionBlockReason: project.productionBlockReason,
       stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
+      contractRequirement: project.contractRequirement,
+      contractWaivedAt: project.contractWaivedAt?.toISOString() || null,
+      contractWaivedReason: project.contractWaivedReason,
     })
   } catch {
     return serverError()

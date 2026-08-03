@@ -29,9 +29,11 @@ import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@
 import {
   PROJECT_MACRO_PHASE_TARGET_STAGE,
   getProjectMacroPhase,
+  getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
   type ProjectMacroPhase,
+  type ProjectWorkflowAction,
 } from '@/lib/project-phases'
 import {
   PROJECT_ENVIRONMENT_STATUS_BG,
@@ -87,7 +89,12 @@ interface ProjectDetail {
   productionBlockedAt: string | null
   productionBlockReason: string | null
   stageDeadlineDate: string | null
+  contractRequirement: 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED'
+  contractWaivedAt: string | null
+  contractWaivedReason: string | null
+  contractWaivedBy: { id: string; name: string } | null
   contractRevisionRequiredAt: string | null
+  contractRevisionChanges: string[] | null
   environments: {
     id: string
     name: string
@@ -107,14 +114,24 @@ interface ProjectDetail {
       label: string
       detail: string
       hasOverdueInstallments: boolean
+      expectedInitialAmount: number
+      paidInitialAmount: number
     }
     contract: {
       ready: boolean
       required: boolean
       legacy: boolean
+      waived: boolean
       label: string
       detail: string
     }
+    nextAction: {
+      key: string
+      label: string
+      detail: string
+      action: ProjectWorkflowAction
+    }
+    blockers: string[]
   }
   contractSummary: {
     id: string
@@ -122,6 +139,8 @@ interface ProjectDetail {
     status: 'NONE' | 'DRAFT' | 'SENT' | 'SIGNED' | 'VOID' | 'EXPIRED'
     sentAt: string | null
     viewedAt: string | null
+    lastReminderAt: string | null
+    reminderCount: number
     expiresAt: string | null
     signedAt: string | null
     signatoryName: string | null
@@ -217,34 +236,22 @@ export default function ProjectDetailPage() {
   }, [id])
 
   useEffect(() => {
-    let active = true
-    fetch(`/api/projects/${id}`)
-      .then(async (response) => {
-        const data = await response.json().catch(() => null)
-        if (!active) return
-        if (!response.ok || !data?.id) {
-          setProject(null)
-          setLoadError(data?.error || 'Não foi possível carregar o projeto.')
-          return
-        }
-        setProject(data)
-        setActualExpensesTotal(data.costSummary?.actualExpenses || 0)
-        if (Array.isArray(data.payments)) {
-          setPaymentMethodsById(
-            Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
-          )
-        }
-      })
-      .catch(() => {
-        if (!active) return
-        setProject(null)
-        setLoadError('Não foi possível carregar o projeto.')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => { active = false }
-  }, [id])
+    const timer = window.setTimeout(() => void loadProject(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadProject])
+
+  useEffect(() => {
+    if (project?.contractSummary?.status !== 'SENT') return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadProject(true)
+    }
+    const timer = window.setInterval(refresh, 30_000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loadProject, project?.contractSummary?.status])
 
   const openEdit = async () => {
     setEditOpen(true)
@@ -523,8 +530,10 @@ export default function ProjectDetailPage() {
     downPayment: project.downPayment,
     financialReady: project.workflow.financial.ready,
     contractStatus: project.contractSummary?.status || 'NONE' as const,
+    contractRequirement: project.contractRequirement,
     contractViewedAt: project.contractSummary?.viewedAt || null,
     contractRevisionRequiredAt: project.contractRevisionRequiredAt,
+    contractWaivedReason: project.contractWaivedReason,
     productionBlockedAt: project.productionBlockedAt,
     environments,
     files: project.files,
@@ -534,6 +543,27 @@ export default function ProjectDetailPage() {
   }
   const phaseTasks = getProjectPhaseTasks(phaseInput, selectedPhase)
   const phaseBlockers = selectedPhase === currentPhase ? getProjectPhaseBlockers(phaseTasks) : []
+  const nextAction = selectedPhase === currentPhase
+    ? project.workflow.nextAction
+    : getProjectNextAction(phaseTasks, selectedPhase)
+  const handleNextAction = (action: ProjectWorkflowAction) => {
+    if (action === 'EDIT_PROJECT') {
+      void openEdit()
+      return
+    }
+    if (action === 'ADVANCE_PHASE') {
+      void handlePhaseAdvance()
+      return
+    }
+    const targetId = action === 'OPEN_FINANCE'
+      ? 'financeiro'
+      : action === 'OPEN_CONTRACT'
+        ? 'contrato'
+        : action === 'OPEN_FILES'
+          ? 'arquivos'
+          : 'cliente'
+    document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const workflowStatuses = [
     {
       key: 'approval',
@@ -593,11 +623,13 @@ export default function ProjectDetailPage() {
           environmentProgress={environmentsProgress}
           financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
           workflowStatuses={workflowStatuses}
+          nextAction={nextAction}
           canOverridePhase={project.canOverridePhase}
           advancing={phaseAdvancing}
           advanceError={phaseAdvanceError}
           onSelect={setInspectedPhase}
           onAdvance={handlePhaseAdvance}
+          onNextAction={handleNextAction}
           onEdit={() => void openEdit()}
         />
 
@@ -918,6 +950,13 @@ export default function ProjectDetailPage() {
               projectName={project.name}
               clientName={project.client.name}
               whatsapp={project.client.whatsapp || project.client.phone}
+              isAdmin={project.canOverridePhase}
+              requirement={project.contractRequirement}
+              waivedReason={project.contractWaivedReason}
+              waivedBy={project.contractWaivedBy?.name || null}
+              revisionRequiredAt={project.contractRevisionRequiredAt}
+              revisionChanges={project.contractRevisionChanges}
+              onWorkflowChange={() => void loadProject(true)}
             /> : null}
 
             {(selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY') ? <ProjectProductionControl

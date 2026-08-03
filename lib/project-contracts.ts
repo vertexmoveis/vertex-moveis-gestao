@@ -122,6 +122,10 @@ function iso(value?: Date | null) {
   return value && !Number.isNaN(value.getTime()) ? value.toISOString() : null
 }
 
+function contractCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
 export function formatContractAddress(source: AddressSource) {
   if (source.address?.trim()) return source.address.trim()
 
@@ -263,7 +267,7 @@ export function buildProjectContractSnapshot(
       },
       {
         title: 'Pagamento',
-        text: `O investimento total registrado é de R$ ${value.toFixed(2).replace('.', ',')}. Condição combinada: ${paymentSummary}. Entrada e parcelas seguem o quadro financeiro deste documento.`,
+        text: `O investimento total registrado é de ${contractCurrency(value)}. Condição combinada: ${paymentSummary}. Entrada e parcelas seguem o quadro financeiro deste documento.`,
       },
       {
         title: 'Entrega e instalação',

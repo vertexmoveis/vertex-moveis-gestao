@@ -2,10 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   getProjectMacroPhase,
+  getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
   type ProjectPhaseInput,
 } from '../lib/project-phases'
+import { getProjectFinancialReadiness } from '../lib/project-workflow'
 
 const input = (overrides: Partial<ProjectPhaseInput> = {}): ProjectPhaseInput => ({
   stage: 'PENDING_START',
@@ -96,6 +98,60 @@ test('entrada recebida libera produção sem exigir parcelas futuras', () => {
 
   assert.deepEqual(getProjectPhaseBlockers(tasks), [])
 })
+
+test('política explícita torna o contrato obrigatório mesmo em projeto antigo', () => {
+  const tasks = getProjectPhaseTasks(input({
+    createdAt: '2026-06-17T12:00:00.000Z',
+    contractRequirement: 'REQUIRED',
+    paymentConfirmedAt: '2026-07-30',
+    contractStatus: 'SENT',
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-07-30',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Contrato enviado'])
+})
+
+test('dispensa administrativa libera o contrato e preserva a justificativa', () => {
+  const tasks = getProjectPhaseTasks(input({
+    contractRequirement: 'WAIVED',
+    contractWaivedReason: 'Projeto antigo já autorizado antes do novo processo.',
+    paymentConfirmedAt: '2026-08-03',
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-08-03',
+  }), 'PREPARATION')
+
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Contrato dispensado')
+})
+
+test('entrada parcial não libera a produção e informa a prioridade correta', () => {
+  const tasks = getProjectPhaseTasks(input({
+    downPayment: 15000,
+    contractStatus: 'SIGNED',
+    environments: [{ status: 'PENDING' }],
+    files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
+    approvalDate: '2026-08-03',
+    payments: [{ type: 'DOWN_PAYMENT', amount: 5000, paidAt: '2026-08-03' }],
+  }), 'PREPARATION')
+
+  assert.equal(getProjectNextAction(tasks, 'PREPARATION').action, 'OPEN_FINANCE')
+  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Entrada recebida parcialmente'])
+})
+
+test('parcela que vence hoje não é tratada como atrasada', () => {
+  const readiness = getProjectFinancialReadiness({
+    paymentConfirmedAt: '2026-08-03',
+    payments: [{ type: 'INSTALLMENT', amount: 1000, paidAt: null, dueDate: '2026-08-03' }],
+    now: new Date('2026-08-03T18:00:00-03:00'),
+  })
+
+  assert.equal(readiness.ready, true)
+  assert.equal(readiness.hasOverdueInstallments, false)
+})
+
 test('produção exige todos os ambientes prontos e respeita bloqueios', () => {
   const tasks = getProjectPhaseTasks(input({
     stage: 'PRODUCTION',

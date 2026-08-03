@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Loader2, Printer, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, FileDown, Loader2, Printer, ShieldCheck } from 'lucide-react'
 
 export function ContractAcceptanceActions({
   token,
@@ -68,14 +68,25 @@ export function ContractAcceptanceActions({
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="print:hidden inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] hover:bg-[#F5F5F5]"
-        >
-          <Printer size={16} />
-          Imprimir ou salvar em PDF
-        </button>
+        <div className="print:hidden flex flex-wrap gap-2">
+          <a
+            href={`/api/public/contracts/${token}/document`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white hover:bg-[#E05A00]"
+          >
+            <FileDown size={16} />
+            Baixar contrato assinado
+          </a>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] hover:bg-[#F5F5F5]"
+          >
+            <Printer size={16} />
+            Imprimir
+          </button>
+        </div>
       </div>
     )
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import {
@@ -81,9 +82,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return NextResponse.json({ error: 'Este contrato expirou. Solicite um novo link.' }, { status: 410 })
   }
   if (!contract.viewedAt) {
-    await prisma.projectContract.updateMany({
-      where: { id: contract.id, viewedAt: null },
-      data: { viewedAt: new Date() },
+    await prisma.$transaction(async (tx) => {
+      const viewedAt = new Date()
+      const updated = await tx.projectContract.updateMany({
+        where: { id: contract.id, viewedAt: null },
+        data: { viewedAt },
+      })
+      if (updated.count === 1) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: contract.projectId,
+            event: 'Contrato visualizado',
+            description: `O cliente abriu o contrato versão ${contract.version}.`,
+          },
+        })
+      }
     })
   }
   const data = publicContract(contract)
@@ -158,7 +171,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     })
     await tx.project.update({
       where: { id: contract.projectId },
-      data: { contractRevisionRequiredAt: null },
+      data: { contractRevisionRequiredAt: null, contractRevisionChanges: Prisma.DbNull },
     })
     return { status: 200, signedAt: now.toISOString() }
   })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, CheckCircle2, Circle, Factory, LockKeyhole, PackageCheck, Ruler, Truck, X } from 'lucide-react'
+import { ArrowRight, Check, CheckCircle2, Circle, Factory, LockKeyhole, PackageCheck, Ruler, Truck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   PROJECT_MACRO_PHASE_DESCRIPTIONS,
@@ -9,6 +9,7 @@ import {
   PROJECT_MACRO_PHASES,
   getProjectMacroPhaseIndex,
   type ProjectMacroPhase,
+  type ProjectNextAction,
   type ProjectPhaseTask,
 } from '@/lib/project-phases'
 
@@ -41,11 +42,13 @@ type ProjectPhaseWorkspaceProps = {
     completed: boolean
     warning?: boolean
   }[]
+  nextAction: ProjectNextAction
   canOverridePhase: boolean
   advancing: boolean
   advanceError: string
   onSelect: (phase: ProjectMacroPhase) => void
   onAdvance: (overrideReason?: string) => Promise<void>
+  onNextAction: (action: ProjectNextAction['action']) => void
   onEdit: () => void
 }
 
@@ -59,11 +62,13 @@ export function ProjectPhaseWorkspace({
   environmentProgress,
   financialLabel,
   workflowStatuses,
+  nextAction,
   canOverridePhase,
   advancing,
   advanceError,
   onSelect,
   onAdvance,
+  onNextAction,
   onEdit,
 }: ProjectPhaseWorkspaceProps) {
   const [showOverride, setShowOverride] = useState(false)
@@ -74,6 +79,12 @@ export function ProjectPhaseWorkspace({
   const isCompleted = selectedPhase === 'COMPLETED'
   const completedTasks = tasks.filter((task) => task.completed).length
   const nextTask = tasks.find((task) => task.required && !task.completed)
+  const taskGroups = [
+    { key: 'COMMERCIAL', label: 'Comercial' },
+    { key: 'TECHNICAL', label: 'Técnico' },
+    { key: 'OPERATIONAL', label: 'Operacional' },
+  ].map((group) => ({ ...group, tasks: tasks.filter((task) => task.group === group.key) }))
+    .filter((group) => group.tasks.length > 0)
 
   const submitOverride = async () => {
     if (overrideReason.trim().length < 5) return
@@ -138,16 +149,23 @@ export function ProjectPhaseWorkspace({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {tasks.map((task) => (
-              <div key={task.key} className={`flex min-h-11 items-center gap-2 border px-3 py-2 ${
-                task.completed ? 'border-emerald-100 bg-emerald-50/60' : task.required ? 'border-amber-200 bg-amber-50/70' : 'border-[#E8E8E8] bg-[#FAFAFA]'
-              }`}>
-                {task.completed
-                  ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
-                  : <Circle size={16} className={task.required ? 'shrink-0 text-amber-600' : 'shrink-0 text-[#AAA]'} />}
-                <span className={`text-xs font-medium ${task.completed ? 'text-emerald-800' : 'text-[#333]'}`}>{task.label}</span>
-                {!task.required && !task.completed ? <span className="ml-auto text-[10px] text-[#999]">Opcional</span> : null}
+          <div className="mt-4 space-y-4">
+            {taskGroups.map((group) => (
+              <div key={group.key}>
+                <p className="mb-2 text-[10px] font-semibold uppercase text-[#999]">{group.label}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {group.tasks.map((task) => (
+                    <div key={task.key} className={`flex min-h-11 items-center gap-2 border px-3 py-2 ${
+                      task.completed ? 'border-emerald-100 bg-emerald-50/60' : task.required ? 'border-amber-200 bg-amber-50/70' : 'border-[#E8E8E8] bg-[#FAFAFA]'
+                    }`}>
+                      {task.completed
+                        ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                        : <Circle size={16} className={task.required ? 'shrink-0 text-amber-600' : 'shrink-0 text-[#AAA]'} />}
+                      <span className={`text-xs font-medium ${task.completed ? 'text-emerald-800' : 'text-[#333]'}`}>{task.label}</span>
+                      {!task.required && !task.completed ? <span className="ml-auto text-[10px] text-[#999]">Opcional</span> : null}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -156,15 +174,17 @@ export function ProjectPhaseWorkspace({
             <div className={`mt-4 border-l-2 px-3 py-2.5 ${nextTask ? 'border-amber-500 bg-amber-50/70' : 'border-emerald-500 bg-emerald-50/70'}`}>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#777]">Próxima ação</p>
               <p className="mt-1 text-sm font-semibold text-[#121212]">
-                {nextTask?.label || ACTION_LABELS[selectedPhase] || 'Acompanhar projeto'}
+                {nextAction.label}
               </p>
               <p className="mt-1 text-xs leading-5 text-[#666]">
-                {nextTask
-                  ? 'Resolva esta pendência para manter o projeto avançando com segurança.'
-                  : isCompleted
-                    ? 'Projeto finalizado; acompanhe garantia e pós-venda.'
-                    : 'Todos os requisitos desta etapa estão concluídos.'}
+                {nextAction.detail}
               </p>
+              {!isCompleted ? (
+                <Button type="button" size="sm" className="mt-3" loading={advancing && !nextTask} onClick={() => onNextAction(nextAction.action)}>
+                  {nextAction.label}
+                  <ArrowRight size={14} />
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>

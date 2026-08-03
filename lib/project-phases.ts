@@ -2,6 +2,7 @@ import type { ProductionStage, ProjectEnvironmentStatus } from '@/types'
 import {
   getProjectContractReadiness,
   getProjectFinancialReadiness,
+  type ProjectContractRequirement,
   type ProjectContractWorkflowStatus,
   type ProjectWorkflowPayment,
 } from '@/lib/project-workflow'
@@ -23,7 +24,7 @@ export const PROJECT_MACRO_PHASE_LABELS: Record<ProjectMacroPhase, string> = {
 }
 
 export const PROJECT_MACRO_PHASE_DESCRIPTIONS: Record<ProjectMacroPhase, string> = {
-  PREPARATION: 'Medição, projeto técnico, aprovação e pagamento.',
+  PREPARATION: 'Pagamento e contrato, seguidos da conferência técnica do projeto.',
   PRODUCTION: 'Fabricação por ambiente, materiais e custos reais.',
   DELIVERY: 'Agendamento, transporte, instalação e conferência.',
   COMPLETED: 'Resultado final, garantia e pós-venda.',
@@ -35,11 +36,28 @@ export const PROJECT_MACRO_PHASE_TARGET_STAGE: Partial<Record<ProjectMacroPhase,
   DELIVERY: 'COMPLETED',
 }
 
+export type ProjectWorkflowAction =
+  | 'EDIT_PROJECT'
+  | 'OPEN_FINANCE'
+  | 'OPEN_CONTRACT'
+  | 'OPEN_FILES'
+  | 'REQUEST_APPROVAL'
+  | 'ADVANCE_PHASE'
+
 export type ProjectPhaseTask = {
   key: string
   label: string
   completed: boolean
   required: boolean
+  group: 'COMMERCIAL' | 'TECHNICAL' | 'OPERATIONAL'
+  action: ProjectWorkflowAction
+}
+
+export type ProjectNextAction = {
+  key: string
+  label: string
+  detail: string
+  action: ProjectWorkflowAction
 }
 
 export type ProjectPhaseInput = {
@@ -50,8 +68,10 @@ export type ProjectPhaseInput = {
   downPayment?: number | null
   financialReady?: boolean
   contractStatus?: ProjectContractWorkflowStatus | null
+  contractRequirement?: ProjectContractRequirement | null
   contractViewedAt?: string | null
   contractRevisionRequiredAt?: string | null
+  contractWaivedReason?: string | null
   productionBlockedAt?: string | null
   environments: { status: ProjectEnvironmentStatus }[]
   files: { category: string }[]
@@ -102,75 +122,114 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
     })
     const contract = getProjectContractReadiness({
       createdAt: input.createdAt,
+      requirement: input.contractRequirement,
       contractStatus: input.contractStatus,
       viewedAt: input.contractViewedAt,
       revisionRequiredAt: input.contractRevisionRequiredAt,
+      waivedReason: input.contractWaivedReason,
     })
 
     return [
-      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true },
-      { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: true },
-      { key: 'technical-project', label: 'Projeto técnico anexado', completed: hasFile(input, 'TECHNICAL_PROJECT'), required: true },
-      { key: 'approval', label: 'Aprovação do cliente registrada', completed: Boolean(input.approvalDate), required: true },
       {
         key: 'payment',
         label: financial.label,
         completed: input.financialReady ?? financial.ready,
         required: true,
+        group: 'COMMERCIAL',
+        action: 'OPEN_FINANCE',
       },
       {
         key: 'contract',
         label: contract.label,
         completed: contract.ready,
         required: contract.required,
+        group: 'COMMERCIAL',
+        action: 'OPEN_CONTRACT',
       },
+      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true, group: 'TECHNICAL', action: 'EDIT_PROJECT' },
+      { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
+      { key: 'technical-project', label: 'Projeto técnico anexado', completed: hasFile(input, 'TECHNICAL_PROJECT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
+      { key: 'approval', label: 'Aprovação do cliente registrada', completed: Boolean(input.approvalDate), required: true, group: 'TECHNICAL', action: 'REQUEST_APPROVAL' },
     ]
   }
 
   if (phase === 'PRODUCTION') {
     return [
-      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true },
-      { key: 'unblocked', label: 'Produção sem impedimentos', completed: !input.productionBlockedAt, required: true },
+      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
+      { key: 'unblocked', label: 'Produção sem impedimentos', completed: !input.productionBlockedAt, required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
       {
         key: 'ready',
         label: 'Todos os ambientes prontos para instalar',
         completed: allEnvironmentsMatch(input, READY_FOR_INSTALLATION),
         required: true,
+        group: 'OPERATIONAL',
+        action: 'EDIT_PROJECT',
       },
-      { key: 'production-files', label: 'Fotos da fabricação anexadas', completed: hasFile(input, 'PRODUCTION'), required: false },
+      { key: 'production-files', label: 'Fotos da fabricação anexadas', completed: hasFile(input, 'PRODUCTION'), required: false, group: 'OPERATIONAL', action: 'OPEN_FILES' },
     ]
   }
 
   if (phase === 'DELIVERY') {
     return [
-      { key: 'contact', label: 'WhatsApp do cliente disponível', completed: Boolean(input.clientPhone), required: true },
+      { key: 'contact', label: 'WhatsApp do cliente disponível', completed: Boolean(input.clientPhone), required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
       {
         key: 'installed',
         label: 'Todos os ambientes instalados e conferidos',
         completed: allEnvironmentsMatch(input, INSTALLED_ENVIRONMENTS),
         required: true,
+        group: 'OPERATIONAL',
+        action: 'EDIT_PROJECT',
       },
       {
         key: 'final-files',
         label: 'Fotos da instalação ou entrega anexadas',
         completed: hasFile(input, 'INSTALLATION') || hasFile(input, 'DELIVERY'),
         required: false,
+        group: 'OPERATIONAL',
+        action: 'OPEN_FILES',
       },
     ]
   }
 
   return [
-    { key: 'completed', label: 'Projeto concluído', completed: input.stage === 'COMPLETED', required: true },
+    { key: 'completed', label: 'Projeto concluído', completed: input.stage === 'COMPLETED', required: true, group: 'OPERATIONAL', action: 'ADVANCE_PHASE' },
     {
       key: 'final-files',
       label: 'Fotos finais arquivadas',
       completed: hasFile(input, 'INSTALLATION') || hasFile(input, 'DELIVERY'),
       required: false,
+      group: 'OPERATIONAL',
+      action: 'OPEN_FILES',
     },
-    { key: 'post-sale', label: 'Pós-venda realizado', completed: Boolean(input.postSaleContactedAt), required: false },
+    { key: 'post-sale', label: 'Pós-venda realizado', completed: Boolean(input.postSaleContactedAt), required: false, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
   ]
 }
 
 export function getProjectPhaseBlockers(tasks: ProjectPhaseTask[]) {
   return tasks.filter((task) => task.required && !task.completed).map((task) => task.label)
+}
+
+export function getProjectNextAction(tasks: ProjectPhaseTask[], phase: ProjectMacroPhase): ProjectNextAction {
+  const task = tasks.find((item) => item.required && !item.completed)
+  if (task) {
+    return {
+      key: task.key,
+      label: task.label,
+      detail: task.group === 'COMMERCIAL'
+        ? 'Resolva esta pendência comercial antes de liberar a fabricação.'
+        : task.group === 'TECHNICAL'
+          ? 'Complete esta etapa técnica para o projeto seguir com segurança.'
+          : 'Atualize esta pendência operacional para avançar o projeto.',
+      action: task.action,
+    }
+  }
+
+  return {
+    key: 'advance',
+    label: phase === 'COMPLETED' ? 'Acompanhar garantia e pós-venda' : 'Etapa pronta para avançar',
+    detail: phase === 'COMPLETED'
+      ? 'O projeto foi finalizado e permanece disponível para o acompanhamento pós-venda.'
+      : 'Todos os requisitos obrigatórios desta etapa estão concluídos.',
+    action: 'ADVANCE_PHASE',
+  }
 }

@@ -139,6 +139,8 @@ export const projectPatchSchema = z.object({
   productionBlocked: z.boolean().optional(),
   productionBlockReason: nullableString(500).optional(),
   stageDeadlineDate: dateField.optional(),
+  contractRequirement: z.enum(['REQUIRED', 'OPTIONAL_LEGACY', 'WAIVED']).optional(),
+  contractWaiverReason: nullableString(500).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, 'No fields to update')
   .refine((value) => !value.stageOverrideReason || Boolean(value.stage), {
     message: 'A justificativa exige uma nova etapa.',
@@ -147,6 +149,10 @@ export const projectPatchSchema = z.object({
   .refine((value) => value.productionBlocked !== true || Boolean(value.productionBlockReason?.trim()), {
     message: 'Informe o motivo do bloqueio.',
     path: ['productionBlockReason'],
+  })
+  .refine((value) => value.contractRequirement !== 'WAIVED' || Boolean(value.contractWaiverReason?.trim()), {
+    message: 'Informe por que o contrato será dispensado.',
+    path: ['contractWaiverReason'],
   })
 
 export const noteCreateSchema = z.object({

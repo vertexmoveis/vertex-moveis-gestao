@@ -9,6 +9,7 @@ import {
 } from '../lib/project-contracts'
 import { isLowStock, stockShortage } from '../lib/inventory'
 import { summarizeOperationalHealth } from '../lib/health-monitor'
+import { renderSignedProjectContractPdf } from '../lib/project-contract-pdf'
 
 test('token do contrato é criptografado e validado sem armazenar o valor aberto', () => {
   const previous = process.env.NEXTAUTH_SECRET
@@ -57,6 +58,41 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
   assert.equal(snapshot.payment.cardFeeAmount, 240)
   assert.equal(snapshot.client.address, 'Rua A, 10, Cotia - SP')
   assert.equal(parseProjectContractSnapshot(snapshot)?.project.name, 'Cozinha')
+})
+
+test('gera o contrato assinado como PDF de duas páginas', async () => {
+  const snapshot = buildProjectContractSnapshot({
+    id: 'project-pdf',
+    name: 'Cozinha e dormitório',
+    room: 'Cozinha, Dormitório',
+    value: 34900,
+    deliveryBusinessDays: 30,
+    paymentMethod: 'CARD',
+    downPayment: 15000,
+    installmentCount: 1,
+    installmentValue: 19900,
+    firstInstallmentDate: new Date('2026-08-12T12:00:00Z'),
+    client: { name: 'Matheus Rodrigues', city: 'Cotia', state: 'SP' },
+    environments: [{ name: 'Cozinha' }, { name: 'Dormitório' }],
+    payments: [
+      { installmentNumber: 0, type: 'DOWN_PAYMENT', amount: 15000, dueDate: new Date('2026-07-12T12:00:00Z') },
+      { installmentNumber: 1, type: 'INSTALLMENT', amount: 19900, dueDate: new Date('2026-08-12T12:00:00Z') },
+    ],
+  }, { tradeName: 'Vertex Móveis', city: 'Cotia', state: 'SP' })
+
+  const pdf = await renderSignedProjectContractPdf({
+    id: 'contract-test',
+    version: 2,
+    snapshot,
+    signedAt: new Date('2026-08-03T15:00:00Z'),
+    signatoryName: 'Matheus Rodrigues',
+    signatoryDocument: null,
+    acceptedIpHash: 'abc123'.repeat(10),
+    acceptedUserAgent: 'Browser de teste',
+  })
+
+  assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
+  assert.ok(pdf.length > 5000)
 })
 
 test('estoque só alerta quando existe mínimo configurado', () => {

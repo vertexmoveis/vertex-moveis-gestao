@@ -18,6 +18,8 @@ import {
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 
 const createSchema = z.object({}).strict()
+const reminderSchema = z.object({ contractId: z.string().trim().min(1) }).strict()
+const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 async function limit(req: NextRequest, userId: string, projectId: string) {
   return rateLimit(
@@ -62,6 +64,8 @@ function serializeContract(
     tokenEncrypted: string
     sentAt: Date | null
     viewedAt: Date | null
+    lastReminderAt: Date | null
+    reminderCount: number
     expiresAt: Date | null
     signedAt: Date | null
     voidedAt: Date | null
@@ -90,6 +94,8 @@ function serializeContract(
     url,
     sentAt: contract.sentAt?.toISOString() || null,
     viewedAt: contract.viewedAt?.toISOString() || null,
+    lastReminderAt: contract.lastReminderAt?.toISOString() || null,
+    reminderCount: contract.reminderCount,
     expiresAt: contract.expiresAt?.toISOString() || null,
     signedAt: contract.signedAt?.toISOString() || null,
     voidedAt: contract.voidedAt?.toISOString() || null,
@@ -210,6 +216,68 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('Erro ao criar contrato digital.', error)
     return serverError()
   }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+  const { id } = await params
+  if (!await projectWithAccess(id, auth.user)) {
+    return NextResponse.json({ error: 'Projeto não encontrado.' }, { status: 404 })
+  }
+
+  const limited = await limit(req, auth.user.id, id)
+  if (!limited) return serviceUnavailable()
+  if (!limited.allowed) {
+    return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto.' }, { status: 429 })
+  }
+
+  const parsed = reminderSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: 'Informe o contrato.' }, { status: 400 })
+
+  const now = new Date()
+  const outcome = await prisma.$transaction(async (tx) => {
+    const contract = await tx.projectContract.findFirst({
+      where: { id: parsed.data.contractId, projectId: id },
+      select: { id: true, version: true, status: true, signedAt: true, voidedAt: true, lastReminderAt: true },
+    })
+    if (!contract) return { status: 404, error: 'Contrato não encontrado.' }
+    if (contract.status !== 'SENT' || contract.signedAt || contract.voidedAt) {
+      return { status: 409, error: 'Este contrato não está aguardando aceite.' }
+    }
+    if (contract.lastReminderAt && now.getTime() - contract.lastReminderAt.getTime() < REMINDER_INTERVAL_MS) {
+      return { status: 429, error: 'O último lembrete foi registrado há menos de 24 horas.' }
+    }
+
+    const updated = await tx.projectContract.update({
+      where: { id: contract.id },
+      data: { lastReminderAt: now, reminderCount: { increment: 1 } },
+      select: { lastReminderAt: true, reminderCount: true },
+    })
+    await tx.timelineEvent.create({
+      data: {
+        projectId: id,
+        event: 'Lembrete de contrato enviado',
+        description: `Cobrança de aceite registrada para o contrato versão ${contract.version}.`,
+      },
+    })
+    await tx.activityLog.create({
+      data: {
+        userId: auth.user.id,
+        projectId: id,
+        action: 'Lembrete de contrato registrado',
+        details: `Contrato versão ${contract.version}.`,
+      },
+    })
+    return { status: 200, ...updated }
+  })
+
+  if ('error' in outcome) return NextResponse.json({ error: outcome.error }, { status: outcome.status })
+  return NextResponse.json({
+    success: true,
+    lastReminderAt: outcome.lastReminderAt?.toISOString() || null,
+    reminderCount: outcome.reminderCount,
+  })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
