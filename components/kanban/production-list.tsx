@@ -16,6 +16,7 @@ import { cn, formatDate } from '@/lib/utils'
 import {
   getAdjacentProductionStage,
   getProductionProjectState,
+  productionDeadlineDateLabel,
   productionDeadlineLabel,
 } from '@/lib/production-board'
 import {
@@ -101,7 +102,11 @@ export function ProductionList({
                 )}
               >
                 {productionDeadlineLabel(attention)}
-                {attention.deadline ? <span className="block text-[10px] font-normal text-[#888]">{formatDate(attention.deadline)}</span> : null}
+                {attention.deadline ? (
+                  <span className="block text-[10px] font-normal text-[#888]">
+                    {productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}
+                  </span>
+                ) : null}
               </button>
 
               <div className="flex min-w-0 items-center gap-2">

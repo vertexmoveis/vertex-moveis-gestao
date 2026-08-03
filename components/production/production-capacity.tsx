@@ -24,7 +24,9 @@ export function ProductionCapacity({ weeks }: { weeks: ProductionCapacityWeek[] 
           <h2 id="production-capacity-title" className="flex items-center gap-2 text-sm font-semibold text-[#121212]">
             <Gauge size={16} className="text-[#FF6B00]" /> Capacidade das próximas semanas
           </h2>
-          <p className="mt-1 text-xs text-[#777]">Projetos agrupados pela previsão de entrega</p>
+          <p className="mt-1 text-xs text-[#777]">
+            Entregas previstas nas próximas 4 semanas; atrasos aparecem nos indicadores abaixo
+          </p>
         </div>
         {overloaded > 0 ? (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700">

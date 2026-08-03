@@ -17,10 +17,13 @@ export type ProductionAttentionFilter =
 
 export type ProductionViewMode = 'BOARD' | 'ATTENTION' | 'LIST'
 
+export type ProductionDeadlineKind = 'STAGE' | 'DELIVERY'
+
 export type ProductionProjectState = {
   blocked: boolean
   completed: boolean
   deadline: string | null
+  deadlineKind: ProductionDeadlineKind | null
   daysRemaining: number | null
   overdue: boolean
   dueSoon: boolean
@@ -42,7 +45,23 @@ function dateOnlyTimestamp(value: Date | string) {
 }
 
 export function getProductionDeadline(project: ProjectData) {
-  return project.stageDeadlineDate || project.deliveryDeadlineDate || project.estimatedEndDate || null
+  return getProductionDeadlineDetails(project).deadline
+}
+
+export function getProductionDeadlineDetails(project: ProjectData): {
+  deadline: string | null
+  kind: ProductionDeadlineKind | null
+} {
+  const stageDeadline = project.stageDeadlineDate || null
+  const deliveryDeadline = project.deliveryDeadlineDate || project.estimatedEndDate || null
+
+  if (!stageDeadline && !deliveryDeadline) return { deadline: null, kind: null }
+  if (!stageDeadline) return { deadline: deliveryDeadline, kind: 'DELIVERY' }
+  if (!deliveryDeadline) return { deadline: stageDeadline, kind: 'STAGE' }
+
+  return dateOnlyTimestamp(stageDeadline) < dateOnlyTimestamp(deliveryDeadline)
+    ? { deadline: stageDeadline, kind: 'STAGE' }
+    : { deadline: deliveryDeadline, kind: 'DELIVERY' }
 }
 
 export function getProductionProjectState(
@@ -50,7 +69,8 @@ export function getProductionProjectState(
   now = new Date(),
 ): ProductionProjectState {
   const completed = normalizeProductionStage(project.stage) === 'COMPLETED'
-  const deadline = getProductionDeadline(project)
+  const deadlineDetails = getProductionDeadlineDetails(project)
+  const deadline = deadlineDetails.deadline
   const daysRemaining = deadline
     ? Math.round((dateOnlyTimestamp(deadline) - dateOnlyTimestamp(now)) / DAY_IN_MS)
     : null
@@ -67,6 +87,7 @@ export function getProductionProjectState(
     blocked,
     completed,
     deadline,
+    deadlineKind: deadlineDetails.kind,
     daysRemaining,
     overdue,
     dueSoon,
@@ -146,4 +167,10 @@ export function productionDeadlineLabel(state: ProductionProjectState) {
   }
   if (state.daysRemaining === 0) return 'Prazo hoje'
   return `${state.daysRemaining} dia${state.daysRemaining === 1 ? '' : 's'} restante${state.daysRemaining === 1 ? '' : 's'}`
+}
+
+export function productionDeadlineDateLabel(state: ProductionProjectState) {
+  if (state.deadlineKind === 'STAGE') return 'Etapa'
+  if (state.deadlineKind === 'DELIVERY') return 'Entrega'
+  return 'Prazo'
 }

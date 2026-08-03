@@ -23,6 +23,7 @@ import { isEnvironmentCompleted } from '@/lib/project-environments'
 import {
   getAdjacentProductionStage,
   getProductionProjectState,
+  productionDeadlineDateLabel,
   productionDeadlineLabel,
 } from '@/lib/production-board'
 import {
@@ -153,7 +154,9 @@ export function KanbanCard({
             {attention.overdue || attention.noDeadline ? <CircleAlert size={11} /> : <CalendarClock size={11} />}
             {productionDeadlineLabel(attention)}
           </span>
-          {attention.deadline ? <span>{formatDate(attention.deadline)}</span> : null}
+          {attention.deadline ? (
+            <span>{productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}</span>
+          ) : null}
         </div>
 
         {environmentSummary && environmentSummary.total > 0 ? (

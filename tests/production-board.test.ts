@@ -4,6 +4,7 @@ import {
   compareProductionProjects,
   getAdjacentProductionStage,
   getProductionDeadline,
+  getProductionDeadlineDetails,
   getProductionProjectState,
   isProductionStageSkip,
   matchesProductionAttention,
@@ -53,6 +54,19 @@ test('prioriza o prazo da etapa antes da entrega geral', () => {
     deliveryDeadlineDate: '2026-08-15T12:00:00.000Z',
   })
   assert.equal(getProductionDeadline(item), '2026-07-30T12:00:00.000Z')
+  assert.equal(getProductionDeadlineDetails(item).kind, 'STAGE')
+})
+
+test('prazo de etapa posterior não esconde uma entrega atrasada', () => {
+  const item = project({
+    stageDeadlineDate: '2026-08-17T12:00:00.000Z',
+    estimatedEndDate: '2026-07-29T12:00:00.000Z',
+  })
+  const state = getProductionProjectState(item, new Date(2026, 7, 3, 9))
+
+  assert.equal(state.deadline, '2026-07-29T12:00:00.000Z')
+  assert.equal(state.deadlineKind, 'DELIVERY')
+  assert.equal(state.overdue, true)
 })
 
 test('classifica projetos atrasados, próximos e sem prazo', () => {
