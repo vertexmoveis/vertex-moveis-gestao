@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { isLowStock, stockShortage } from '@/lib/inventory'
+import { availableStock } from '@/lib/operational-toolkit'
 import { moneyValue, type NumericValue } from '@/lib/money'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import {
@@ -69,12 +70,17 @@ function serializeMaterial(material: {
     quotedAt: Date
     notes: string | null
   }>
+  reservations: Array<{ quantity: number }>
 }) {
+  const reservedQuantity = material.reservations.reduce((total, reservation) => total + reservation.quantity, 0)
+  const availableQuantity = availableStock(material.stockQuantity, reservedQuantity)
   return {
     ...material,
     unitCost: moneyValue(material.unitCost),
-    lowStock: isLowStock(material.stockQuantity, material.minimumStock),
-    shortage: stockShortage(material.stockQuantity, material.minimumStock),
+    reservedQuantity,
+    availableQuantity,
+    lowStock: isLowStock(availableQuantity, material.minimumStock),
+    shortage: stockShortage(availableQuantity, material.minimumStock),
     updatedAt: material.updatedAt.toISOString(),
     supplierPrices: material.supplierPrices.map((price) => ({
       ...price,
@@ -85,6 +91,10 @@ function serializeMaterial(material: {
 }
 
 const inventoryInclude = {
+  reservations: {
+    where: { status: 'ACTIVE' },
+    select: { quantity: true },
+  },
   supplierPrices: {
     orderBy: { quotedAt: 'desc' as const },
     take: 8,

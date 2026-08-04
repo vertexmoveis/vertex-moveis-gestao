@@ -28,6 +28,9 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
     leadNoResponseDays: initialProfile.leadNoResponseDays,
     leadCloseSuggestionDays: initialProfile.leadCloseSuggestionDays,
     weeklyProductionCapacity: initialProfile.weeklyProductionCapacity,
+    standardSheetWidthMm: initialProfile.standardSheetWidthMm,
+    standardSheetHeightMm: initialProfile.standardSheetHeightMm,
+    sheetWastePercent: initialProfile.sheetWastePercent,
   })
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -65,6 +68,9 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
         leadNoResponseDays: data.leadNoResponseDays,
         leadCloseSuggestionDays: data.leadCloseSuggestionDays,
         weeklyProductionCapacity: data.weeklyProductionCapacity,
+        standardSheetWidthMm: data.standardSheetWidthMm,
+        standardSheetHeightMm: data.standardSheetHeightMm,
+        sheetWastePercent: data.sheetWastePercent,
       })
       setFeedback('Dados da empresa atualizados nos próximos orçamentos.')
     } catch (error) {
@@ -140,12 +146,45 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
           </p>
           <div className="max-w-xs">
             <Input
-              label="Projetos por semana"
+              label="Pontos por semana"
               type="number"
               min={1}
               max={50}
               value={profile.weeklyProductionCapacity}
               onChange={(event) => update('weeklyProductionCapacity', Number(event.target.value) || 4)}
+            />
+          </div>
+        </div>
+        <div className="border-t border-[#ECECEC] pt-4">
+          <p className="mb-1 text-xs font-semibold uppercase text-[#777]">Plano de corte</p>
+          <p className="mb-3 text-xs text-[#777]">
+            Medida da chapa usada para estimar consumo e a margem reservada para perda de corte.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              label="Largura da chapa (mm)"
+              type="number"
+              min={300}
+              max={10000}
+              value={profile.standardSheetWidthMm}
+              onChange={(event) => update('standardSheetWidthMm', Number(event.target.value) || 2750)}
+            />
+            <Input
+              label="Altura da chapa (mm)"
+              type="number"
+              min={300}
+              max={10000}
+              value={profile.standardSheetHeightMm}
+              onChange={(event) => update('standardSheetHeightMm', Number(event.target.value) || 1850)}
+            />
+            <Input
+              label="Perda estimada (%)"
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={profile.sheetWastePercent}
+              onChange={(event) => update('sheetWastePercent', Number(event.target.value) || 0)}
             />
           </div>
         </div>

@@ -7,14 +7,16 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleAlert,
+  Download,
   MapPin,
   MessageCircle,
   Navigation,
   PackageCheck,
   Truck,
+  WifiOff,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import {
@@ -22,6 +24,7 @@ import {
   INSTALLATION_SCHEDULE_STATUS_LABELS,
   type InstallationScheduleStatus,
 } from '@/lib/installation-schedule'
+import { DELIVERY_CHECKS } from '@/lib/operational-toolkit'
 
 type Schedule = {
   id: string
@@ -68,6 +71,19 @@ function mapsLink(address: string | null) {
   return address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}` : null
 }
 
+function dayRouteLink(schedules: Schedule[]) {
+  const addresses = schedules.map((schedule) => schedule.project.client.address).filter((value): value is string => Boolean(value))
+  if (addresses.length === 0) return null
+  const params = new URLSearchParams({
+    api: '1',
+    origin: 'Rua Saturno 6, Cotia, SP, 06702-170',
+    destination: addresses.at(-1)!,
+    travelmode: 'driving',
+  })
+  if (addresses.length > 1) params.set('waypoints', addresses.slice(0, -1).join('|'))
+  return `https://www.google.com/maps/dir/?${params.toString()}`
+}
+
 function nextAction(status: InstallationScheduleStatus) {
   if (status === 'SCHEDULED') return { status: 'CONFIRMED' as const, label: 'Confirmar instalação', icon: CheckCircle2 }
   if (status === 'CONFIRMED') return { status: 'ON_ROUTE' as const, label: 'Iniciar rota', icon: Navigation }
@@ -89,7 +105,27 @@ export function InstallationMobile({
   const [confirmationName, setConfirmationName] = useState('')
   const [completionNotes, setCompletionNotes] = useState('')
   const [clientApproved, setClientApproved] = useState(false)
+  const [deliveryChecklist, setDeliveryChecklist] = useState<Set<string>>(new Set())
+  const [offlineSavedAt, setOfflineSavedAt] = useState<string | null>(() => typeof window === 'undefined' ? null : window.localStorage.getItem('vertex-installation-offline-saved-at'))
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const updateConnection = () => setOnline(navigator.onLine)
+    window.addEventListener('online', updateConnection)
+    window.addEventListener('offline', updateConnection)
+    return () => {
+      window.removeEventListener('online', updateConnection)
+      window.removeEventListener('offline', updateConnection)
+    }
+  }, [])
+
+  const saveForOfflineUse = () => {
+    const savedAt = new Date().toISOString()
+    window.localStorage.setItem('vertex-installation-offline-data', JSON.stringify({ schedules, unscheduledProjects, savedAt }))
+    window.localStorage.setItem('vertex-installation-offline-saved-at', savedAt)
+    setOfflineSavedAt(savedAt)
+  }
 
   const groupedSchedules = useMemo(() => {
     const groups = new Map<string, Schedule[]>()
@@ -125,6 +161,7 @@ export function InstallationMobile({
         notes: schedule.notes,
         clientConfirmation: completion?.clientConfirmation || schedule.clientConfirmation,
         completionNotes: completion?.completionNotes || schedule.completionNotes,
+        deliveryChecklist: status === 'COMPLETED' ? [...deliveryChecklist] : undefined,
       }),
     })
     const data = await response.json().catch(() => ({}))
@@ -145,8 +182,8 @@ export function InstallationMobile({
 
   const completeInstallation = async () => {
     if (!finishing) return
-    if (!clientApproved || !confirmationName.trim()) {
-      setError('Confirme a conferência e informe o nome do cliente ou responsável.')
+    if (!clientApproved || !confirmationName.trim() || deliveryChecklist.size !== DELIVERY_CHECKS.length) {
+      setError('Conclua todos os itens da conferência e informe quem recebeu.')
       return
     }
     const completed = await updateStatus(finishing, 'COMPLETED', {
@@ -158,6 +195,7 @@ export function InstallationMobile({
       setConfirmationName('')
       setCompletionNotes('')
       setClientApproved(false)
+      setDeliveryChecklist(new Set())
     }
   }
 
@@ -168,6 +206,20 @@ export function InstallationMobile({
           <CircleAlert className="mt-0.5 shrink-0" size={17} /><span>{error}</span>
         </div>
       ) : null}
+
+      <div className="flex flex-col gap-2 border border-[#E5E5E5] bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-xs text-[#666]">
+          {!online ? <WifiOff size={15} className="text-amber-600" /> : <Download size={15} className="text-[#FF6B00]" />}
+          <span>
+            {!online
+              ? 'Sem internet: consulte os dados já abertos e sincronize quando voltar.'
+              : offlineSavedAt
+                ? `Agenda salva no celular em ${new Date(offlineSavedAt).toLocaleString('pt-BR')}.`
+                : 'Salve a agenda antes de sair para a instalação.'}
+          </span>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={saveForOfflineUse}><Download size={14} /> Salvar no celular</Button>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="border border-[#E5E5E5] bg-white p-4 shadow-sm">
@@ -191,7 +243,14 @@ export function InstallationMobile({
         </div>
       ) : groupedSchedules.map(([date, daySchedules]) => (
         <section key={date} aria-labelledby={`installation-day-${date}`}>
-          <h2 id={`installation-day-${date}`} className="mb-2 text-sm font-bold capitalize text-[#121212]">{dateLabel(daySchedules[0].scheduledStart)}</h2>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 id={`installation-day-${date}`} className="text-sm font-bold capitalize text-[#121212]">{dateLabel(daySchedules[0].scheduledStart)}</h2>
+            {dayRouteLink(daySchedules) ? (
+              <a href={dayRouteLink(daySchedules)!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF6B00]">
+                <Navigation size={14} /> Rota do dia
+              </a>
+            ) : null}
+          </div>
           <div className="space-y-3">
             {daySchedules.map((schedule) => {
               const action = nextAction(schedule.status)
@@ -270,6 +329,25 @@ export function InstallationMobile({
                 <input type="checkbox" checked={clientApproved} onChange={(event) => setClientApproved(event.target.checked)} className="mt-0.5 h-5 w-5 accent-[#FF6B00]" />
                 <span>O cliente ou responsável conferiu a instalação e confirmou a entrega.</span>
               </label>
+              <div className="space-y-2 border border-[#E5E5E5] p-3">
+                <p className="text-xs font-semibold uppercase text-[#777]">Conferência obrigatória</p>
+                {DELIVERY_CHECKS.map((item) => (
+                  <label key={item.key} className="flex items-start gap-3 py-1 text-sm text-[#222]">
+                    <input
+                      type="checkbox"
+                      checked={deliveryChecklist.has(item.key)}
+                      onChange={(event) => setDeliveryChecklist((current) => {
+                        const next = new Set(current)
+                        if (event.target.checked) next.add(item.key)
+                        else next.delete(item.key)
+                        return next
+                      })}
+                      className="mt-0.5 h-5 w-5 accent-[#FF6B00]"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
               <Input label="Nome de quem conferiu" value={confirmationName} onChange={(event) => setConfirmationName(event.target.value)} placeholder="Nome completo" />
               <Textarea label="Observações da instalação" rows={4} value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Ajustes realizados, pendências ou observações..." />
               <p className="text-xs text-[#777]">Antes de finalizar, use o botão Fotos para registrar a entrega no projeto.</p>

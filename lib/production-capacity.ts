@@ -11,6 +11,11 @@ export type ProductionCapacityWeek = {
   state: ProductionCapacityState
 }
 
+export type ProductionCapacityEntry = {
+  deadline: Date | string | null | undefined
+  weight?: number | null
+}
+
 function addUtcDays(value: Date, days: number) {
   const next = new Date(value)
   next.setUTCDate(next.getUTCDate() + days)
@@ -23,7 +28,7 @@ function mondayForDate(value: Date) {
 }
 
 export function getProductionCapacityWeeks(
-  deadlines: Array<Date | string | null | undefined>,
+  deadlines: Array<Date | string | null | undefined | ProductionCapacityEntry>,
   capacity: number,
   now = new Date(),
   weekCount = 4,
@@ -31,14 +36,26 @@ export function getProductionCapacityWeeks(
   const safeCapacity = Math.max(Math.trunc(capacity) || 1, 1)
   const today = toDateOnlyUtc(dateOnlyKeyInTimeZone(now)) || now
   const firstMonday = mondayForDate(today)
-  const deadlineKeys = deadlines.map(dateOnlyKey).filter((value): value is string => Boolean(value))
+  const entries = deadlines.flatMap((entry) => {
+    const deadline = typeof entry === 'object' && entry !== null && !(entry instanceof Date)
+      ? entry.deadline
+      : entry
+    const key = dateOnlyKey(deadline)
+    if (!key) return []
+    const weight = typeof entry === 'object' && entry !== null && !(entry instanceof Date)
+      ? Math.max(Number(entry.weight) || 1, 0.25)
+      : 1
+    return [{ key, weight }]
+  })
 
   return Array.from({ length: Math.max(weekCount, 1) }, (_, index) => {
     const startDate = addUtcDays(firstMonday, index * 7)
     const endDate = addUtcDays(startDate, 6)
     const start = dateOnlyKey(startDate)!
     const end = dateOnlyKey(endDate)!
-    const scheduled = deadlineKeys.filter((key) => key >= start && key <= end).length
+    const scheduled = entries
+      .filter((entry) => entry.key >= start && entry.key <= end)
+      .reduce((total, entry) => total + entry.weight, 0)
     const usagePercent = Math.round((scheduled / safeCapacity) * 100)
     const state: ProductionCapacityState = scheduled > safeCapacity
       ? 'OVERLOADED'

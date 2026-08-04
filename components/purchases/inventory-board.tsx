@@ -36,6 +36,8 @@ type InventoryMaterial = {
   unitCost: number
   supplier: string | null
   stockQuantity: number
+  reservedQuantity: number
+  availableQuantity: number
   minimumStock: number
   location: string | null
   lowStock: boolean
@@ -206,7 +208,7 @@ export function InventoryBoard() {
         <Summary label="Materiais ativos" value={materials.length} />
         <Summary label="Abaixo do mínimo" value={lowCount} tone={lowCount > 0 ? 'warning' : 'success'} />
         <Summary label="Valor estimado em estoque" value={formatCurrency(inventoryValue)} />
-        <Summary label="Com fornecedor salvo" value={materials.filter((material) => material.supplier).length} />
+        <Summary label="Reservas ativas" value={materials.reduce((sum, material) => sum + material.reservedQuantity, 0).toLocaleString('pt-BR')} />
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-[#E8E8E8] bg-white p-3 sm:flex-row sm:items-center">
@@ -265,6 +267,10 @@ export function InventoryBoard() {
                     </div>
                     <p className="mt-1 text-xs text-[#777]">
                       {[material.category, material.defaultFinish].filter(Boolean).join(' · ') || 'Sem categoria'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#666]">
+                      Disponível: <strong>{material.availableQuantity.toLocaleString('pt-BR')} {unit}</strong>
+                      {material.reservedQuantity > 0 ? ` · ${material.reservedQuantity.toLocaleString('pt-BR')} ${unit} reservados` : ''}
                     </p>
                   </div>
                   <div className="text-right">

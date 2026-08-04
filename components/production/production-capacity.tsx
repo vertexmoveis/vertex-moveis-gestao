@@ -42,7 +42,7 @@ export function ProductionCapacity({ weeks }: { weeks: ProductionCapacityWeek[] 
               <span className="text-[11px] font-semibold">{stateLabels[week.state]}</span>
             </div>
             <div className="mt-3 flex items-end justify-between gap-2">
-              <p className="text-2xl font-bold leading-none">{week.scheduled}<span className="ml-1 text-xs font-medium">de {week.capacity}</span></p>
+              <p className="text-2xl font-bold leading-none">{week.scheduled.toLocaleString('pt-BR')}<span className="ml-1 text-xs font-medium">de {week.capacity} pontos</span></p>
               <span className="text-xs font-semibold">{week.usagePercent}%</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden bg-white/70">

@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { ClientForm } from '@/components/clients/client-form'
+import { ClientPrivacyCard } from '@/components/clients/client-privacy-card'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { formatClientAddress } from '@/lib/address'
 import Link from 'next/link'
@@ -307,6 +308,8 @@ export default function ClientDetailPage() {
                 </CardBody>
               </Card>
             )}
+
+            <ClientPrivacyCard clientId={client.id} />
           </div>
 
           {/* Projects */}

@@ -138,12 +138,15 @@ async function getCapacity(user: DashboardUser, referenceDate: Date) {
             },
           ],
         },
-        select: { deliveryDeadlineDate: true, estimatedEndDate: true },
+        select: { deliveryDeadlineDate: true, estimatedEndDate: true, productionWeight: true },
       })
     : []
 
   return getProductionCapacityWeeks(
-    projects.map((project) => project.deliveryDeadlineDate || project.estimatedEndDate),
+    projects.map((project) => ({
+      deadline: project.deliveryDeadlineDate || project.estimatedEndDate,
+      weight: project.productionWeight,
+    })),
     weeklyCapacity,
     referenceDate,
   )

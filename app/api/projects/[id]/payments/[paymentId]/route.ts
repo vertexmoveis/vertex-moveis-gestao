@@ -77,6 +77,14 @@ export async function PATCH(
       },
     })
 
+    const receivedCount = await prisma.projectPayment.count({ where: { projectId: id, paidAt: { not: null } } })
+    await prisma.salesCommission.updateMany({
+      where: { projectId: id, paidAt: null },
+      data: receivedCount > 0
+        ? { status: 'AVAILABLE', availableAt: new Date() }
+        : { status: 'PENDING', availableAt: null },
+    })
+
     return NextResponse.json({
       ...updated,
       dueDate: updated.dueDate.toISOString(),

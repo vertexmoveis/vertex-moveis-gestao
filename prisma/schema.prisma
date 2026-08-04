@@ -9,20 +9,20 @@ datasource db {
 }
 
 model User {
-  id                String            @id @default(cuid())
+  id                String                 @id @default(cuid())
   name              String
-  email             String            @unique
+  email             String                 @unique
   password          String
-  role              String            @default("MANAGER")
-  active            Boolean           @default(true)
-  sessionVersion    Int               @default(1)
+  role              String                 @default("MANAGER")
+  active            Boolean                @default(true)
+  sessionVersion    Int                    @default(1)
   lastLoginAt       DateTime?
   passwordChangedAt DateTime?
-  twoFactorEnabled  Boolean           @default(false)
+  twoFactorEnabled  Boolean                @default(false)
   twoFactorSecret   String?
   avatar            String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   projects          Project[]
   quotes            Quote[]
   quoteGroups       QuoteGroup[]
@@ -30,18 +30,26 @@ model User {
   notes             Note[]
   activities        ActivityLog[]
   paymentHistory    PaymentHistory[]
-  expensesCreated   ProjectExpense[]  @relation("ExpenseCreatedBy")
-  contractsCreated  ProjectContract[] @relation("ContractCreatedBy")
-  contractWaivers   Project[]         @relation("ContractWaivedBy")
-  warrantyCreated   WarrantyTicket[]  @relation("WarrantyCreatedBy")
-  warrantyAssigned  WarrantyTicket[]  @relation("WarrantyAssignedTo")
+  expensesCreated   ProjectExpense[]       @relation("ExpenseCreatedBy")
+  contractsCreated  ProjectContract[]      @relation("ContractCreatedBy")
+  contractWaivers   Project[]              @relation("ContractWaivedBy")
+  warrantyCreated   WarrantyTicket[]       @relation("WarrantyCreatedBy")
+  warrantyAssigned  WarrantyTicket[]       @relation("WarrantyAssignedTo")
   loginEvents       LoginEvent[]
+  cutPiecesCreated  ProjectCutPiece[]      @relation("CutPieceCreatedBy")
+  timeEntries       ProjectTimeEntry[]
+  qualityChecks     ProjectQualityCheck[]  @relation("QualityCheckedBy")
+  changeOrders      ProjectChangeOrder[]   @relation("ChangeOrderCreatedBy")
+  deliveryProofs    ProjectDeliveryProof[] @relation("DeliveryProofCreatedBy")
+  commissions       SalesCommission[]
+  purchaseOrders    PurchaseOrder[]        @relation("PurchaseOrderCreatedBy")
+  privacyRequests   PrivacyRequest[]       @relation("PrivacyRequestCreatedBy")
 }
 
 model Client {
-  id                         String       @id @default(cuid())
+  id                         String           @id @default(cuid())
   managerId                  String?
-  manager                    User?        @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  manager                    User?            @relation(fields: [managerId], references: [id], onDelete: SetNull)
   name                       String
   document                   String?
   documentNormalized         String?
@@ -62,17 +70,18 @@ model Client {
   longitude                  Float?
   geocodedAt                 DateTime?
   notes                      String?
-  relationshipStage          String       @default("CONTACT")
-  relationshipStageChangedAt DateTime     @default(now())
+  relationshipStage          String           @default("CONTACT")
+  relationshipStageChangedAt DateTime         @default(now())
   lastCommercialActivityAt   DateTime?
   inactivatedAt              DateTime?
   inactiveReason             String?
   archivedAt                 DateTime?
-  createdAt                  DateTime     @default(now())
-  updatedAt                  DateTime     @updatedAt
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
   projects                   Project[]
   quotes                     Quote[]
   quoteGroups                QuoteGroup[]
+  privacyRequests            PrivacyRequest[]
 
   @@index([name])
   @@index([managerId])
@@ -146,6 +155,15 @@ model Project {
   portalAccesses                 ProjectPortalAccess[]
   contracts                      ProjectContract[]
   warrantyTickets                WarrantyTicket[]
+  cutPieces                      ProjectCutPiece[]
+  timeEntries                    ProjectTimeEntry[]
+  qualityChecks                  ProjectQualityCheck[]
+  changeOrders                   ProjectChangeOrder[]
+  deliveryProofs                 ProjectDeliveryProof[]
+  inventoryReservations          InventoryReservation[]
+  purchaseOrderItems             PurchaseOrderItem[]
+  commissions                    SalesCommission[]
+  productionWeight               Float                  @default(1)
   postSaleFollowUpAt             DateTime?
   postSaleContactedAt            DateTime?
   warrantyEndsAt                 DateTime?
@@ -266,6 +284,9 @@ model CompanyProfile {
   leadNoResponseDays          Int      @default(30)
   leadCloseSuggestionDays     Int      @default(90)
   weeklyProductionCapacity    Int      @default(4)
+  standardSheetWidthMm        Int      @default(2750)
+  standardSheetHeightMm       Int      @default(1850)
+  sheetWastePercent           Float    @default(15)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 }
@@ -339,21 +360,23 @@ model QuotePriceRule {
 }
 
 model MaterialCatalogItem {
-  id               String                  @id @default(cuid())
-  name             String                  @unique
-  category         String?
-  defaultFinish    String?
-  unit             String                  @default("m2")
-  unitCost         Decimal                 @default(0) @db.Decimal(14, 2)
-  supplier         String?
-  active           Boolean                 @default(true)
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  projectMaterials ProjectMaterial[]
-  supplierPrices   MaterialSupplierPrice[]
-  stockQuantity    Float                   @default(0)
-  minimumStock     Float                   @default(0)
-  location         String?
+  id                 String                  @id @default(cuid())
+  name               String                  @unique
+  category           String?
+  defaultFinish      String?
+  unit               String                  @default("m2")
+  unitCost           Decimal                 @default(0) @db.Decimal(14, 2)
+  supplier           String?
+  active             Boolean                 @default(true)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  projectMaterials   ProjectMaterial[]
+  supplierPrices     MaterialSupplierPrice[]
+  reservations       InventoryReservation[]
+  purchaseOrderItems PurchaseOrderItem[]
+  stockQuantity      Float                   @default(0)
+  minimumStock       Float                   @default(0)
+  location           String?
 
   @@index([active])
   @@index([category])
@@ -434,30 +457,213 @@ model OperationalResource {
 }
 
 model InstallationSchedule {
-  id                 String               @id @default(cuid())
+  id                 String                @id @default(cuid())
   projectId          String
-  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project            Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scheduledStart     DateTime
   scheduledEnd       DateTime
   teamId             String?
-  team               OperationalResource? @relation("ScheduleTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  team               OperationalResource?  @relation("ScheduleTeam", fields: [teamId], references: [id], onDelete: SetNull)
   vehicleId          String?
-  vehicle            OperationalResource? @relation("ScheduleVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
-  status             String               @default("SCHEDULED")
+  vehicle            OperationalResource?  @relation("ScheduleVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  status             String                @default("SCHEDULED")
   notes              String?
   departureAt        DateTime?
   arrivalAt          DateTime?
   completedAt        DateTime?
   clientConfirmation String?
   completionNotes    String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  deliveryProof      ProjectDeliveryProof?
 
   @@index([projectId])
   @@index([scheduledStart, scheduledEnd])
   @@index([teamId, scheduledStart])
   @@index([vehicleId, scheduledStart])
   @@index([status, scheduledStart])
+}
+
+model ProjectCutPiece {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation("CutPieceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  environment String?
+  label       String
+  material    String
+  finish      String?
+  widthMm     Float
+  heightMm    Float
+  quantity    Int      @default(1)
+  grain       Boolean  @default(false)
+  status      String   @default("PLANNED")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, status])
+  @@index([material, finish])
+}
+
+model ProjectTimeEntry {
+  id        String    @id @default(cuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  phase     String
+  startedAt DateTime
+  endedAt   DateTime?
+  minutes   Int       @default(0)
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId, startedAt])
+  @@index([userId, endedAt])
+  @@index([phase, startedAt])
+}
+
+model ProjectQualityCheck {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  status      String    @default("PENDING")
+  notes       String?
+  checkedById String?
+  checkedBy   User?     @relation("QualityCheckedBy", fields: [checkedById], references: [id], onDelete: SetNull)
+  checkedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+}
+
+model ProjectChangeOrder {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?     @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  title       String
+  description String
+  amountDelta Decimal   @default(0) @db.Decimal(14, 2)
+  daysDelta   Int       @default(0)
+  status      String    @default("DRAFT")
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId, status])
+}
+
+model ProjectDeliveryProof {
+  id                     String                @id @default(cuid())
+  projectId              String
+  project                Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installationScheduleId String?               @unique
+  installationSchedule   InstallationSchedule? @relation(fields: [installationScheduleId], references: [id], onDelete: SetNull)
+  createdById            String?
+  createdBy              User?                 @relation("DeliveryProofCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  confirmedBy            String
+  checklist              Json
+  notes                  String?
+  deliveredAt            DateTime              @default(now())
+  createdAt              DateTime              @default(now())
+
+  @@index([projectId, deliveredAt])
+}
+
+model InventoryReservation {
+  id         String              @id @default(cuid())
+  projectId  String
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId String
+  material   MaterialCatalogItem @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  quantity   Float
+  status     String              @default("ACTIVE")
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([projectId, materialId])
+  @@index([materialId, status])
+  @@index([projectId, status])
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  supplier    String
+  status      String              @default("DRAFT")
+  expectedAt  DateTime?
+  notes       String?
+  createdById String?
+  createdBy   User?               @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items       PurchaseOrderItem[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status, expectedAt])
+  @@index([supplier, createdAt])
+}
+
+model PurchaseOrderItem {
+  id               String              @id @default(cuid())
+  orderId          String
+  order            PurchaseOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         MaterialCatalogItem @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  projectId        String?
+  project          Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  quantity         Float
+  receivedQuantity Float               @default(0)
+  unitCost         Decimal             @default(0) @db.Decimal(14, 2)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([orderId])
+  @@index([materialId])
+  @@index([projectId])
+}
+
+model SalesCommission {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  percent     Float
+  amount      Decimal   @db.Decimal(14, 2)
+  status      String    @default("PENDING")
+  availableAt DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId, status])
+  @@index([status, availableAt])
+}
+
+model PrivacyRequest {
+  id          String    @id @default(cuid())
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?     @relation("PrivacyRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  type        String
+  status      String    @default("OPEN")
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId, status])
+  @@index([status, createdAt])
 }
 
 model QuoteApprovalRequest {

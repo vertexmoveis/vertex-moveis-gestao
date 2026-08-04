@@ -29,3 +29,13 @@ test('marca atenção quando a semana alcança oitenta por cento da capacidade',
   assert.equal(week.usagePercent, 80)
   assert.equal(week.state, 'ATTENTION')
 })
+
+test('considera o peso de cada projeto na capacidade semanal', () => {
+  const [week] = getProductionCapacityWeeks([
+    { deadline: '2026-08-03', weight: 2.5 },
+    { deadline: '2026-08-05', weight: 1.75 },
+  ], 4, new Date('2026-08-03T12:00:00-03:00'), 1)
+
+  assert.equal(week.scheduled, 4.25)
+  assert.equal(week.state, 'OVERLOADED')
+})

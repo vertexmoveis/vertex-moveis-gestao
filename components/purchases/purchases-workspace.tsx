@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Boxes, ShoppingCart } from 'lucide-react'
+import { Boxes, ClipboardList, ShoppingCart } from 'lucide-react'
 import { InventoryBoard } from './inventory-board'
 import { PurchasesBoard, type PurchaseMaterial } from './purchases-board'
+import { PurchaseOrdersPanel } from './purchase-orders-panel'
 
 export function PurchasesWorkspace({
   initialMaterials,
@@ -12,7 +13,7 @@ export function PurchasesWorkspace({
   initialMaterials: PurchaseMaterial[]
   limited: boolean
 }) {
-  const [tab, setTab] = useState<'purchases' | 'inventory'>('purchases')
+  const [tab, setTab] = useState<'purchases' | 'orders' | 'inventory'>('purchases')
 
   return (
     <div className="space-y-5">
@@ -30,6 +31,16 @@ export function PurchasesWorkspace({
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'orders'}
+          onClick={() => setTab('orders')}
+          className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-xs font-semibold transition-colors ${tab === 'orders' ? 'bg-[#121212] text-white' : 'text-[#555] hover:bg-[#F5F5F5]'}`}
+        >
+          <ClipboardList size={14} />
+          Pedidos
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'inventory'}
           onClick={() => setTab('inventory')}
           className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-xs font-semibold transition-colors ${tab === 'inventory' ? 'bg-[#121212] text-white' : 'text-[#555] hover:bg-[#F5F5F5]'}`}
@@ -40,9 +51,9 @@ export function PurchasesWorkspace({
       </div>
 
       <div role="tabpanel">
-        {tab === 'purchases'
-          ? <PurchasesBoard initialMaterials={initialMaterials} limited={limited} />
-          : <InventoryBoard />}
+        {tab === 'purchases' ? <PurchasesBoard initialMaterials={initialMaterials} limited={limited} /> : null}
+        {tab === 'orders' ? <PurchaseOrdersPanel materials={initialMaterials} /> : null}
+        {tab === 'inventory' ? <InventoryBoard /> : null}
       </div>
     </div>
   )

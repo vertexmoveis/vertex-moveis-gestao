@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES, INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 import { PRODUCTION_STAGE_STATUS } from '@/types'
+import { DELIVERY_CHECKS } from '@/lib/operational-toolkit'
 
 const scheduleSchema = z.object({
   projectId: z.string().trim().min(1),
@@ -14,6 +15,7 @@ const scheduleSchema = z.object({
   notes: z.string().trim().max(800).nullable().optional(),
   clientConfirmation: z.string().trim().max(120).nullable().optional(),
   completionNotes: z.string().trim().max(1200).nullable().optional(),
+  deliveryChecklist: z.array(z.enum(DELIVERY_CHECKS.map((item) => item.key) as [typeof DELIVERY_CHECKS[number]['key'], ...typeof DELIVERY_CHECKS[number]['key'][]])).optional(),
   status: z.enum(INSTALLATION_SCHEDULE_STATUSES).default('SCHEDULED'),
 }).strict()
 
@@ -80,6 +82,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Dados inválidos')
 
   const { id } = await params
+  if (parsed.data.status === 'COMPLETED') {
+    const completedKeys = new Set(parsed.data.deliveryChecklist || [])
+    if (!parsed.data.clientConfirmation?.trim() || DELIVERY_CHECKS.some((item) => !completedKeys.has(item.key))) {
+      return badRequest('Conclua a conferência da entrega e informe quem recebeu.')
+    }
+  }
   const existing = await prisma.installationSchedule.findFirst({
     where: { id, project: { archivedAt: null } },
     include: { project: { select: { managerId: true } } },
@@ -150,10 +158,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ? null
       : existing.completedAt
   const schedule = await prisma.$transaction(async (tx) => {
+    const scheduleData = { ...parsed.data }
+    delete scheduleData.deliveryChecklist
     const updated = await tx.installationSchedule.update({
       where: { id },
       data: {
-        ...parsed.data,
+        ...scheduleData,
         scheduledStart,
         scheduledEnd,
         departureAt: parsed.data.status === 'ON_ROUTE' ? existing.departureAt || now : existing.departureAt,
@@ -187,6 +197,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             actualEndDate: targetProject.actualEndDate || completedAt,
             postSaleFollowUpAt: targetProject.postSaleFollowUpAt || addCalendarDays(completedAt, 30),
             warrantyEndsAt: targetProject.warrantyEndsAt || addCalendarYear(completedAt),
+          },
+        })
+        await tx.projectDeliveryProof.upsert({
+          where: { installationScheduleId: updated.id },
+          create: {
+            projectId: targetProject.id,
+            installationScheduleId: updated.id,
+            createdById: auth.user.id,
+            confirmedBy: updated.clientConfirmation || '',
+            checklist: Object.fromEntries(DELIVERY_CHECKS.map((item) => [item.key, parsed.data.deliveryChecklist?.includes(item.key) || false])),
+            notes: updated.completionNotes,
+            deliveredAt: completedAt,
+          },
+          update: {
+            confirmedBy: updated.clientConfirmation || '',
+            checklist: Object.fromEntries(DELIVERY_CHECKS.map((item) => [item.key, parsed.data.deliveryChecklist?.includes(item.key) || false])),
+            notes: updated.completionNotes,
+            deliveredAt: completedAt,
           },
         })
       }

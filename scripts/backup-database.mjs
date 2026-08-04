@@ -16,12 +16,21 @@ const tableOrder = [
   'User',
   'LoginEvent',
   'Client',
+  'PrivacyRequest',
   'CompanyProfile',
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'QuotePriceRule',
   'OperationalResource',
+  'PurchaseOrder',
   'Project',
+  'ProjectCutPiece',
+  'ProjectTimeEntry',
+  'ProjectQualityCheck',
+  'ProjectChangeOrder',
+  'InventoryReservation',
+  'SalesCommission',
+  'PurchaseOrderItem',
   'ProjectPortalAccess',
   'ProjectContract',
   'WarrantyTicket',
@@ -34,6 +43,7 @@ const tableOrder = [
   'ProjectMaterial',
   'ProjectExpense',
   'InstallationSchedule',
+  'ProjectDeliveryProof',
   'ProjectEnvironment',
   'ProjectPayment',
   'PaymentHistory',
@@ -332,7 +342,7 @@ async function createBackup() {
 
 createBackup()
   .then((result) => {
-    process.stdout.write(`${JSON.stringify(result)}\n`)
+    process.stdout.write(`${JSON.stringify(result)}\n`, () => process.exit(0))
   })
   .catch(async (error) => {
     try {
@@ -345,6 +355,5 @@ createBackup()
     } catch {
       // A mensagem original continua sendo a fonte principal da falha.
     }
-    process.stderr.write(`${error instanceof Error ? error.message : 'Nao foi possivel criar o backup PostgreSQL.'}\n`)
-    process.exitCode = 1
+    process.stderr.write(`${error instanceof Error ? error.message : 'Nao foi possivel criar o backup PostgreSQL.'}\n`, () => process.exit(1))
   })

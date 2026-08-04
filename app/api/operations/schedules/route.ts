@@ -36,7 +36,7 @@ function serializeSchedule(schedule: {
   completedAt: Date | null
   clientConfirmation: string | null
   completionNotes: string | null
-  project: { id: string; name: string; client: { name: string } }
+  project: { id: string; name: string; client: { name: string; address: string | null; latitude: number | null; longitude: number | null } }
   team: { id: string; name: string } | null
   vehicle: { id: string; name: string } | null
 }) {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     prisma.installationSchedule.findMany({
       where: { scheduledStart: { gte: from, lt: to }, project: projectWhere },
       include: {
-        project: { select: { id: true, name: true, client: { select: { name: true } } } },
+        project: { select: { id: true, name: true, client: { select: { name: true, address: true, latitude: true, longitude: true } } } },
         team: { select: { id: true, name: true } },
         vehicle: { select: { id: true, name: true } },
       },
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
         status: 'SCHEDULED',
       },
       include: {
-        project: { select: { id: true, name: true, client: { select: { name: true } } } },
+        project: { select: { id: true, name: true, client: { select: { name: true, address: true, latitude: true, longitude: true } } } },
         team: { select: { id: true, name: true } },
         vehicle: { select: { id: true, name: true } },
       },

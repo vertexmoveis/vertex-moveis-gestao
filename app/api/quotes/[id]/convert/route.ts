@@ -7,6 +7,7 @@ import { dateOnlyKey, dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-on
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { normalizeEnvironmentNames } from '@/lib/project-environments'
 import { buildProjectMaterialsFromQuoteItems } from '@/lib/project-materials'
+import { calculateProductionWeight } from '@/lib/operational-toolkit'
 import { numberValue } from '@/lib/money'
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           estimatedEndDate: productionDates.deliveryDeadlineDate,
           value: quoteTotal,
           productionCost: quoteCostTotal,
+          productionWeight: calculateProductionWeight(environmentNames.length, quote.items),
           paymentMethod: quote.paymentMethod,
           paymentDiscount: quote.paymentDiscount,
           cardFeePercent: quote.cardFeePercent,

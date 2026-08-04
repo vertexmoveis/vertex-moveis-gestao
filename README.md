@@ -62,6 +62,7 @@ O painel principal apresenta uma visão rápida da operação:
 - Carregamento progressivo dos endereços ainda não localizados, preservando imediatamente os pontos já conhecidos.
 - Distância aproximada em linha reta entre a Vertex e cada cliente.
 - Link para abrir a rota completa no Google Maps.
+- Exportação dos dados vinculados ao cliente e registro de solicitações de correção, anonimização ou exclusão.
 
 O endereço e o CPF ou CNPJ ajudam a completar os documentos, mas não impedem o envio da proposta.
 
@@ -179,6 +180,11 @@ Um orçamento vendido pode ser convertido em projeto sem digitar novamente os da
 - Chamados de garantia com prioridade, agendamento, andamento e solução registrada.
 - Bloqueio de produção com motivo obrigatório e prazo por etapa.
 - Lixeira para recuperar projetos apagados por engano.
+- Centro operacional com apontamento de horas por etapa e peso real na capacidade semanal.
+- Plano de corte com estimativa de chapas, peças, medidas, veio e etiquetas em PDF com QR Code.
+- Conferência de qualidade antes da entrega e registro de alterações solicitadas pelo cliente.
+- Reserva de materiais do estoque por projeto e comissão liberada após o primeiro recebimento.
+- Comprovante de entrega com checklist e identificação de quem recebeu.
 
 #### Prazo operacional
 
@@ -222,7 +228,7 @@ Os cartões podem ser arrastados entre as colunas. A navegação horizontal perm
 
 Projetos bloqueados exibem o motivo diretamente no cartão. Também é possível definir um prazo para a etapa atual, facilitando a cobrança antes do atraso da entrega final.
 
-O painel de capacidade compara as entregas previstas nas próximas quatro semanas com o limite semanal configurado pela marcenaria. Semanas próximas do limite ficam em atenção e semanas acima da capacidade são destacadas antes que o prazo fique comprometido.
+O painel de capacidade compara as entregas previstas nas próximas quatro semanas com o limite semanal configurado pela marcenaria. Cada projeto utiliza pontos conforme quantidade de ambientes, móveis e dificuldade. Semanas próximas do limite ficam em atenção e semanas acima da capacidade são destacadas antes que o prazo fique comprometido.
 
 ### Calendário e instalações
 
@@ -238,6 +244,9 @@ O painel de capacidade compara as entregas previstas nas próximas quatro semana
 - Registro de saída, chegada, conclusão e observações da instalação.
 - Tela **Instalação** otimizada para celular, com agenda dos próximos 30 dias, rota, WhatsApp e acesso direto às fotos do projeto.
 - Avanço operacional por botões grandes: confirmar, iniciar rota, informar chegada e finalizar.
+- Rota do dia com os endereços ordenados e abertura direta no Google Maps.
+- Cópia local da agenda já aberta para consulta quando o sinal de internet cair.
+- Checklist obrigatório e confirmação do cliente antes de concluir a instalação.
 - Finalização com confirmação explícita e nome do cliente ou responsável que conferiu a entrega.
 
 ### Financeiro
@@ -279,6 +288,9 @@ Parcelas recebidas nunca são apagadas automaticamente. Ao editar o projeto, o C
 - Alerta de reposição quando o saldo chega ao mínimo.
 - Histórico de cotações por fornecedor, data e custo.
 - Opção de transformar a cotação mais recente no custo padrão dos próximos orçamentos.
+- Reserva de estoque por projeto, com saldo total, reservado e disponível separados.
+- Pedidos de compra agrupados por fornecedor, previsão de entrega e materiais vinculados aos projetos.
+- Recebimento do pedido atualiza o estoque e o custo real dos projetos relacionados.
 
 ### Fotos e arquivos
 
