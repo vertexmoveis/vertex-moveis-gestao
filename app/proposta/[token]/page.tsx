@@ -180,6 +180,21 @@ export default async function PublicQuoteApprovalPage({
     return <UnavailableProposal message="Este orçamento expirou. Solicite um novo link à Vertex Móveis." />
   }
 
+  const viewedQuoteIds = request.options.length > 0
+    ? request.options.map((option) => option.quoteId)
+    : [request.quoteId, request.comparisonQuoteId].filter((quoteId): quoteId is string => Boolean(quoteId))
+  const viewedAt = new Date()
+  await prisma.$transaction([
+    prisma.quoteApprovalRequest.update({
+      where: { id: request.id },
+      data: { viewedAt, viewCount: { increment: 1 } },
+    }),
+    prisma.quote.updateMany({
+      where: { id: { in: viewedQuoteIds } },
+      data: { viewedAt, viewCount: { increment: 1 } },
+    }),
+  ])
+
   const optionQuotes = request.options.map((option) => option.quote)
   const fallbackSnapshot = optionQuotes.length > 1
     ? buildQuoteApprovalOptionsSnapshot(optionQuotes)
@@ -199,12 +214,15 @@ export default async function PublicQuoteApprovalPage({
     selectedQuote ? quoteVariationDisplayName(selectedQuote) : undefined,
   )
   const clientName = quotes[0].client.name
+  const lowestTotal = Math.min(...quotes.map((quote) => quote.total))
   const approvalOptions: PublicApprovalOption[] = comparison
-    ? quotes.map((quote) => ({
+    ? quotes.map((quote, index) => ({
         id: quote.id,
         title: quoteVariationDisplayName(quote),
         totalLabel: formatCurrency(quote.total),
         paymentLabel: getQuotePaymentSummary(quote),
+        badge: index === 0 ? 'Opção principal' : quote.total === lowestTotal ? 'Menor investimento' : undefined,
+        differenceLabel: quote.total > lowestTotal ? `${formatCurrency(quote.total - lowestTotal)} acima da opção de menor valor` : undefined,
       }))
     : []
 

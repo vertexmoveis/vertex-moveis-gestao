@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { QuoteForm, type QuotePayload } from '@/components/quotes/quote-form'
+import { QuoteEnvironmentImages } from '@/components/quotes/quote-environment-images'
 import {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_DIFFICULTY_LABELS,
@@ -697,6 +698,16 @@ export default function QuoteDetailPage() {
                     </p>
                   </div>
                 ) : null}
+                {quote.activeApprovalRequest ? (
+                  <div className={`rounded-lg border px-3 py-2 text-xs ${quote.activeApprovalRequest.viewedAt ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-[#E4E4E4] bg-[#FAFAFA] text-[#666]'}`}>
+                    <p className="font-semibold">{quote.activeApprovalRequest.viewedAt ? 'Cliente visualizou o orçamento' : 'Aguardando primeira visualização'}</p>
+                    <p className="mt-1">
+                      {quote.activeApprovalRequest.viewedAt
+                        ? `${quote.activeApprovalRequest.viewCount || 1} ${(quote.activeApprovalRequest.viewCount || 1) === 1 ? 'abertura' : 'aberturas'} · última em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(quote.activeApprovalRequest.viewedAt))}`
+                        : 'O link foi enviado, mas ainda não foi aberto.'}
+                    </p>
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   className="w-full justify-start"
@@ -815,6 +826,25 @@ export default function QuoteDetailPage() {
                 )})}
               </div>
             </div>
+
+            <QuoteEnvironmentImages
+              quoteId={quote.id}
+              groupId={quote.groupId}
+              environments={quote.items.map((item) => item.environmentName || item.environment)}
+              images={quote.environmentImages || []}
+              disabled={quoteLocked}
+              onChange={(environmentImages) => setQuote((current) => {
+                if (!current) return current
+                const approvalWasInvalidated = ['SENT', 'WAITING_APPROVAL', 'APPROVED'].includes(current.status)
+                return {
+                  ...current,
+                  environmentImages,
+                  status: approvalWasInvalidated ? 'DRAFT' : current.status,
+                  approvalRecord: approvalWasInvalidated ? null : current.approvalRecord,
+                  activeApprovalRequest: approvalWasInvalidated ? undefined : current.activeApprovalRequest,
+                }
+              })}
+            />
 
             {(quote.customerNotes || quote.notes) && (
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

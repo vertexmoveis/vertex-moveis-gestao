@@ -221,6 +221,30 @@ const styles = StyleSheet.create({
     padding: 7,
     lineHeight: 1.45,
   },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    padding: 8,
+  },
+  imageCard: {
+    width: '48.5%',
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 4,
+  },
+  environmentImage: {
+    width: '100%',
+    height: 128,
+    objectFit: 'cover',
+  },
+  imageCaption: {
+    marginTop: 4,
+    fontSize: 7,
+  },
   signatures: {
     marginTop: 15,
     flexDirection: 'row',
@@ -303,10 +327,12 @@ function SimpleQuotePdf({
   quote,
   company,
   logoUrl,
+  environmentImages = [],
 }: {
   quote: QuoteApprovalData
   company: CompanyProfileData
   logoUrl?: string
+  environmentImages?: Array<{ environmentName: string; caption?: string | null; src: string }>
 }) {
   const payment = getQuotePaymentDetails(quote)
   const companyAddress = formatCompanyAddress(company)
@@ -401,6 +427,21 @@ function SimpleQuotePdf({
           <Text style={[styles.cell, styles.clientLabel]}>Telefone</Text>
           <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.whatsapp || quote.client.phone)}</Text>
         </View>
+
+        {environmentImages.length ? (
+          <>
+            <Text style={styles.sectionTitle}>Referências dos ambientes</Text>
+            <View style={styles.imageGrid}>
+              {environmentImages.slice(0, 6).map((image, index) => (
+                <View key={`${image.environmentName}-${index}`} style={styles.imageCard} wrap={false}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image src={image.src} style={styles.environmentImage} />
+                  <Text style={styles.imageCaption}>{image.environmentName}{image.caption ? ` | ${image.caption}` : ''}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Serviços e móveis</Text>
         <View style={styles.itemHeader}>
@@ -510,6 +551,7 @@ export async function renderSimpleQuotePdf(input: {
   quote: QuoteApprovalData
   company: CompanyProfileData
   logoUrl?: string
+  environmentImages?: Array<{ environmentName: string; caption?: string | null; src: string }>
 }) {
   return renderToBuffer(<SimpleQuotePdf {...input} />)
 }

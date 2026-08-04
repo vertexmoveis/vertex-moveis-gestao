@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') || '').trim().slice(0, 120)
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   let body: unknown
   try {

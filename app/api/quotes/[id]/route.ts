@@ -36,10 +36,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const access = await canAccessQuote(id, auth.user)
-  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 }) : forbidden()
 
   const [quote, companyProfile] = await Promise.all([
     prisma.quote.findFirst({
@@ -64,13 +64,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         },
         convertedProject: { select: { id: true, name: true } },
+        group: {
+          select: {
+            images: {
+              orderBy: [{ environmentName: 'asc' }, { position: 'asc' }, { createdAt: 'asc' }],
+              select: { id: true, environmentName: true, name: true, caption: true, type: true, size: true, securityStatus: true, securityDetails: true, position: true, createdAt: true },
+            },
+          },
+        },
       },
     }),
     prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
   ])
 
-  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const { approvalRequests, ...quoteWithoutApprovalRequests } = quote
+  if (!quote) return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
+  const { approvalRequests, group, ...quoteWithoutApprovalRequests } = quote
   const candidateAccess = auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }
   const [comparisonCandidates, groupVariants, activeApprovalRequest] = await Promise.all([
     prisma.quote.findMany({
@@ -129,6 +137,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         quoteId: true,
         comparisonQuoteId: true,
         sentAt: true,
+        viewedAt: true,
+        viewCount: true,
         options: { orderBy: { position: 'asc' }, select: { quoteId: true } },
       },
     }),
@@ -136,6 +146,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     ...serializeQuote(quoteWithoutApprovalRequests),
+    environmentImages: group.images.map((image) => ({ ...image, createdAt: image.createdAt.toISOString() })),
     readiness: evaluateQuoteReadiness({
       ...quote,
       company: withCompanyProfileDefaults(companyProfile),
@@ -166,6 +177,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             : [activeApprovalRequest.quoteId, activeApprovalRequest.comparisonQuoteId].filter((quoteId): quoteId is string => Boolean(quoteId)),
           options: undefined,
           sentAt: activeApprovalRequest.sentAt.toISOString(),
+          viewedAt: activeApprovalRequest.viewedAt?.toISOString() || null,
         }
       : null,
     revisions: quote.revisions.map((revision) => ({
@@ -186,10 +198,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const access = await canAccessQuote(id, auth.user)
-  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 }) : forbidden()
 
   let body: unknown
   try {
@@ -467,7 +479,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ ...serializeQuote(result.quote), approvalReset: result.approvalReset })
   } catch (error) {
     if (error instanceof Error && error.message === 'Not found') {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
     }
     if (error instanceof Error && error.message === 'Quote locked') {
       return badRequest('Este orçamento já foi vendido e não pode mais ser alterado.')
@@ -495,10 +507,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const access = await canAccessQuote(id, auth.user)
-  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 }) : forbidden()
 
   const currentQuote = await prisma.quote.findFirst({
     where: { id, archivedAt: null },
@@ -554,10 +566,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const access = await canAccessQuote(id, auth.user)
-  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Not found' }, { status: 404 }) : forbidden()
+  if (!access.ok) return access.status === 404 ? NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 }) : forbidden()
 
   const currentQuote = await prisma.quote.findFirst({
     where: { id, archivedAt: null },

@@ -21,6 +21,7 @@ type FurniturePickerProps = {
   furnitureModel: string
   recentSelections?: RecentFurnitureSelection[]
   onSelect: (selection: { type: string; model: string }) => void
+  compact?: boolean
 }
 
 type VisibleFurnitureOption = QuoteFurnitureOption & { groupLabel: string }
@@ -31,6 +32,7 @@ export function FurniturePicker({
   furnitureModel,
   recentSelections = [],
   onSelect,
+  compact = false,
 }: FurniturePickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -117,7 +119,7 @@ export function FurniturePicker({
 
   return (
     <div ref={containerRef} className="relative flex min-w-0 flex-col gap-1.5">
-      <label className="text-sm font-medium text-[#121212]">Móvel de marcenaria</label>
+      {!compact ? <label className="text-sm font-medium text-[#121212]">Móvel de marcenaria</label> : null}
       <button
         type="button"
         aria-haspopup="listbox"

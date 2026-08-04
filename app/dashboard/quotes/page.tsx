@@ -315,6 +315,7 @@ export default function QuotesPage() {
                         <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', QUOTE_STATUS_BG[quote.status as QuoteStatus])}>
                           {QUOTE_STATUS_LABELS[quote.status as QuoteStatus]}
                         </span>
+                        {quote.viewedAt ? <p className="mt-1 text-[10px] font-medium text-blue-700">Visualizado {quote.viewCount || 1}x</p> : ['SENT', 'WAITING_APPROVAL'].includes(quote.status) ? <p className="mt-1 text-[10px] text-[#999]">Ainda não visualizado</p> : null}
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-xs font-semibold text-[#555]">{variants.length} {variants.length === 1 ? 'opção' : 'opções'}</p>

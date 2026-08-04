@@ -8,6 +8,7 @@ import {
   Layers3,
   Plus,
   RotateCcw,
+  Rows3,
   SlidersHorizontal,
   Trash2,
 } from 'lucide-react'
@@ -18,6 +19,8 @@ import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import { FurniturePicker, type RecentFurnitureSelection } from '@/components/quotes/furniture-picker'
 import { QuoteFormSummary } from '@/components/quotes/quote-form-summary'
 import { QuotePaymentSection } from '@/components/quotes/quote-payment-section'
+import { QuoteQuickEntry } from '@/components/quotes/quote-quick-entry'
+import { evaluateQuoteFinancialHealth } from '@/lib/quote-financial-health'
 import {
   DEFAULT_QUOTE_INTERNAL_FINISH,
   DEFAULT_QUOTE_MATERIAL,
@@ -389,6 +392,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const [recoverableDraft, setRecoverableDraft] = useState<SavedQuoteDraft | null>(null)
   const [draftReady, setDraftReady] = useState(false)
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
+  const [entryMode, setEntryMode] = useState<'QUICK' | 'DETAILED'>('DETAILED')
+  const [financialRiskConfirmed, setFinancialRiskConfirmed] = useState(false)
   const draftStorageKey = `vertex:quote-draft:${initialData?.id || 'new'}`
   const clientOptions = [...clients]
   if (initialData?.client && !clientOptions.some((client) => client.id === initialData.client?.id)) {
@@ -548,6 +553,16 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
     variations,
   ])
   const displayedTotals = initialData ? calculated : variationPreviews[0]?.totals || calculated
+  const fallbackPricedItems = items.filter((item) => (
+    getQuoteAutomaticPricing(item, DEFAULT_QUOTE_PRICING.pricePerM2, priceRules).label === 'Preço padrão'
+  )).length
+  const financialHealth = useMemo(() => evaluateQuoteFinancialHealth({
+    subtotal: displayedTotals.subtotal,
+    total: displayedTotals.total,
+    costTotal: displayedTotals.costTotal,
+    manualDiscount: parseNumber(discount),
+    fallbackPricedItems,
+  }), [discount, displayedTotals.costTotal, displayedTotals.subtotal, displayedTotals.total, fallbackPricedItems])
 
   const updateSingleVariationType = (type: QuoteVariationType) => {
     const previous = variations[0]
@@ -709,6 +724,24 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       type: selection.type,
       model: selection.model,
     })
+  }
+
+  const updateQuickEnvironment = (index: number, environment: string) => {
+    setItems((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item
+      const furnitureGroup = getQuoteFurnitureGroups(environment)[0]
+      const suggested = getSuggestedCalculation(environment, furnitureGroup.type, furnitureGroup.models[0], item.priceProfile, priceRules)
+      return {
+        ...item,
+        environment,
+        environmentName: item.environmentName === item.environment ? environment : item.environmentName,
+        furnitureType: furnitureGroup.type,
+        furnitureModel: furnitureGroup.models[0],
+        customFurniture: '',
+        accessories: [],
+        ...suggested,
+      }
+    }))
   }
 
   const updateItemPriceProfile = (index: number, priceProfile: QuotePriceProfile) => {
@@ -999,6 +1032,10 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       setError('Informe o preço por metro ou por unidade nos móveis que não usam o cálculo automático por m².')
       return
     }
+    if (financialHealth.requiresConfirmation && !financialRiskConfirmed) {
+      setError('Confira os alertas financeiros e confirme que deseja salvar este orçamento.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -1167,6 +1204,26 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
         <Input label="Desconto comercial" inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} />
       </div>
 
+      {financialHealth.warnings.length ? (
+        <div className={`border-l-4 px-4 py-3 ${financialHealth.requiresConfirmation ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50'}`}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className={`mt-0.5 shrink-0 ${financialHealth.requiresConfirmation ? 'text-red-600' : 'text-amber-700'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#121212]">Proteção de preço e lucro</p>
+              <ul className="mt-1 space-y-1 text-xs text-[#555]">
+                {financialHealth.warnings.map((warning) => <li key={warning.key}>• {warning.message}</li>)}
+              </ul>
+              {financialHealth.requiresConfirmation ? (
+                <label className="mt-3 flex items-start gap-2 text-xs font-medium text-red-800">
+                  <input type="checkbox" checked={financialRiskConfirmed} onChange={(event) => setFinancialRiskConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
+                  <span>Conferi os custos e autorizo salvar este orçamento mesmo com estes alertas.</span>
+                </label>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <QuotePaymentSection
         paymentMethod={paymentMethod}
         cardDownPayment={cardDownPayment}
@@ -1192,7 +1249,12 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
               {missingItemCount > 0 ? ` · ${missingItemCount} sem medidas completas` : ''}
             </p>
           </div>
-          <div className="grid grid-cols-[minmax(180px,1fr)_auto] gap-2 lg:w-[420px]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex h-9 rounded-lg border border-[#D9D9D9] bg-white p-1" aria-label="Modo de preenchimento">
+              <button type="button" onClick={() => setEntryMode('DETAILED')} className={`flex items-center gap-1.5 rounded-md px-3 text-xs font-semibold ${entryMode === 'DETAILED' ? 'bg-[#121212] text-white' : 'text-[#666]'}`}><SlidersHorizontal size={13} /> Completo</button>
+              <button type="button" onClick={() => setEntryMode('QUICK')} className={`flex items-center gap-1.5 rounded-md px-3 text-xs font-semibold ${entryMode === 'QUICK' ? 'bg-[#121212] text-white' : 'text-[#666]'}`}><Rows3 size={13} /> Rápido</button>
+            </div>
+            <div className="grid grid-cols-[minmax(180px,1fr)_auto] gap-2 lg:w-[420px]">
             <Select
               value={newEnvironmentType}
               onChange={(event) => setNewEnvironmentType(event.target.value)}
@@ -1203,10 +1265,25 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
               <Plus size={14} />
               Ambiente
             </Button>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        {entryMode === 'QUICK' ? (
+          <QuoteQuickEntry
+            items={items}
+            totals={calculated.items.map((item) => item.total)}
+            environments={QUOTE_ENVIRONMENT_OPTIONS}
+            recentSelections={recentSelections}
+            onEnvironmentChange={updateQuickEnvironment}
+            onEnvironmentNameChange={(index, value) => updateItem(index, 'environmentName', value)}
+            onFurnitureSelect={updateFurnitureSelection}
+            onFieldChange={(index, field, value) => updateItem(index, field, value as never)}
+            onDuplicate={duplicateItem}
+            onRemove={removeItem}
+            onAdd={() => addItemToEnvironment(environmentGroups[environmentGroups.length - 1]?.key || environmentGroups[0].key)}
+          />
+        ) : <div className="space-y-4">
           {environmentGroups.map((environmentGroup) => {
             const groupItems = environmentGroup.indexes.map((index) => items[index])
             const materialsInGroup = [...new Set(groupItems.map((item) => item.material))]
@@ -1433,7 +1510,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
               </article>
             )
           })}
-        </div>
+        </div>}
       </section>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

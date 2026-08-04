@@ -25,6 +25,7 @@ const BACKUP_TABLES = [
   'ProjectContract',
   'WarrantyTicket',
   'QuoteGroup',
+  'QuoteEnvironmentImage',
   'Quote',
   'QuoteItem',
   'QuoteRevision',

@@ -8,6 +8,8 @@ export type PublicApprovalOption = {
   title: string
   totalLabel: string
   paymentLabel: string
+  badge?: string
+  differenceLabel?: string
 }
 
 export function PublicApprovalActions({
@@ -120,7 +122,9 @@ export function PublicApprovalActions({
                   />
                   <span className="min-w-0">
                     <strong className="block text-sm text-[#121212]">{option.title}</strong>
+                    {option.badge ? <span className="mt-1 inline-flex rounded-full bg-[#121212] px-2 py-0.5 text-[10px] font-bold uppercase text-white">{option.badge}</span> : null}
                     <span className="mt-1 block text-sm font-bold text-[#FF6B00]">{option.totalLabel}</span>
+                    {option.differenceLabel ? <span className="mt-0.5 block text-[11px] font-medium text-[#555]">{option.differenceLabel}</span> : null}
                     <span className="mt-0.5 block text-xs leading-5 text-[#666]">{option.paymentLabel}</span>
                   </span>
                 </label>

@@ -35,6 +35,7 @@ const tableOrder = [
   'ProjectContract',
   'WarrantyTicket',
   'QuoteGroup',
+  'QuoteEnvironmentImage',
   'Quote',
   'QuoteItem',
   'QuoteRevision',

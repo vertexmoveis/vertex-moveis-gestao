@@ -18,6 +18,7 @@ import {
 } from '@/lib/quote-simple-pdf'
 import { forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
+import { readQuoteImageDataUrl } from '@/lib/quote-images'
 import {
   buildQuoteWhatsAppMessage,
   QUOTE_CALCULATION_MODE_LABELS,
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     throw error
   })
   if (!limited) return serviceUnavailable()
-  if (!limited.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!limited.allowed) return NextResponse.json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' }, { status: 429 })
 
   const [quote, storedCompanyProfile] = await Promise.all([
     prisma.quote.findFirst({
@@ -74,12 +75,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         client: true,
         createdBy: { select: { name: true, email: true } },
         items: { orderBy: { position: 'asc' } },
+        group: {
+          select: {
+            images: {
+              where: { securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] } },
+              orderBy: [{ environmentName: 'asc' }, { position: 'asc' }],
+              take: 6,
+            },
+          },
+        },
       },
     }),
     prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
   ])
 
-  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!quote) return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
 
   const grouped = quote.items.reduce<Record<string, typeof quote.items>>((acc, item) => {
@@ -109,6 +119,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .catch(() => new URL('/vertex-symbol.png', req.url).toString())
   const simpleHref = new URL(`/api/quotes/${quote.id}/proposal?modelo=simples`, req.url).toString()
   const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
+  const environmentImages = (await Promise.all(quote.group.images.map(async (image) => {
+    const src = await readQuoteImageDataUrl(image.url).catch(() => null)
+    return src ? { environmentName: image.environmentName, caption: image.caption, src } : null
+  }))).filter((image): image is { environmentName: string; caption: string | null; src: string } => Boolean(image))
 
   if (req.nextUrl.searchParams.get('modelo') === 'simples') {
     const snapshot = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(quote))
@@ -119,6 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       quote: snapshot.quote,
       company,
       logoUrl,
+      environmentImages,
     })
 
     return new NextResponse(new Uint8Array(pdf), {
@@ -138,7 +153,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Proposta ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)} - ${escapeHtml(quote.variationName)}</title>
-  <style>
+  <style nonce="${escapeHtml(nonce)}">
     :root { --ink: #151515; --muted: #6b6b6b; --line: #e7e7e7; --soft: #f7f7f5; --orange: #ff6500; --orange-soft: #fff3e9; }
     * { box-sizing: border-box; }
     html { background: #e9e9e7; }
@@ -450,6 +465,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self' data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'`,
     },
   })
 }

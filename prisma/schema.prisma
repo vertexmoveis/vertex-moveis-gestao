@@ -228,6 +228,8 @@ model Quote {
   approvedAt                 DateTime?
   soldAt                     DateTime?
   lostAt                     DateTime?
+  viewedAt                   DateTime?
+  viewCount                  Int                    @default(0)
   archivedAt                 DateTime?
   createdAt                  DateTime               @default(now())
   updatedAt                  DateTime               @updatedAt
@@ -259,10 +261,31 @@ model QuoteGroup {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   quotes      Quote[]
+  images      QuoteEnvironmentImage[]
 
   @@index([clientId])
   @@index([createdById])
   @@index([updatedAt])
+}
+
+model QuoteEnvironmentImage {
+  id              String     @id @default(cuid())
+  groupId         String
+  group           QuoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  environmentName String
+  name            String
+  caption         String?
+  type            String
+  url             String     @unique
+  size            Int?
+  securityStatus  String     @default("PENDING")
+  securityDetails String?
+  securityCheckedAt DateTime?
+  position        Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([groupId, environmentName, position])
 }
 
 model CompanyProfile {
@@ -676,6 +699,8 @@ model QuoteApprovalRequest {
   selectedQuote             Quote?                @relation("QuoteApprovalSelected", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
   token                     String                @unique
   sentAt                    DateTime              @default(now())
+  viewedAt                  DateTime?
+  viewCount                 Int                   @default(0)
   reminderCount             Int                   @default(0)
   lastReminderAt            DateTime?
   approvedAt                DateTime?

@@ -60,6 +60,8 @@ export type QuoteData = {
   customerNotes?: string | null
   createdAt: string
   updatedAt: string
+  viewedAt?: string | null
+  viewCount?: number
   client: {
     id: string
     name: string
@@ -76,6 +78,18 @@ export type QuoteData = {
     zipCode?: string | null
   } | null
   items: QuoteItemData[]
+  environmentImages?: Array<{
+    id: string
+    environmentName: string
+    name: string
+    caption: string | null
+    type: string
+    size: number | null
+    securityStatus: string
+    securityDetails: string | null
+    position: number
+    createdAt: string
+  }>
   convertedProject?: {
     id: string
     name: string
@@ -133,5 +147,7 @@ export type QuoteData = {
     comparisonQuoteId: string | null
     quoteIds?: string[]
     sentAt: string
+    viewedAt?: string | null
+    viewCount?: number
   } | null
 }

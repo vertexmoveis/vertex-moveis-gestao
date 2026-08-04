@@ -20,7 +20,7 @@ export async function requireAuth(): Promise<AuthResult> {
   const user = session?.user as Partial<AuthenticatedUser> | undefined
 
   if (!user?.id) {
-    return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    return { ok: false, response: NextResponse.json({ error: 'Sessão expirada. Faça login novamente.' }, { status: 401 }) }
   }
 
   return {
@@ -39,26 +39,26 @@ export async function requireRole(roles: Role[]): Promise<AuthResult> {
   if (!auth.ok) return auth
 
   if (!roles.includes(auth.user.role)) {
-    return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+    return { ok: false, response: NextResponse.json({ error: 'Você não tem permissão para realizar esta ação.' }, { status: 403 }) }
   }
 
   return auth
 }
 
 export function forbidden() {
-  return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return NextResponse.json({ error: 'Você não tem permissão para realizar esta ação.' }, { status: 403 })
 }
 
-export function badRequest(message = 'Invalid payload') {
+export function badRequest(message = 'Confira os dados enviados e tente novamente.') {
   return NextResponse.json({ error: message }, { status: 400 })
 }
 
 export function serverError() {
-  return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  return NextResponse.json({ error: 'Ocorreu um erro interno. Tente novamente em alguns instantes.' }, { status: 500 })
 }
 
 export function serviceUnavailable() {
-  return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+  return NextResponse.json({ error: 'Serviço temporariamente indisponível. Tente novamente em alguns instantes.' }, { status: 503 })
 }
 
 export function getClientIp(req: NextRequest): string {

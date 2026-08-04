@@ -445,6 +445,7 @@ export function serializeQuote(quote: Quote & { items?: QuoteItem[]; client?: { 
     approvedAt: quote.approvedAt?.toISOString() || null,
     soldAt: quote.soldAt?.toISOString() || null,
     lostAt: quote.lostAt?.toISOString() || null,
+    viewedAt: quote.viewedAt?.toISOString() || null,
     createdAt: quote.createdAt.toISOString(),
     updatedAt: quote.updatedAt.toISOString(),
     items: quote.items?.map(serializeQuoteItem) || [],

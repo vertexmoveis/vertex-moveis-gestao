@@ -25,6 +25,7 @@ const tableOrder = [
   'SalesCommission',
   'PurchaseOrderItem',
   'QuoteGroup',
+  'QuoteEnvironmentImage',
   'Quote',
   'QuoteItem',
   'QuoteRevision',
