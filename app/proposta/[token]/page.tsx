@@ -102,20 +102,18 @@ function QuotePdfPreview({
 
   return (
     <section className={optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : ''}>
-      <div className="px-4 py-5 sm:hidden">
+      <div className="border-b border-[#ECE9E5] bg-white px-4 py-5 sm:px-8">
         <a
           href={pdfUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white"
+          aria-label={comparison ? `Abrir orçamento em PDF: ${optionLabel}` : 'Abrir orçamento em PDF'}
+          className="inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-lg bg-[#FF6B00] px-5 py-3 text-center text-base font-bold text-white shadow-sm transition-colors hover:bg-[#E85F00] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#FFB780] sm:text-lg"
         >
-          <FileText size={16} />
-          {comparison ? `Abrir PDF - ${optionLabel}` : 'Abrir orçamento em PDF'}
-          <ExternalLink size={14} />
+          <FileText size={22} className="shrink-0" />
+          <span>{comparison ? `Abrir orçamento em PDF - ${optionLabel}` : 'Abrir orçamento em PDF'}</span>
+          <ExternalLink size={18} className="shrink-0" />
         </a>
-        <p className="mt-3 text-center text-xs leading-5 text-[#777]">
-          O documento abrirá no leitor de PDF do seu celular.
-        </p>
       </div>
 
       <div className="hidden overflow-hidden bg-[#E8E8E8] sm:block">
