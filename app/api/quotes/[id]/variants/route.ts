@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { buildQuoteSnapshot, calculateQuoteTotals, parseQuoteAccessories, serializeQuote } from '@/lib/quotes'
 import { ensureDefaultQuoteSettings, getActiveQuotePriceRules } from '@/lib/quote-price-rules'
 import {
+  MAX_QUOTE_OPTIONS,
   QUOTE_VARIATION_TYPES,
   quoteVariationDefaultName,
   quoteVariationPriceProfile,
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       if (!source) throw new Error('NOT_FOUND')
       if (auth.user.role !== 'ADMIN' && source.createdById !== auth.user.id) throw new Error('FORBIDDEN')
-      if (source.group.quotes.length >= 3) throw new Error('LIMIT')
+      if (source.group.quotes.length >= MAX_QUOTE_OPTIONS) throw new Error('LIMIT')
       if (source.group.quotes.some((quote) => quote.convertedProjectId || ['APPROVED', 'SOLD'].includes(quote.status))) {
         throw new Error('LOCKED')
       }
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
     }
     if (error instanceof Error && error.message === 'FORBIDDEN') return forbidden()
-    if (error instanceof Error && error.message === 'LIMIT') return badRequest('Este orçamento já possui três variações.')
+    if (error instanceof Error && error.message === 'LIMIT') return badRequest(`Este orçamento já possui ${MAX_QUOTE_OPTIONS} opções.`)
     if (error instanceof Error && error.message === 'LOCKED') {
       return badRequest('Não é possível criar uma variação depois da aprovação ou venda.')
     }

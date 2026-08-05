@@ -57,6 +57,7 @@ import type { QuotePriceRule } from '@/lib/quote-price-rules'
 import { getQuotePlacementSuggestions } from '@/lib/quote-placements'
 import {
   DEFAULT_QUOTE_VARIATIONS,
+  MAX_QUOTE_OPTIONS,
   QUOTE_VARIATION_LABELS,
   quoteVariationDefaultName,
   quoteVariationPriceProfile,
@@ -588,7 +589,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       if (exists) {
         return current.length > 1 ? current.filter((variation) => variation.type !== type) : current
       }
-      if (current.length >= 3) return current
+      if (current.length >= MAX_QUOTE_OPTIONS) return current
       return [...current, { type, name: quoteVariationDefaultName(type) }]
     })
   }
@@ -954,8 +955,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       setError('Selecione o cliente do orçamento.')
       return
     }
-    if (!variations.length || variations.length > 3) {
-      setError('Selecione de uma a três variações para o orçamento.')
+    if (!variations.length || variations.length > MAX_QUOTE_OPTIONS) {
+      setError(`Selecione de uma a ${MAX_QUOTE_OPTIONS} variações para o orçamento.`)
       return
     }
     if (variations.some((variation) => !variation.name.trim())) {

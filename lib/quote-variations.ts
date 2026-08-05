@@ -1,5 +1,8 @@
 import type { QuotePriceProfile } from '@/lib/quote-pricing'
 
+export const MAX_QUOTE_OPTIONS = 6
+export const MAX_QUOTE_COMPARISONS = MAX_QUOTE_OPTIONS - 1
+
 export const QUOTE_VARIATION_TYPES = [
   'STANDARD',
   'WOODGRAIN',
@@ -45,7 +48,7 @@ export function quoteVariationPriceProfile(type: QuoteVariationType): QuotePrice
 
 export function normalizeQuoteVariations(values?: QuoteVariationInput[] | null): QuoteVariationInput[] {
   const normalized = (values || [])
-    .slice(0, 3)
+    .slice(0, MAX_QUOTE_OPTIONS)
     .map((variation) => {
       const type = safeQuoteVariationType(variation.type)
       return {

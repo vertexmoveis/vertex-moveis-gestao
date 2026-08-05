@@ -26,6 +26,8 @@ import {
   type QuoteStatus,
 } from '@/lib/quotes'
 import {
+  MAX_QUOTE_COMPARISONS,
+  MAX_QUOTE_OPTIONS,
   QUOTE_VARIATION_LABELS,
   QUOTE_VARIATION_TYPES,
   quoteVariationDefaultName,
@@ -90,11 +92,11 @@ export default function QuoteDetailPage() {
       .filter((variant) => variant.id !== data.id && candidateIds.has(variant.id))
       .sort((a, b) => a.variationOrder - b.variationOrder)
       .map((variant) => variant.id)
-      .slice(0, 2)
+      .slice(0, MAX_QUOTE_COMPARISONS)
 
     setComparisonQuoteIds((current) => {
-      if (linkedQuoteIds.length > 0) return linkedQuoteIds.slice(0, 2)
-      const validCurrent = current.filter((id) => candidateIds.has(id)).slice(0, 2)
+      if (linkedQuoteIds.length > 0) return linkedQuoteIds.slice(0, MAX_QUOTE_COMPARISONS)
+      const validCurrent = current.filter((id) => candidateIds.has(id)).slice(0, MAX_QUOTE_COMPARISONS)
       if (validCurrent.length > 0) return validCurrent
       return groupedQuoteIds
     })
@@ -441,12 +443,12 @@ export default function QuoteDetailPage() {
       ? `Enviar ${approvalQuoteCount} propostas`
       : 'Enviar para aprovação'
   const sortedGroupVariants = [...(quote.groupVariants || [])].sort((a, b) => a.variationOrder - b.variationOrder)
-  const canCreateVariant = !quoteLocked && sortedGroupVariants.length < 3
+  const canCreateVariant = !quoteLocked && sortedGroupVariants.length < MAX_QUOTE_OPTIONS
 
   const toggleComparisonQuote = (quoteId: string) => {
     setComparisonQuoteIds((current) => {
       if (current.includes(quoteId)) return current.filter((id) => id !== quoteId)
-      if (current.length >= 2) return current
+      if (current.length >= MAX_QUOTE_COMPARISONS) return current
       return [...current, quoteId]
     })
   }
@@ -541,7 +543,7 @@ export default function QuoteDetailPage() {
                 size="sm"
                 variant="outline"
                 disabled={!canCreateVariant}
-                title={sortedGroupVariants.length >= 3 ? 'Este orçamento já possui o limite de três opções' : quoteLocked ? 'Orçamento já transformado em projeto' : 'Criar outra opção com as mesmas medidas'}
+                title={sortedGroupVariants.length >= MAX_QUOTE_OPTIONS ? `Este orçamento já possui o limite de ${MAX_QUOTE_OPTIONS} opções` : quoteLocked ? 'Orçamento já transformado em projeto' : 'Criar outra opção com as mesmas medidas'}
                 onClick={openVariantModal}
               >
                 <Plus size={15} />
@@ -688,7 +690,7 @@ export default function QuoteDetailPage() {
                       </div>
                       {quote.comparisonCandidates.map((candidate) => {
                         const checked = comparisonQuoteIds.includes(candidate.id)
-                        const limitReached = !checked && comparisonQuoteIds.length >= 2
+                        const limitReached = !checked && comparisonQuoteIds.length >= MAX_QUOTE_COMPARISONS
                         return (
                           <label
                             key={candidate.id}

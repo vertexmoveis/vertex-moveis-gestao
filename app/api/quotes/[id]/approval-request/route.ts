@@ -17,11 +17,12 @@ import { isDateOnlyExpired } from '@/lib/date-only'
 import { evaluateQuoteReadiness } from '@/lib/quote-readiness'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { MAX_QUOTE_COMPARISONS } from '@/lib/quote-variations'
 
 const requestSchema = z.object({
   reminder: z.boolean().optional(),
   comparisonQuoteId: z.string().trim().min(1).optional(),
-  comparisonQuoteIds: z.array(z.string().trim().min(1)).max(2).optional(),
+  comparisonQuoteIds: z.array(z.string().trim().min(1)).max(MAX_QUOTE_COMPARISONS).optional(),
 }).strict().superRefine((value, ctx) => {
   const ids = value.comparisonQuoteIds || (value.comparisonQuoteId ? [value.comparisonQuoteId] : [])
   if (new Set(ids).size !== ids.length) {
@@ -122,12 +123,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : [activeRequest?.quoteId, activeRequest?.comparisonQuoteId]
     comparisonQuoteIds = linkedIds
       .filter((quoteId): quoteId is string => Boolean(quoteId) && quoteId !== quote.id)
-      .slice(0, 2)
+      .slice(0, MAX_QUOTE_COMPARISONS)
   }
 
   if (comparisonQuoteIds.includes(quote.id)) return badRequest('Escolha outras opções para comparar.')
-  if (new Set(comparisonQuoteIds).size !== comparisonQuoteIds.length || comparisonQuoteIds.length > 2) {
-    return badRequest('Escolha no máximo duas opções diferentes.')
+  if (new Set(comparisonQuoteIds).size !== comparisonQuoteIds.length || comparisonQuoteIds.length > MAX_QUOTE_COMPARISONS) {
+    return badRequest(`Escolha no máximo ${MAX_QUOTE_COMPARISONS} opções diferentes.`)
   }
 
   const comparisonQuotes = comparisonQuoteIds.length > 0

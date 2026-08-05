@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { QUOTE_STATUSES } from '@/lib/quotes'
-import { QUOTE_VARIATION_TYPES } from '@/lib/quote-variations'
+import { MAX_QUOTE_OPTIONS, QUOTE_VARIATION_TYPES } from '@/lib/quote-variations'
 
 const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 const nullableString = (max: number) =>
@@ -126,7 +126,7 @@ export const quoteSaveSchema = z.object({
   title: z.string().trim().min(1, 'Informe o título').max(160),
   variationType: z.enum(QUOTE_VARIATION_TYPES).default('STANDARD'),
   variationName: z.string().trim().min(1, 'Informe o nome da variação').max(80).default('Padrão'),
-  variations: z.array(quoteVariationSchema).min(1).max(3).optional(),
+  variations: z.array(quoteVariationSchema).min(1).max(MAX_QUOTE_OPTIONS).optional(),
   syncScope: z.enum(['CURRENT', 'GROUP']).default('CURRENT'),
   status: z.enum(QUOTE_STATUSES as [string, ...string[]]).default('DRAFT'),
   validUntil: dateField,
