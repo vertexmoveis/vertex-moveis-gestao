@@ -10,7 +10,6 @@ import { getProductionProjectState } from '@/lib/production-board'
 import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 import { getProductionCapacityWeeks } from '@/lib/production-capacity'
 import { toDateOnlyUtc } from '@/lib/date-only'
-import { ProductionCapacity } from '@/components/production/production-capacity'
 
 type DashboardUser = { id?: string; role?: string }
 
@@ -177,7 +176,6 @@ export default async function ProductionPage() {
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 lg:p-6">
-        <ProductionCapacity weeks={capacityWeeks} />
         {production.limited ? (
           <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
             Mostrando os {PRODUCTION_PROJECT_LIMIT} projetos mais atualizados. Use Projetos para localizar os demais.
@@ -186,6 +184,7 @@ export default async function ProductionPage() {
         <KanbanBoard
           initialProjects={projects}
           referenceDate={referenceDate.toISOString()}
+          capacityWeeks={capacityWeeks}
         />
       </div>
     </div>

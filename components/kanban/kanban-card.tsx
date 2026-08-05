@@ -128,11 +128,11 @@ export function KanbanCard({
         {project.room ? <p className="truncate text-xs text-[#9E9E9E]">{project.room}</p> : null}
 
         {attention.blocked ? (
-          <div className="mt-2 border-l-4 border-red-500 bg-red-50 px-2 py-1.5">
-            <p className="flex items-center gap-1 text-[10px] font-bold text-red-700">
+          <div className="mt-2 border-l-2 border-amber-500 bg-amber-50/60 px-2 py-1.5">
+            <p className="flex items-center gap-1 text-[10px] font-bold text-amber-800">
               <LockKeyhole size={11} /> Produção bloqueada
             </p>
-            <p className="mt-1 line-clamp-2 text-[10px] text-red-700">
+            <p className="mt-1 line-clamp-2 text-[10px] text-amber-800">
               {project.productionBlockReason || 'Motivo não informado'}
             </p>
           </div>
@@ -147,7 +147,7 @@ export function KanbanCard({
                 ? 'bg-amber-50 text-amber-800'
                 : attention.noDeadline
                   ? 'bg-[#F5F5F5] text-[#666]'
-                  : 'bg-emerald-50 text-emerald-700',
+                  : 'bg-[#F5F5F5] text-[#555]',
           )}
         >
           <span className="flex items-center gap-1">

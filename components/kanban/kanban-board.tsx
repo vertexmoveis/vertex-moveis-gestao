@@ -38,7 +38,9 @@ import {
 import { KanbanColumn } from './kanban-column'
 import { KanbanCard } from './kanban-card'
 import { ProductionList } from './production-list'
+import { ProductionCapacity } from '@/components/production/production-capacity'
 import { cn } from '@/lib/utils'
+import type { ProductionCapacityWeek } from '@/lib/production-capacity'
 import {
   compareProductionProjects,
   getAdjacentProductionStage,
@@ -89,6 +91,7 @@ type Notice = { type: 'success' | 'error'; text: string } | null
 interface KanbanBoardProps {
   initialProjects: ProjectData[]
   referenceDate: string
+  capacityWeeks: ProductionCapacityWeek[]
 }
 
 function getDropStage(overId: string, projects: ProjectData[]) {
@@ -135,7 +138,7 @@ function optimisticProject(project: ProjectData, patch: ProjectPatch) {
   return next
 }
 
-export function KanbanBoard({ initialProjects, referenceDate }: KanbanBoardProps) {
+export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: KanbanBoardProps) {
   const [projects, setProjects] = useState<ProjectData[]>(initialProjects)
   const [activeProject, setActiveProject] = useState<ProjectData | null>(null)
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set())
@@ -555,6 +558,62 @@ export function KanbanBoard({ initialProjects, referenceDate }: KanbanBoardProps
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="sticky top-0 z-30 -mx-1 flex flex-wrap items-center gap-2 border border-[#E3E3E3] bg-white px-2 py-2 shadow-sm">
+        <label className="relative min-w-[220px] flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar projeto, cliente ou ambiente"
+            className="h-9 w-full border border-[#D9D9D9] bg-white pl-9 pr-3 text-xs outline-none focus:border-[#FF6B00]"
+          />
+        </label>
+
+        {managers.length > 1 ? (
+          <select
+            value={managerId}
+            onChange={(event) => setManagerId(event.target.value)}
+            aria-label="Filtrar por responsável"
+            className="h-9 min-w-[170px] border border-[#D9D9D9] bg-white px-3 text-xs outline-none focus:border-[#FF6B00]"
+          >
+            <option value="ALL">Todos os responsáveis</option>
+            {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
+          </select>
+        ) : null}
+
+        <div className="flex h-9 border border-[#D9D9D9] bg-[#F7F7F7] p-0.5" role="group" aria-label="Modo de visualização">
+          <ViewButton icon={LayoutGrid} label="Quadro" active={viewMode === 'BOARD'} onClick={() => setViewMode('BOARD')} />
+          <ViewButton icon={AlertTriangle} label="Atenção" active={viewMode === 'ATTENTION'} onClick={() => setViewMode('ATTENTION')} />
+          <ViewButton icon={List} label="Lista" active={viewMode === 'LIST'} onClick={() => setViewMode('LIST')} />
+        </div>
+
+        {viewMode === 'BOARD' ? (
+          <label className="flex h-9 cursor-pointer items-center gap-2 border border-[#D9D9D9] bg-white px-3 text-xs font-semibold text-[#555] hover:bg-[#FAFAFA]">
+            <input
+              type="checkbox"
+              checked={showEmptyStages}
+              onChange={(event) => setShowEmptyStages(event.target.checked)}
+              className="sr-only"
+            />
+            {showEmptyStages ? <Eye size={14} /> : <EyeOff size={14} />}
+            {showEmptyStages ? 'Ocultar vazias' : `Exibir vazias${hiddenStageCount > 0 ? ` (${hiddenStageCount})` : ''}`}
+          </label>
+        ) : null}
+
+        {(query || managerId !== 'ALL' || attentionFilter !== 'ALL') ? (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="flex h-9 items-center gap-1.5 px-2 text-xs font-semibold text-[#666] hover:text-[#FF6B00]"
+          >
+            <X size={14} /> Limpar
+          </button>
+        ) : null}
+      </div>
+
+      <ProductionCapacity weeks={capacityWeeks} />
+
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MetricButton
           label="Atrasados"
@@ -588,60 +647,6 @@ export function KanbanBoard({ initialProjects, referenceDate }: KanbanBoardProps
           tone="gray"
           onClick={() => setMetricFilter('NO_DEADLINE')}
         />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-y border-[#E8E8E8] bg-white py-2">
-        <label className="relative min-w-[220px] flex-1">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar projeto, cliente ou ambiente"
-            className="h-9 w-full border border-[#D9D9D9] bg-white pl-9 pr-3 text-xs outline-none focus:border-[#FF6B00]"
-          />
-        </label>
-
-        {managers.length > 1 ? (
-          <select
-            value={managerId}
-            onChange={(event) => setManagerId(event.target.value)}
-            aria-label="Filtrar por responsável"
-            className="h-9 min-w-[170px] border border-[#D9D9D9] bg-white px-3 text-xs outline-none focus:border-[#FF6B00]"
-          >
-            <option value="ALL">Todos os responsáveis</option>
-            {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
-          </select>
-        ) : null}
-
-        <div className="flex h-9 border border-[#D9D9D9] bg-white p-0.5" role="group" aria-label="Modo de visualização">
-          <ViewButton icon={LayoutGrid} label="Quadro" active={viewMode === 'BOARD'} onClick={() => setViewMode('BOARD')} />
-          <ViewButton icon={AlertTriangle} label="Atenção" active={viewMode === 'ATTENTION'} onClick={() => setViewMode('ATTENTION')} />
-          <ViewButton icon={List} label="Lista" active={viewMode === 'LIST'} onClick={() => setViewMode('LIST')} />
-        </div>
-
-        {viewMode === 'BOARD' ? (
-          <label className="flex h-9 cursor-pointer items-center gap-2 border border-[#D9D9D9] bg-white px-3 text-xs font-semibold text-[#555] hover:bg-[#FAFAFA]">
-            <input
-              type="checkbox"
-              checked={showEmptyStages}
-              onChange={(event) => setShowEmptyStages(event.target.checked)}
-              className="sr-only"
-            />
-            {showEmptyStages ? <Eye size={14} /> : <EyeOff size={14} />}
-            {showEmptyStages ? 'Ocultar vazias' : `Exibir vazias${hiddenStageCount > 0 ? ` (${hiddenStageCount})` : ''}`}
-          </label>
-        ) : null}
-
-        {(query || managerId !== 'ALL' || attentionFilter !== 'ALL') ? (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="flex h-9 items-center gap-1.5 px-2 text-xs font-semibold text-[#666] hover:text-[#FF6B00]"
-          >
-            <X size={14} /> Limpar
-          </button>
-        ) : null}
       </div>
 
       {notice ? (
@@ -781,10 +786,10 @@ function MetricButton({
   onClick: () => void
 }) {
   const tones = {
-    red: 'border-red-200 bg-red-50 text-red-700',
-    amber: 'border-amber-200 bg-amber-50 text-amber-800',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    gray: 'border-[#DEDEDE] bg-[#F7F7F7] text-[#555]',
+    red: 'border-red-200 border-l-red-500 text-red-700',
+    amber: 'border-amber-200 border-l-amber-500 text-amber-800',
+    blue: 'border-blue-200 border-l-blue-500 text-blue-700',
+    gray: 'border-[#DEDEDE] border-l-[#999] text-[#555]',
   }
 
   return (
@@ -793,13 +798,13 @@ function MetricButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'flex min-h-[52px] items-center justify-between border px-3 py-2 text-left transition-all hover:brightness-[0.98]',
-        tones[tone],
-        active && 'ring-2 ring-[#FF6B00] ring-offset-1',
+        'flex min-h-[44px] items-center justify-between border border-l-2 bg-white px-3 py-2 text-left transition-colors hover:bg-[#FAFAFA]',
+        value === 0 ? 'border-[#E2E2E2] border-l-[#C8C8C8] text-[#777]' : tones[tone],
+        active && 'border-[#FF6B00] border-l-[#FF6B00] bg-orange-50/40',
       )}
     >
       <span className="flex items-center gap-2 text-xs font-semibold"><Icon size={15} /> {label}</span>
-      <span className="text-lg font-bold">{value}</span>
+      <span className="text-base font-bold">{value}</span>
     </button>
   )
 }

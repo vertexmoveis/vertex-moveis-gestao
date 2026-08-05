@@ -39,8 +39,7 @@ export function KanbanColumn({
   return (
     <section className="flex min-h-0 min-w-[285px] flex-1 flex-col">
       <header
-        className="flex min-h-[52px] items-center justify-between gap-2 border-b border-white/60 px-3 py-2"
-        style={{ background: color + '18' }}
+        className="flex min-h-[52px] items-center justify-between gap-2 border border-b-0 border-[#E3E3E3] bg-white px-3 py-2"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -59,8 +58,7 @@ export function KanbanColumn({
           ) : null}
         </div>
         <span
-          className="shrink-0 px-2 py-1 text-xs font-bold"
-          style={{ background: color + '25', color }}
+          className="shrink-0 bg-[#F1F1F1] px-2 py-1 text-xs font-bold text-[#555]"
           title={`${projects.length} projeto${projects.length === 1 ? '' : 's'} nesta etapa`}
         >
           {projects.length}
@@ -73,7 +71,7 @@ export function KanbanColumn({
           'min-h-[280px] flex-1 space-y-2 overflow-y-auto p-2 transition-colors',
           isOver
             ? 'border-2 border-dashed border-orange-300 bg-orange-50'
-            : 'border-2 border-transparent bg-[#F2F2F2]',
+            : 'border-2 border-transparent bg-[#F6F6F6]',
         )}
       >
         <SortableContext items={projects.map((project) => project.id)} strategy={verticalListSortingStrategy}>
