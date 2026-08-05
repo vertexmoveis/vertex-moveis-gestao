@@ -1371,7 +1371,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                         const accessoryOptions = getQuoteFurnitureAccessories(item.environment, item.furnitureType)
                         const automaticPricing = getQuoteAutomaticPricing(item, DEFAULT_QUOTE_PRICING.pricePerM2, priceRules)
                         const areaPrice = automaticPricing.mode === 'AREA_M2' ? automaticPricing.rate : DEFAULT_QUOTE_PRICING.pricePerM2
-                        const calculationMeasure = item.calculationMode === 'AREA_M2'
+                        const calculationMeasure = item.calculationMode === 'AREA_M2' || item.calculationMode === 'MANUAL_AREA_M2'
                           ? `${calculatedItem.areaM2.toFixed(2)} m²`
                           : item.calculationMode === 'LINEAR_METER'
                             ? `${((calculatedItem.width / 100) * calculatedItem.quantity).toFixed(2)} m linear`
@@ -1435,9 +1435,9 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
 
                             <div className="mt-3 flex flex-col gap-1 border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-3 py-2 text-xs text-[#8A4200] sm:flex-row sm:items-center sm:justify-between">
                               <span>
-                                {automaticPricing.label}: {item.calculationMode === 'AREA_M2'
+                                {item.calculationMode === 'AREA_M2' ? automaticPricing.label : QUOTE_CALCULATION_MODE_LABELS[item.calculationMode]}: {item.calculationMode === 'AREA_M2'
                                   ? `${formatCurrency(areaPrice)}/m²`
-                                  : `${formatCurrency(parseNumber(item.manualPrice))}${item.calculationMode === 'LINEAR_METER' ? '/m linear' : '/un.'}`}
+                                  : `${formatCurrency(parseNumber(item.manualPrice))}${item.calculationMode === 'MANUAL_AREA_M2' ? '/m²' : item.calculationMode === 'LINEAR_METER' ? '/m linear' : '/un.'}`}
                                 {QUOTE_DIFFICULTY_MULTIPLIER[item.difficulty] > 1
                                   ? ` · acréscimo de ${Math.round((QUOTE_DIFFICULTY_MULTIPLIER[item.difficulty] - 1) * 100)}%`
                                   : ''}
@@ -1461,7 +1461,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
                                     options={QUOTE_CALCULATION_MODES.map((value) => ({ value, label: QUOTE_CALCULATION_MODE_LABELS[value] }))}
                                   />
                                   {item.calculationMode !== 'AREA_M2' ? (
-                                    <Input label={item.calculationMode === 'LINEAR_METER' ? 'Preço por metro' : 'Preço por unidade'} inputMode="decimal" value={item.manualPrice} onChange={(event) => updateItem(index, 'manualPrice', event.target.value)} placeholder="R$ 0,00" />
+                                    <Input label={item.calculationMode === 'MANUAL_AREA_M2' ? 'Preço por m²' : item.calculationMode === 'LINEAR_METER' ? 'Preço por metro' : 'Preço por unidade'} inputMode="decimal" value={item.manualPrice} onChange={(event) => updateItem(index, 'manualPrice', event.target.value)} placeholder="R$ 0,00" />
                                   ) : (
                                     <div className="flex flex-col gap-1.5"><span className="text-sm font-medium text-[#121212]">Preço por m²</span><div className="flex h-10 items-center rounded-lg border border-[#D9D9D9] bg-[#F5F5F5] px-3 text-sm font-semibold text-[#555]">{formatCurrency(areaPrice)}</div></div>
                                   )}

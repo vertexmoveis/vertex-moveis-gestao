@@ -283,7 +283,7 @@ export function getQuoteInstallmentGridColumns(count: number) {
   return 4
 }
 
-export const QUOTE_CALCULATION_MODES: QuoteCalculationMode[] = ['AREA_M2', 'LINEAR_METER', 'UNIT']
+export const QUOTE_CALCULATION_MODES: QuoteCalculationMode[] = ['AREA_M2', 'MANUAL_AREA_M2', 'LINEAR_METER', 'UNIT']
 
 export function safeQuoteCalculationMode(value?: string | null): QuoteCalculationMode {
   return QUOTE_CALCULATION_MODES.includes(value as QuoteCalculationMode)
@@ -323,8 +323,9 @@ export function calculateQuoteItem(item: QuoteCalculationItemInput, pricing: Quo
     : getQuoteEnvironmentPricePerM2(item.environment, pricing.pricePerM2)
   const manualPrice = Math.max(Number(item.manualPrice) || 0, 0)
   const linearMeters = roundCurrency((width / 100) * quantity)
+  const usesArea = calculationMode === 'AREA_M2' || calculationMode === 'MANUAL_AREA_M2'
   const calculationRate = calculationMode === 'AREA_M2' ? pricePerM2 : manualPrice
-  const calculationAmount = calculationMode === 'AREA_M2'
+  const calculationAmount = usesArea
     ? areaM2
     : calculationMode === 'LINEAR_METER'
       ? linearMeters

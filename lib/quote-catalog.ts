@@ -1,4 +1,4 @@
-export type QuoteCalculationMode = 'AREA_M2' | 'LINEAR_METER' | 'UNIT'
+export type QuoteCalculationMode = 'AREA_M2' | 'MANUAL_AREA_M2' | 'LINEAR_METER' | 'UNIT'
 
 export type QuoteFurnitureGroup = {
   type: string
@@ -474,6 +474,7 @@ NON_JOINERY_FURNITURE_BY_ENVIRONMENT.Churrasqueira = NON_JOINERY_FURNITURE_BY_EN
 export const QUOTE_ENVIRONMENT_OPTIONS = Object.keys(QUOTE_FURNITURE_CATALOG)
 export const QUOTE_CALCULATION_MODE_LABELS: Record<QuoteCalculationMode, string> = {
   AREA_M2: 'Por m² (automático)',
+  MANUAL_AREA_M2: 'Por m² (valor escolhido)',
   LINEAR_METER: 'Por metro linear',
   UNIT: 'Por unidade',
 }

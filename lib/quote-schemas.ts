@@ -98,7 +98,7 @@ export const quoteItemSchema = z.object({
   height: positiveNumberField,
   depth: optionalNumberField,
   difficulty: z.enum(['NORMAL', 'DIFICIL', 'MUITO_DIFICIL']).default('NORMAL'),
-  calculationMode: z.enum(['AREA_M2', 'LINEAR_METER', 'UNIT']).default('AREA_M2'),
+  calculationMode: z.enum(['AREA_M2', 'MANUAL_AREA_M2', 'LINEAR_METER', 'UNIT']).default('AREA_M2'),
   priceProfile: z.enum(['STANDARD', 'WOODGRAIN', 'PROVENCAL', 'EXTERNAL_LACQUER']).default('STANDARD'),
   manualPrice: moneyField(0),
   accessories: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
@@ -109,9 +109,11 @@ export const quoteItemSchema = z.object({
     context.addIssue({
       code: 'custom',
       path: ['manualPrice'],
-      message: item.calculationMode === 'LINEAR_METER'
-        ? 'Informe o valor por metro linear'
-        : 'Informe o valor por unidade',
+      message: item.calculationMode === 'MANUAL_AREA_M2'
+        ? 'Informe o valor por metro quadrado'
+        : item.calculationMode === 'LINEAR_METER'
+          ? 'Informe o valor por metro linear'
+          : 'Informe o valor por unidade',
     })
   }
 })

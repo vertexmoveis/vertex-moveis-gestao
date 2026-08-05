@@ -6,6 +6,31 @@ import {
   QUOTE_PRICE_PROFILE_LABELS,
   getQuoteAutomaticPricing,
 } from '@/lib/quote-pricing'
+import { calculateQuoteItem } from '@/lib/quotes'
+
+test('calcula por metro quadrado com o valor escolhido', () => {
+  const item = calculateQuoteItem({
+    environment: 'Cozinha',
+    description: 'Armário personalizado',
+    width: 100,
+    height: 200,
+    quantity: 1,
+    calculationMode: 'MANUAL_AREA_M2',
+    manualPrice: 1500,
+  }, {
+    pricePerM2: 2000,
+    materialCostPerM2: 650,
+    installationFee: 0,
+    marginPercent: 0,
+    discount: 0,
+  }, 0)
+
+  assert.equal(item.areaM2, 2)
+  assert.equal(item.total, 3000)
+  assert.equal(item.unitPrice, 1500)
+  assert.equal(item.manualPrice, 1500)
+  assert.equal(item.calculationMode, 'MANUAL_AREA_M2')
+})
 
 test('aplica R$ 2.200 por m² aos móveis madeirados', () => {
   const kitchen = getQuoteAutomaticPricing({
