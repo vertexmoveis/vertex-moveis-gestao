@@ -42,8 +42,8 @@ const styles = StyleSheet.create({
     paddingLeft: 28,
     color: colors.ink,
     fontFamily: 'Helvetica',
-    fontSize: 8.5,
-    lineHeight: 1.35,
+    fontSize: 10.5,
+    lineHeight: 1.4,
   },
   company: {
     flexDirection: 'row',
@@ -66,23 +66,23 @@ const styles = StyleSheet.create({
   },
   companyName: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 13,
+    fontSize: 15,
     textTransform: 'uppercase',
   },
   companyLegal: {
     marginTop: 2,
     color: colors.muted,
-    fontSize: 8,
+    fontSize: 9.5,
   },
   companyLine: {
     marginTop: 4,
     color: '#333333',
-    fontSize: 8,
+    fontSize: 9.5,
   },
   companyContact: {
     width: 185,
     textAlign: 'right',
-    fontSize: 8,
+    fontSize: 9.5,
   },
   bold: {
     fontFamily: 'Helvetica-Bold',
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   },
   titleBarMain: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
+    fontSize: 12,
   },
   delivery: {
     marginTop: 5,
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 10,
   },
   sectionTitle: {
     marginTop: 9,
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 10,
     textTransform: 'uppercase',
   },
   row: {
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 7.5,
+    fontSize: 9,
     textTransform: 'uppercase',
   },
   environmentRow: {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   serviceDetail: {
     marginTop: 2,
     color: colors.muted,
-    fontSize: 7,
+    fontSize: 9,
   },
   totalRow: {
     flexDirection: 'row',
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
   imageCaption: {
     marginTop: 4,
-    fontSize: 7,
+    fontSize: 9,
   },
   signatures: {
     marginTop: 15,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     paddingTop: 4,
     textAlign: 'center',
-    fontSize: 7,
+    fontSize: 9,
   },
   continuationHeader: {
     position: 'absolute',
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     top: 9,
     left: 28,
     color: colors.muted,
-    fontSize: 6.5,
+    fontSize: 8,
     textAlign: 'right',
   },
   footerLeft: {
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     bottom: 13,
     left: 28,
     color: colors.muted,
-    fontSize: 6.5,
+    fontSize: 8,
   },
   footerRight: {
     position: 'absolute',
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     bottom: 13,
     width: 180,
     color: colors.muted,
-    fontSize: 6.5,
+    fontSize: 8,
     textAlign: 'right',
   },
   footerRule: {
