@@ -32,6 +32,7 @@ import {
   type QuoteVariationType,
 } from '@/lib/quote-variations'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { isDateOnlyExpired } from '@/lib/date-only'
 import type { QuoteData } from '@/types/quotes'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 
@@ -73,6 +74,7 @@ export default function QuoteDetailPage() {
   const [convertOpen, setConvertOpen] = useState(false)
   const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
   const [entryPaymentMethod, setEntryPaymentMethod] = useState('PIX')
+  const [renewingValidity, setRenewingValidity] = useState(false)
 
   const applyLoadedQuote = useCallback((data: QuoteData) => {
     setQuote(data)
@@ -398,6 +400,22 @@ export default function QuoteDetailPage() {
     router.push(`/dashboard/quotes/${data.id}`)
   }
 
+  const renewValidity = async () => {
+    if (!quote) return
+    setRenewingValidity(true)
+    setError('')
+    try {
+      const response = await fetch(`/api/quotes/${quote.id}/renew-validity`, { method: 'POST' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível renovar a validade.')
+      await loadQuote()
+    } catch (renewError) {
+      setError(renewError instanceof Error ? renewError.message : 'Não foi possível renovar a validade.')
+    } finally {
+      setRenewingValidity(false)
+    }
+  }
+
   const conversionEntry = quote.paymentMethod === 'CARD'
     ? Math.max(Number(quote.cardDownPayment) || 0, 0)
     : quote.total
@@ -496,8 +514,13 @@ export default function QuoteDetailPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
+          <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error}</span>
+            {quote.validUntil && isDateOnlyExpired(quote.validUntil) && !quoteLocked ? (
+              <Button type="button" size="sm" variant="outline" loading={renewingValidity} onClick={() => void renewValidity()}>
+                Renovar por 7 dias
+              </Button>
+            ) : null}
           </div>
         )}
 
