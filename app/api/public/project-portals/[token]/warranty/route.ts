@@ -79,8 +79,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ success: true, message: 'Este pedido já foi recebido pela Vertex.' })
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.warrantyTicket.create({
+  const ticket = await prisma.$transaction(async (tx) => {
+    const created = await tx.warrantyTicket.create({
       data: {
         projectId: project.id,
         title: label,
@@ -96,10 +96,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         description: `${project.client.name} abriu um pedido pelo portal: ${label}.`,
       },
     })
+    return created
   })
 
   return NextResponse.json({
     success: true,
+    ticketId: ticket.id,
+    projectId: project.id,
     message: 'Pedido recebido. A equipe da Vertex entrará em contato para continuar o atendimento.',
   }, { status: 201 })
 }

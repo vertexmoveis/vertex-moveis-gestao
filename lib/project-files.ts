@@ -4,6 +4,7 @@ export const PROJECT_FILE_CATEGORIES = [
   'PRODUCTION',
   'INSTALLATION',
   'DELIVERY',
+  'WARRANTY',
   'OTHER',
 ] as const
 
@@ -15,6 +16,7 @@ export const PROJECT_FILE_CATEGORY_LABELS: Record<ProjectFileCategory, string> =
   PRODUCTION: 'Produção',
   INSTALLATION: 'Instalação',
   DELIVERY: 'Entrega',
+  WARRANTY: 'Assistência e garantia',
   OTHER: 'Outros arquivos',
 }
 

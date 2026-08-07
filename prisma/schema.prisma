@@ -167,6 +167,9 @@ model Project {
   postSaleFollowUpAt             DateTime?
   postSaleContactedAt            DateTime?
   warrantyEndsAt                 DateTime?
+  satisfactionRating            Int?
+  satisfactionComment           String?
+  satisfactionRespondedAt       DateTime?
 
   @@index([status])
   @@index([stage])
@@ -579,6 +582,10 @@ model ProjectChangeOrder {
   daysDelta   Int       @default(0)
   status      String    @default("DRAFT")
   approvedAt  DateTime?
+  clientRespondedAt     DateTime?
+  clientRespondentName  String?
+  clientResponseNote    String?
+  clientResponseIpHash  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -829,6 +836,8 @@ model ProjectFile {
   id                String    @id @default(cuid())
   projectId         String
   project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  warrantyTicketId  String?
+  warrantyTicket    WarrantyTicket? @relation(fields: [warrantyTicketId], references: [id], onDelete: SetNull)
   name              String
   type              String
   category          String    @default("OTHER")
@@ -842,6 +851,7 @@ model ProjectFile {
 
   @@unique([projectId, url])
   @@index([projectId, category])
+  @@index([warrantyTicketId])
   @@index([securityStatus])
   @@index([expiresAt])
 }
@@ -999,6 +1009,7 @@ model WarrantyTicket {
   resolution   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  files        ProjectFile[]
 
   @@index([projectId, status])
   @@index([status, priority, openedAt])

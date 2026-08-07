@@ -8,6 +8,7 @@ import {
   Calendar,
   Calculator,
   FolderOpen,
+  HeartHandshake,
   FileSignature,
   Kanban,
   LayoutDashboard,
@@ -67,6 +68,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
       { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, adminOnly: true },
       { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
       { href: '/dashboard/contracts', label: 'Contratos', icon: FileSignature },
+      { href: '/dashboard/post-sale', label: 'Pós-venda', icon: HeartHandshake },
     ],
   },
 ]

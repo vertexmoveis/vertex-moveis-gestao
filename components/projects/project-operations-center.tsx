@@ -10,7 +10,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 type Piece = { id: string; environment: string | null; label: string; material: string; finish: string | null; widthMm: number; heightMm: number; quantity: number; grain: boolean; status: string }
 type TimeEntry = { id: string; phase: string; startedAt: string; endedAt: string | null; minutes: number; user: { id: string; name: string } }
 type Quality = { id: string | null; key: string; label: string; status: string; notes: string | null; checkedAt: string | null; checkedBy: { id: string; name: string } | null }
-type ChangeOrder = { id: string; title: string; description: string; amountDelta: number; daysDelta: number; status: string; createdAt: string }
+type ChangeOrder = { id: string; title: string; description: string; amountDelta: number; daysDelta: number; status: string; createdAt: string; clientRespondedAt: string | null; clientRespondentName: string | null; clientResponseNote: string | null }
 type Reservation = { id: string; materialId: string; quantity: number; status: string; material: { id: string; name: string; unit: string; stockQuantity: number } }
 type ReservationOption = { materialId: string | null; materialName: string; finish: string | null; unit: string; estimatedQuantity: number; material: { id: string; name: string; unit: string; stockQuantity: number } | null }
 type DeliveryProof = { id: string; confirmedBy: string; checklist: Record<string, boolean>; notes: string | null; deliveredAt: string }
@@ -27,6 +27,7 @@ type OperationsData = {
   reservationOptions: ReservationOption[]
   commission: Commission | null
   productionWeight: number
+  projectValue: number
 }
 
 const PHASES = [
@@ -220,7 +221,42 @@ export function ProjectOperationsCenter({
 
         {tab === 'QUALITY' ? <div className="space-y-2">{data.quality.map((item) => <div key={item.key} className={`flex flex-col gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between ${item.status === 'ISSUE' ? 'border-red-200 bg-red-50' : item.status === 'PASSED' ? 'border-emerald-200 bg-emerald-50' : 'border-[#E5E5E5]'}`}><div className="flex items-start gap-2">{item.status === 'ISSUE' ? <AlertTriangle size={17} className="mt-0.5 text-red-600" /> : <CheckCircle2 size={17} className={`mt-0.5 ${item.status === 'PASSED' ? 'text-emerald-600' : 'text-[#BBB]'}`} />}<div><p className="text-sm font-semibold">{item.label}</p>{item.checkedBy ? <p className="text-xs text-[#777]">Conferido por {item.checkedBy.name}{item.checkedAt ? ` em ${formatDate(item.checkedAt)}` : ''}</p> : null}</div></div><div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={() => void execute(`quality-${item.key}`, { action: 'QUALITY_SET', key: item.key, status: 'ISSUE' })}>Com problema</Button><Button type="button" size="sm" onClick={() => void execute(`quality-${item.key}`, { action: 'QUALITY_SET', key: item.key, status: 'PASSED' })}>Aprovado</Button></div></div>)}</div> : null}
 
-        {tab === 'CHANGES' ? <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]"><section className="space-y-3 border border-[#E5E5E5] p-4"><h4 className="text-sm font-semibold">Nova alteração do cliente</h4><Input label="Título" value={change.title} onChange={(event) => setChange((current) => ({ ...current, title: event.target.value }))} /><Textarea label="O que mudou" rows={4} value={change.description} onChange={(event) => setChange((current) => ({ ...current, description: event.target.value }))} /><div className="grid grid-cols-2 gap-2"><Input label="Ajuste de valor" type="number" step="0.01" value={change.amountDelta} onChange={(event) => setChange((current) => ({ ...current, amountDelta: event.target.value }))} /><Input label="Dias úteis extras" type="number" value={change.daysDelta} onChange={(event) => setChange((current) => ({ ...current, daysDelta: event.target.value }))} /></div><Button type="button" className="w-full" loading={saving === 'change'} onClick={async () => { const ok = await execute('change', { action: 'CHANGE_CREATE', ...change }); if (ok) setChange({ title: '', description: '', amountDelta: '0', daysDelta: '0' }) }}><FileSignature size={14} /> Registrar alteração</Button><p className="text-xs leading-5 text-[#777]">Envie pelo portal para o cliente conferir. Valor e prazo só serão aplicados após a confirmação interna da Vertex.</p></section><section className="divide-y divide-[#EEE] border border-[#E5E5E5]">{data.changes.map((item) => <div key={item.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-[#666]">{item.description}</p></div><span className="text-xs font-semibold text-[#FF6B00]">{CHANGE_STATUS[item.status] || item.status}</span></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span>{formatCurrency(item.amountDelta)} · {item.daysDelta} dia(s) útil(eis)</span>{item.status === 'DRAFT' ? <Button type="button" size="sm" variant="outline" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'SENT' })}>Enviar ao portal</Button> : null}{item.status === 'CLIENT_APPROVED' ? <Button type="button" size="sm" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'APPROVED' })}>Conferir e aplicar</Button> : null}{item.status === 'CLIENT_REJECTED' ? <Button type="button" size="sm" variant="outline" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'DRAFT' })}>Revisar alteração</Button> : null}</div></div>)}{data.changes.length === 0 ? <p className="p-8 text-center text-sm text-[#888]">Nenhuma alteração registrada.</p> : null}</section></div> : null}
+        {tab === 'CHANGES' ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 border border-[#E5E5E5] bg-[#FAFAFA] p-3 sm:grid-cols-3">
+              <div><p className="text-[10px] font-semibold uppercase text-[#888]">Valor atual do projeto</p><p className="mt-1 text-base font-extrabold">{formatCurrency(data.projectValue)}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-[#888]">Aguardando aplicação</p><p className="mt-1 text-base font-extrabold text-[#B84A00]">{formatCurrency(data.changes.filter((item) => item.status === 'CLIENT_APPROVED').reduce((sum, item) => sum + item.amountDelta, 0))}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-[#888]">Valor após conferência</p><p className="mt-1 text-base font-extrabold">{formatCurrency(data.projectValue + data.changes.filter((item) => item.status === 'CLIENT_APPROVED').reduce((sum, item) => sum + item.amountDelta, 0))}</p></div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+              <section className="space-y-3 border border-[#E5E5E5] p-4">
+                <h4 className="text-sm font-semibold">Nova alteração do cliente</h4>
+                <Input label="Título" value={change.title} onChange={(event) => setChange((current) => ({ ...current, title: event.target.value }))} />
+                <Textarea label="O que mudou" rows={4} value={change.description} onChange={(event) => setChange((current) => ({ ...current, description: event.target.value }))} />
+                <div className="grid grid-cols-2 gap-2"><Input label="Ajuste de valor" type="number" step="0.01" value={change.amountDelta} onChange={(event) => setChange((current) => ({ ...current, amountDelta: event.target.value }))} /><Input label="Dias úteis extras" type="number" value={change.daysDelta} onChange={(event) => setChange((current) => ({ ...current, daysDelta: event.target.value }))} /></div>
+                <Button type="button" className="w-full" loading={saving === 'change'} onClick={async () => { const ok = await execute('change', { action: 'CHANGE_CREATE', ...change }); if (ok) setChange({ title: '', description: '', amountDelta: '0', daysDelta: '0' }) }}><FileSignature size={14} /> Registrar alteração</Button>
+                <p className="text-xs leading-5 text-[#777]">Envie pelo portal para o cliente conferir. Valor e prazo só serão aplicados após a confirmação interna da Vertex.</p>
+              </section>
+              <section className="divide-y divide-[#EEE] border border-[#E5E5E5]">
+                {data.changes.map((item) => (
+                  <div key={item.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-[#666]">{item.description}</p>{item.clientRespondentName ? <p className="mt-2 text-xs text-[#555]">Resposta de <strong>{item.clientRespondentName}</strong>{item.clientResponseNote ? `: ${item.clientResponseNote}` : ''}</p> : null}</div><span className="text-xs font-semibold text-[#FF6B00]">{CHANGE_STATUS[item.status] || item.status}</span></div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span>{formatCurrency(item.amountDelta)} · {item.daysDelta} dia(s) útil(eis)</span>
+                      <div className="flex flex-wrap gap-2">
+                        {item.clientRespondedAt ? <a href={`/api/projects/${projectId}/operations/changes/${item.id}/document`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center border border-[#D9D9D9] px-3 font-semibold">Comprovante PDF</a> : null}
+                        {item.status === 'DRAFT' ? <Button type="button" size="sm" variant="outline" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'SENT' })}>Enviar ao portal</Button> : null}
+                        {item.status === 'CLIENT_APPROVED' ? <Button type="button" size="sm" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'APPROVED' })}>Conferir e aplicar</Button> : null}
+                        {item.status === 'CLIENT_REJECTED' ? <Button type="button" size="sm" variant="outline" onClick={() => void execute(`change-${item.id}`, { action: 'CHANGE_STATUS', changeId: item.id, status: 'DRAFT' })}>Revisar alteração</Button> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {data.changes.length === 0 ? <p className="p-8 text-center text-sm text-[#888]">Nenhuma alteração registrada.</p> : null}
+              </section>
+            </div>
+          </div>
+        ) : null}
 
         {tab === 'DELIVERY' ? <div className="space-y-3">{data.proofs.map((proof) => <div key={proof.id} className="border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><PackageCheck size={17} /> Entrega confirmada por {proof.confirmedBy}</div><p className="mt-1 text-xs text-emerald-700">{formatDate(proof.deliveredAt)} · {Object.values(proof.checklist).filter(Boolean).length} itens conferidos</p>{proof.notes ? <p className="mt-2 text-sm text-[#555]">{proof.notes}</p> : null}</div>)}{data.proofs.length === 0 ? <div className="border border-[#E5E5E5] p-8 text-center"><PackageCheck className="mx-auto text-[#BBB]" size={26} /><p className="mt-2 text-sm text-[#777]">O comprovante será criado ao finalizar uma instalação.</p></div> : null}</div> : null}
       </CardBody>

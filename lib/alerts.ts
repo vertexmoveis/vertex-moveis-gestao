@@ -83,6 +83,8 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     negotiationsToClose,
     postSaleDue,
     openWarrantyTickets,
+    answeredChanges,
+    lowSatisfaction,
   ] = await Promise.all([
     isAdmin
       ? prisma.projectPayment.count({
@@ -172,6 +174,12 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
         status: { notIn: ['RESOLVED', 'CANCELED'] },
         project: projectScope,
       },
+    }),
+    prisma.projectChangeOrder.count({
+      where: { status: { in: ['CLIENT_APPROVED', 'CLIENT_REJECTED'] }, project: projectScope },
+    }),
+    prisma.project.count({
+      where: { ...projectScope, satisfactionRating: { lte: 2 } },
     }),
   ])
 
@@ -272,12 +280,28 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
       count: openWarrantyTickets,
       tone: 'warning',
     },
+    {
+      id: 'change-answers',
+      title: 'Alterações respondidas',
+      body: `${answeredChanges} ${plural(answeredChanges, 'resposta aguarda', 'respostas aguardam')} conferência da Vertex.`,
+      href: '/dashboard/projects?changes=answered',
+      count: answeredChanges,
+      tone: 'warning',
+    },
+    {
+      id: 'low-satisfaction',
+      title: 'Avaliações que precisam de atenção',
+      body: `${lowSatisfaction} ${plural(lowSatisfaction, 'cliente deu nota baixa', 'clientes deram nota baixa')}.`,
+      href: '/dashboard/post-sale?filter=attention',
+      count: lowSatisfaction,
+      tone: 'danger',
+    },
   ] satisfies AppAlert[]).filter((item) => item.count > 0)
 }
 
 const getCachedAppAlerts = unstable_cache(
   async (id: string, role: string) => getAppAlertsUncached({ id, role }),
-  ['app-alerts-v3'],
+  ['app-alerts-v4'],
   { revalidate: 30 },
 )
 

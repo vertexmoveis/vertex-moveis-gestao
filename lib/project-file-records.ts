@@ -4,6 +4,7 @@ import { projectFileExpiryDate, type ProjectFileSecurityStatus } from '@/lib/pro
 
 type ProjectFileRecordInput = {
   projectId: string
+  warrantyTicketId?: string | null
   name: string
   type: string
   category: ProjectFileCategory
@@ -46,6 +47,7 @@ export async function recordProjectFile(input: ProjectFileRecordInput) {
       const file = await tx.projectFile.update({
         where: { id: existing.id },
         data: {
+          ...(input.warrantyTicketId !== undefined ? { warrantyTicketId: input.warrantyTicketId } : {}),
           ...(input.size !== undefined && input.size !== null ? { size: input.size } : {}),
           ...(input.securityStatus ? { securityStatus: input.securityStatus } : {}),
           ...(input.securityDetails !== undefined ? { securityDetails: input.securityDetails } : {}),

@@ -59,6 +59,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
           estimatedEndDate: true,
           actualEndDate: true,
           warrantyEndsAt: true,
+          satisfactionRating: true,
           updatedAt: true,
           client: { select: { name: true } },
           environments: {
@@ -232,6 +233,8 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             ...change,
             amountDelta: Number(change.amountDelta),
           }))}
+          canRate={Boolean(project.actualEndDate && !project.satisfactionRating)}
+          satisfactionRating={project.satisfactionRating}
         />
 
         <footer className="py-4 text-center text-xs text-[#888]">

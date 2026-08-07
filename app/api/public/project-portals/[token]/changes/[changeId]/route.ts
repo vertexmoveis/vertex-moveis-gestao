@@ -80,7 +80,13 @@ export async function POST(
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.projectChangeOrder.updateMany({
       where: { id: change.id, projectId: access.projectId, status: 'SENT' },
-      data: { status },
+      data: {
+        status,
+        clientRespondedAt: new Date(),
+        clientRespondentName: parsed.data.respondentName,
+        clientResponseNote: parsed.data.note || null,
+        clientResponseIpHash: ipHash,
+      },
     })
     if (result.count === 0) return false
     await tx.timelineEvent.create({

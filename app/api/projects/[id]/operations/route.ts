@@ -6,6 +6,7 @@ import { numberValue } from '@/lib/money'
 import { calculateCommission, estimateSheets, minutesBetween, QUALITY_CHECKS } from '@/lib/operational-toolkit'
 import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
 import { maxReservableQuantity } from '@/lib/inventory-reservations'
+import { createProjectContractRevision } from '@/lib/project-contract-revision'
 import {
   buildPaymentSchedule,
   PaymentScheduleConflictError,
@@ -148,6 +149,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     reservations,
     commission: auth.user.role === 'ADMIN' ? commission : null,
     productionWeight: project.productionWeight,
+    projectValue: numberValue(project.value),
     reservationOptions: projectMaterials,
   }))
 }
@@ -299,6 +301,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           data: { amount: calculateCommission(nextProjectValue, commission.percent) },
         })))
         await tx.timelineEvent.create({ data: { projectId: id, event: 'Alteração aprovada', description: `${existing.title}: ajuste de R$ ${numberValue(existing.amountDelta).toFixed(2)} e ${existing.daysDelta} dia(s) útil(eis).` } })
+        await createProjectContractRevision(tx, {
+          projectId: id,
+          userId: auth.user.id,
+          reason: existing.title,
+        })
       }
       return tx.projectChangeOrder.update({ where: { id: existing.id }, data: { status: parsed.data.status, approvedAt: parsed.data.status === 'APPROVED' ? new Date() : null }, include: { createdBy: { select: { id: true, name: true } } } })
       })
