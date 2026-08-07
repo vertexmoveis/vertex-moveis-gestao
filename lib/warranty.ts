@@ -37,3 +37,15 @@ export function isWarrantyStatus(value: string): value is WarrantyStatus {
 export function warrantyStatusIsClosed(value: string) {
   return value === 'RESOLVED' || value === 'CANCELED'
 }
+
+export function warrantyDueAt(priority: WarrantyPriority, from: Date = new Date()) {
+  const businessDays = priority === 'URGENT' ? 1 : priority === 'HIGH' ? 2 : 5
+  const due = new Date(from)
+  let remaining = businessDays
+  while (remaining > 0) {
+    due.setUTCDate(due.getUTCDate() + 1)
+    const weekday = due.getUTCDay()
+    if (weekday !== 0 && weekday !== 6) remaining -= 1
+  }
+  return due
+}

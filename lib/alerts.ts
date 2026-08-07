@@ -83,6 +83,7 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     negotiationsToClose,
     postSaleDue,
     openWarrantyTickets,
+    overdueWarrantyTickets,
     answeredChanges,
     lowSatisfaction,
   ] = await Promise.all([
@@ -172,6 +173,13 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     prisma.warrantyTicket.count({
       where: {
         status: { notIn: ['RESOLVED', 'CANCELED'] },
+        project: projectScope,
+      },
+    }),
+    prisma.warrantyTicket.count({
+      where: {
+        status: { notIn: ['RESOLVED', 'CANCELED'] },
+        dueAt: { lt: todayStart },
         project: projectScope,
       },
     }),
@@ -279,6 +287,14 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
       href: '/dashboard/projects?warranty=open',
       count: openWarrantyTickets,
       tone: 'warning',
+    },
+    {
+      id: 'warranty-overdue',
+      title: 'Garantias com prazo vencido',
+      body: `${overdueWarrantyTickets} ${plural(overdueWarrantyTickets, 'chamado passou', 'chamados passaram')} do prazo de atendimento.`,
+      href: '/dashboard/post-sale',
+      count: overdueWarrantyTickets,
+      tone: 'danger',
     },
     {
       id: 'change-answers',

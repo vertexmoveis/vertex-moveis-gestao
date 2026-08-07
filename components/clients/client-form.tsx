@@ -20,6 +20,9 @@ const schema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   address: z.string().optional(),
+  commercialSource: z.string().optional(),
+  nextCommercialAction: z.string().optional(),
+  nextCommercialActionAt: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -56,6 +59,9 @@ export function ClientForm({ initialData, onSubmit, onCancel, serverError }: Cli
       state: initialData?.state || '',
       zipCode: initialData?.zipCode || '',
       address: initialData?.address || '',
+      commercialSource: initialData?.commercialSource || '',
+      nextCommercialAction: initialData?.nextCommercialAction || '',
+      nextCommercialActionAt: initialData?.nextCommercialActionAt?.slice(0, 10) || '',
       notes: initialData?.notes || '',
     },
   })
@@ -145,6 +151,12 @@ export function ClientForm({ initialData, onSubmit, onCancel, serverError }: Cli
           />
         </div>
         <Input label="Complemento / referência" placeholder="Apartamento, bloco, ponto de referência..." {...register('address')} />
+      </div>
+      <div className="space-y-3 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-3">
+        <p className="text-sm font-semibold text-[#121212]">Acompanhamento comercial</p>
+        <Input label="Origem do contato" placeholder="Indicação, Instagram, Google..." {...register('commercialSource')} />
+        <Input label="Próxima ação" placeholder="Ligar, enviar nova proposta, confirmar medidas..." {...register('nextCommercialAction')} />
+        <Input label="Data do próximo retorno" type="date" {...register('nextCommercialActionAt')} />
       </div>
       <Textarea
         label="Observações"

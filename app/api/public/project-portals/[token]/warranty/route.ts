@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { warrantyDueAt } from '@/lib/warranty'
 import { hashProjectPortalToken } from '@/lib/project-portal'
 import {
   canOpenPublicWarranty,
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         title: label,
         description: parsed.data.description,
         priority: 'NORMAL',
+        dueAt: warrantyDueAt('NORMAL'),
         status: 'OPEN',
       },
     })

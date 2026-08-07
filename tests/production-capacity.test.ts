@@ -39,3 +39,12 @@ test('considera o peso de cada projeto na capacidade semanal', () => {
   assert.equal(week.scheduled, 4.25)
   assert.equal(week.state, 'OVERLOADED')
 })
+
+test('distribui a carga do projeto entre as semanas de fabricação', () => {
+  const weeks = getProductionCapacityWeeks([
+    { start: '2026-08-03', deadline: '2026-08-16', weight: 4 },
+  ], 4, new Date('2026-08-03T12:00:00-03:00'), 2)
+
+  assert.equal(weeks[0].scheduled, 2)
+  assert.equal(weeks[1].scheduled, 2)
+})

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 
 const BACKUP_TABLES = [
   'User',
+  'UserAlertState',
   'LoginEvent',
   'Client',
   'PrivacyRequest',

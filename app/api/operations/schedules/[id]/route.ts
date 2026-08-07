@@ -5,6 +5,7 @@ import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/secu
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES, INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 import { PRODUCTION_STAGE_STATUS } from '@/types'
 import { DELIVERY_CHECKS } from '@/lib/operational-toolkit'
+import { settleInventoryReservations } from '@/lib/inventory-reservation-lifecycle'
 
 const scheduleSchema = z.object({
   projectId: z.string().trim().min(1),
@@ -139,6 +140,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         where: {
           id: { not: id },
           status: { in: ACTIVE_INSTALLATION_SCHEDULE_STATUSES },
+          project: { archivedAt: null },
           scheduledStart: { lt: scheduledEnd },
           scheduledEnd: { gt: scheduledStart },
           OR: resourceFilters,
@@ -178,13 +180,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
 
     if (existing.status !== updated.status) {
+      if (existing.status === 'COMPLETED' && updated.status !== 'COMPLETED') {
+        await tx.project.update({
+          where: { id: targetProject.id },
+          data: {
+            stage: 'INSTALLATION',
+            status: PRODUCTION_STAGE_STATUS.INSTALLATION,
+            actualEndDate: null,
+            postSaleFollowUpAt: null,
+            warrantyEndsAt: null,
+          },
+        })
+        await tx.projectDeliveryProof.deleteMany({ where: { installationScheduleId: updated.id } })
+      }
       if (updated.status === 'CONFIRMED' || updated.status === 'ON_ROUTE' || updated.status === 'IN_PROGRESS') {
-        if (targetProject.stage !== 'COMPLETED') {
-          await tx.project.update({
-            where: { id: targetProject.id },
-            data: { stage: 'INSTALLATION', status: PRODUCTION_STAGE_STATUS.INSTALLATION },
-          })
-        }
+        await tx.project.update({
+          where: { id: targetProject.id },
+          data: { stage: 'INSTALLATION', status: PRODUCTION_STAGE_STATUS.INSTALLATION },
+        })
       }
 
       if (updated.status === 'COMPLETED') {
@@ -199,6 +212,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             warrantyEndsAt: targetProject.warrantyEndsAt || addCalendarYear(completedAt),
           },
         })
+        await settleInventoryReservations(tx, targetProject.id, 'CONSUMED')
         await tx.projectDeliveryProof.upsert({
           where: { installationScheduleId: updated.id },
           create: {

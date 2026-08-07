@@ -95,6 +95,9 @@ export const clientCreateSchema = z.object({
   city: nullableString(100),
   state: nullableString(40),
   zipCode: nullableString(20),
+  commercialSource: nullableString(80),
+  nextCommercialAction: nullableString(240),
+  nextCommercialActionAt: dateField,
   notes: nullableString(1000),
 }).strict()
 

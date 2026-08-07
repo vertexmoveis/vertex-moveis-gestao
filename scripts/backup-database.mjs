@@ -14,6 +14,7 @@ const backupPattern = /^vertex-postgres-\d{14}-\d{3}\.json(?:\.enc)?$/
 const backupKeyFile = path.resolve(process.env.BACKUP_KEY_FILE || path.join(backupDir, '.vertex-backup.key'))
 const tableOrder = [
   'User',
+  'UserAlertState',
   'LoginEvent',
   'Client',
   'PrivacyRequest',

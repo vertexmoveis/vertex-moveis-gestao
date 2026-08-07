@@ -37,6 +37,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, optionalMoneyValue } from '@/lib/money'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { settleInventoryReservations } from '@/lib/inventory-reservation-lifecycle'
 import { calculateProjectPaymentPlan } from '@/lib/project-payment-plan'
 import {
   getProjectContractReadiness,
@@ -779,63 +780,69 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         : {}),
     }
 
-    const project = await prisma.project.update({
-      where: { id },
-      data,
-      select: {
-        stage: true,
-        status: true,
-        actualEndDate: true,
-        postSaleFollowUpAt: true,
-        postSaleContactedAt: true,
-        warrantyEndsAt: true,
-        productionBlockedAt: true,
-        productionBlockReason: true,
-        stageDeadlineDate: true,
-        contractRequirement: true,
-        contractWaivedAt: true,
-        contractWaivedReason: true,
-      },
-    })
-
-    if (nextStage && nextStage !== existing.stage) {
-      await prisma.timelineEvent.create({
-        data: {
-          projectId: id,
-          event: nextStage === 'COMPLETED' ? 'Projeto concluído' : 'Etapa atualizada',
-          description: nextStage === 'COMPLETED'
-            ? 'Pós-venda agendado automaticamente para 30 dias após a conclusão.'
-            : stageOverrideReason
-              ? `Avanço manual para ${nextStage}. Justificativa: ${stageOverrideReason}`
-              : `Projeto avançou para ${nextStage}.`,
+    const project = await prisma.$transaction(async (tx) => {
+      const updatedProject = await tx.project.update({
+        where: { id },
+        data,
+        select: {
+          stage: true,
+          status: true,
+          actualEndDate: true,
+          postSaleFollowUpAt: true,
+          postSaleContactedAt: true,
+          warrantyEndsAt: true,
+          productionBlockedAt: true,
+          productionBlockReason: true,
+          stageDeadlineDate: true,
+          contractRequirement: true,
+          contractWaivedAt: true,
+          contractWaivedReason: true,
         },
       })
-    }
 
-    if (contractRequirement && contractRequirement !== existing.contractRequirement) {
-      const label = contractRequirement === 'WAIVED'
-        ? 'Contrato dispensado'
-        : contractRequirement === 'OPTIONAL_LEGACY'
-          ? 'Contrato definido como opcional'
-          : 'Contrato definido como obrigatório'
-      await prisma.timelineEvent.create({
+      if (nextStage && nextStage !== existing.stage) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: nextStage === 'COMPLETED' ? 'Projeto concluído' : 'Etapa atualizada',
+            description: nextStage === 'COMPLETED'
+              ? 'Pós-venda agendado automaticamente para 30 dias após a conclusão.'
+              : stageOverrideReason
+                ? `Avanço manual para ${nextStage}. Justificativa: ${stageOverrideReason}`
+                : `Projeto avançou para ${nextStage}.`,
+          },
+        })
+        if (nextStage === 'PRODUCTION' || nextStage === 'COMPLETED') {
+          await settleInventoryReservations(tx, id, 'CONSUMED')
+        }
+      }
+
+      if (contractRequirement && contractRequirement !== existing.contractRequirement) {
+        const label = contractRequirement === 'WAIVED'
+          ? 'Contrato dispensado'
+          : contractRequirement === 'OPTIONAL_LEGACY'
+            ? 'Contrato definido como opcional'
+            : 'Contrato definido como obrigatório'
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: label,
+            description: contractRequirement === 'WAIVED'
+              ? `Justificativa: ${contractWaiverReason?.trim()}`
+              : 'Política contratual atualizada pelo administrador.',
+          },
+        })
+      }
+
+      await tx.activityLog.create({
         data: {
+          userId: auth.user.id,
           projectId: id,
-          event: label,
-          description: contractRequirement === 'WAIVED'
-            ? `Justificativa: ${contractWaiverReason?.trim()}`
-            : 'Política contratual atualizada pelo administrador.',
+          action: 'Projeto atualizado',
+          details: `Status: ${updatedProject.status} | Etapa: ${updatedProject.stage}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
         },
       })
-    }
-
-    await prisma.activityLog.create({
-      data: {
-        userId: auth.user.id,
-        projectId: id,
-        action: 'Projeto atualizado',
-        details: `Status: ${project.status} | Etapa: ${project.stage}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
-      },
+      return updatedProject
     })
 
     return NextResponse.json({
@@ -876,6 +883,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         where: { id },
         data: { archivedAt: new Date() },
         select: { name: true },
+      })
+      await settleInventoryReservations(tx, id, 'RELEASED')
+      await tx.installationSchedule.updateMany({
+        where: { projectId: id, status: { in: ['SCHEDULED', 'CONFIRMED', 'ON_ROUTE', 'IN_PROGRESS'] } },
+        data: { status: 'CANCELLED' },
       })
       await tx.activityLog.create({
         data: {

@@ -33,57 +33,63 @@ export async function PATCH(
   if (paid && paymentMethod !== undefined && paymentMethod !== null && !isPaymentMethod(paymentMethod)) return badRequest()
 
   try {
-    const payment = await prisma.projectPayment.findFirst({
-      where: { id: paymentId, projectId: id, project: { archivedAt: null } },
-      select: { id: true },
-    })
-    if (!payment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const updated = await prisma.$transaction(async (tx) => {
+      const payment = await tx.projectPayment.findFirst({
+        where: { id: paymentId, projectId: id, project: { archivedAt: null } },
+        select: { id: true, type: true },
+      })
+      if (!payment) return null
 
-    const updated = await prisma.projectPayment.update({
-      where: { id: paymentId },
-      data: {
-        paidAt: paid ? new Date() : null,
-        paymentMethod: paid ? (isPaymentMethod(paymentMethod) ? paymentMethod : 'PIX') : null,
-      },
-      select: {
-        id: true,
-        installmentNumber: true,
-        type: true,
-        amount: true,
-        dueDate: true,
-        paidAt: true,
-        paymentMethod: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+      const nextPayment = await tx.projectPayment.update({
+        where: { id: paymentId },
+        data: {
+          paidAt: paid ? new Date() : null,
+          paymentMethod: paid ? (isPaymentMethod(paymentMethod) ? paymentMethod : 'PIX') : null,
+        },
+        select: {
+          id: true,
+          installmentNumber: true,
+          type: true,
+          amount: true,
+          dueDate: true,
+          paidAt: true,
+          paymentMethod: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
-    await prisma.paymentHistory.create({
-      data: {
-        paymentId,
-        userId: auth.user.id,
-        action: paid ? 'RECEIVED' : 'REOPENED',
-        method: updated.paymentMethod,
-        amount: updated.amount,
-      },
-    })
+      await tx.paymentHistory.create({
+        data: {
+          paymentId,
+          userId: auth.user.id,
+          action: paid ? 'RECEIVED' : 'REOPENED',
+          method: nextPayment.paymentMethod,
+          amount: nextPayment.amount,
+        },
+      })
+      await tx.activityLog.create({
+        data: {
+          userId: auth.user.id,
+          projectId: id,
+          action: paid ? 'Pagamento recebido' : 'Pagamento reaberto',
+          details: `Parcela ${nextPayment.installmentNumber || 'entrada'} - R$ ${moneyValue(nextPayment.amount).toFixed(2)}`,
+        },
+      })
 
-    await prisma.activityLog.create({
-      data: {
-        userId: auth.user.id,
-        projectId: id,
-        action: paid ? 'Pagamento recebido' : 'Pagamento reaberto',
-        details: `Parcela ${updated.installmentNumber || 'entrada'} - R$ ${moneyValue(updated.amount).toFixed(2)}`,
-      },
+      const receivedCount = await tx.projectPayment.count({ where: { projectId: id, paidAt: { not: null } } })
+      await tx.salesCommission.updateMany({
+        where: { projectId: id, paidAt: null },
+        data: receivedCount > 0
+          ? { status: 'AVAILABLE', availableAt: new Date() }
+          : { status: 'PENDING', availableAt: null },
+      })
+      if (!paid && payment.type === 'DOWN_PAYMENT' && receivedCount === 0) {
+        await tx.project.update({ where: { id }, data: { paymentConfirmedAt: null } })
+      }
+      return nextPayment
     })
-
-    const receivedCount = await prisma.projectPayment.count({ where: { projectId: id, paidAt: { not: null } } })
-    await prisma.salesCommission.updateMany({
-      where: { projectId: id, paidAt: null },
-      data: receivedCount > 0
-        ? { status: 'AVAILABLE', availableAt: new Date() }
-        : { status: 'PENDING', availableAt: null },
-    })
+    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     return NextResponse.json({
       ...updated,

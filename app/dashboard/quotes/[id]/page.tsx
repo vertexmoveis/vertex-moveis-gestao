@@ -168,6 +168,19 @@ export default function QuoteDetailPage() {
     return Array.from(new Set(quote.items.map((item) => item.environmentName || item.environment).filter(Boolean)))
   }, [quote])
 
+  const revisionSummaries = useMemo(() => (quote?.revisions || []).map((revision) => {
+    try {
+      const snapshot = JSON.parse(revision.snapshot) as { totals?: { total?: number }; items?: unknown[] }
+      return {
+        ...revision,
+        total: Number(snapshot.totals?.total || 0),
+        itemCount: Array.isArray(snapshot.items) ? snapshot.items.length : 0,
+      }
+    } catch {
+      return { ...revision, total: 0, itemCount: 0 }
+    }
+  }), [quote?.revisions])
+
   const handleUpdate = async (payload: QuotePayload) => {
     const response = await fetch(`/api/quotes/${params.id}`, {
       method: 'PUT',
@@ -651,6 +664,36 @@ export default function QuoteDetailPage() {
                 </div>
               </div>
             </div>
+
+            {revisionSummaries.length > 0 ? (
+              <div className="rounded-xl border border-[#E8E8E8] bg-white shadow-sm">
+                <div className="border-b border-[#F0F0F0] px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Histórico de versões</p>
+                </div>
+                <div className="divide-y divide-[#F0F0F0]">
+                  {revisionSummaries.slice(0, 6).map((revision, index) => {
+                    const previous = revisionSummaries[index + 1]
+                    const difference = previous ? revision.total - previous.total : 0
+                    return (
+                      <div key={revision.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs">
+                        <div>
+                          <p className="font-semibold text-[#121212]">Versão {revision.version}</p>
+                          <p className="mt-1 text-[#777]">{revision.itemCount} itens · {formatDate(revision.createdAt)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-[#121212]">{formatCurrency(revision.total)}</p>
+                          {previous && difference !== 0 ? (
+                            <p className={difference > 0 ? 'mt-1 text-amber-700' : 'mt-1 text-emerald-700'}>
+                              {difference > 0 ? '+' : ''}{formatCurrency(difference)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-xl border border-[#E8E8E8] bg-white shadow-sm">
               <div className="border-b border-[#F0F0F0] px-5 py-4">

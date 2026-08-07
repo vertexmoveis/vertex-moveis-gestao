@@ -40,6 +40,7 @@ export function PurchaseOrdersPanel({ materials }: { materials: PurchaseMaterial
   const [expectedAt, setExpectedAt] = useState('')
   const [notes, setNotes] = useState('')
   const [selected, setSelected] = useState<string[]>([])
+  const [receiptQuantities, setReceiptQuantities] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
@@ -76,6 +77,7 @@ export function PurchaseOrdersPanel({ materials }: { materials: PurchaseMaterial
         items: chosen.map((item) => ({
           materialId: item.materialId,
           projectId: item.projectId,
+          projectMaterialId: item.id,
           quantity: Math.max(item.estimatedQuantity - item.purchasedQuantity - item.reservedQuantity, 0.01),
           unitCost: item.estimatedQuantity > 0 ? item.estimatedCost / item.estimatedQuantity : 0,
         })),
@@ -103,6 +105,34 @@ export function PurchaseOrdersPanel({ materials }: { materials: PurchaseMaterial
     const payload = await response.json().catch(() => null)
     setBusy('')
     if (!response.ok) return setMessage(payload?.error || 'Não foi possível atualizar o pedido.')
+    await load()
+  }
+
+  const receivePartial = async (order: PurchaseOrder) => {
+    const receipts = order.items.flatMap((item) => {
+      const quantity = Number(receiptQuantities[item.id] || 0)
+      return quantity > 0 ? [{ itemId: item.id, quantity }] : []
+    })
+    if (receipts.length === 0) {
+      setMessage('Informe a quantidade recebida em pelo menos um item.')
+      return
+    }
+    setBusy(order.id)
+    setMessage('')
+    const response = await fetch(`/api/purchase-orders/${order.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receipts }),
+    })
+    const payload = await response.json().catch(() => null)
+    setBusy('')
+    if (!response.ok) return setMessage(payload?.error || 'Não foi possível registrar o recebimento.')
+    setReceiptQuantities((current) => {
+      const next = { ...current }
+      order.items.forEach((item) => delete next[item.id])
+      return next
+    })
+    setMessage('Recebimento registrado e estoque atualizado.')
     await load()
   }
 
@@ -140,10 +170,33 @@ export function PurchaseOrdersPanel({ materials }: { materials: PurchaseMaterial
                 <strong className="text-sm text-[#FF6B00]">{formatCurrency(total)}</strong>
               </div>
               <div className="mt-3 divide-y divide-[#EEE] border-y border-[#EEE]">
-                {order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-2 text-xs"><span>{item.material.name}{item.project ? ` · ${item.project.name}` : ''}</span><strong>{item.quantity.toLocaleString('pt-BR')} {item.material.unit}</strong></div>)}
+                {order.items.map((item) => {
+                  const remaining = Math.max(item.quantity - item.receivedQuantity, 0)
+                  return (
+                    <div key={item.id} className="grid gap-2 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                      <span className="min-w-0 truncate">{item.material.name}{item.project ? ` · ${item.project.name}` : ''}</span>
+                      <span className="font-semibold">{item.receivedQuantity.toLocaleString('pt-BR')} de {item.quantity.toLocaleString('pt-BR')} {item.material.unit}</span>
+                      {remaining > 0 && order.status !== 'CANCELLED' ? (
+                        <label className="flex items-center gap-2">
+                          <span className="text-[#777]">Recebido agora</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={remaining}
+                            step="0.01"
+                            value={receiptQuantities[item.id] || ''}
+                            onChange={(event) => setReceiptQuantities((current) => ({ ...current, [item.id]: event.target.value }))}
+                            className="h-9 w-24 border border-[#D9D9D9] px-2 outline-none focus:border-[#FF6B00]"
+                            aria-label={`Quantidade recebida de ${item.material.name}`}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </div>
               {order.notes ? <p className="mt-2 text-xs text-[#666]">{order.notes}</p> : null}
-              {order.status !== 'RECEIVED' && order.status !== 'CANCELLED' ? <div className="mt-3 flex flex-wrap justify-end gap-2">{order.status === 'DRAFT' ? <Button type="button" size="sm" variant="outline" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'SENT')}><Send size={13} /> Marcar enviado</Button> : null}<Button type="button" size="sm" variant="outline" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'CANCELLED')}><XCircle size={13} /> Cancelar</Button><Button type="button" size="sm" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'RECEIVED')}><CheckCircle2 size={13} /> Receber tudo</Button></div> : null}
+              {order.status !== 'RECEIVED' && order.status !== 'CANCELLED' ? <div className="mt-3 flex flex-wrap justify-end gap-2">{order.status === 'DRAFT' ? <Button type="button" size="sm" variant="outline" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'SENT')}><Send size={13} /> Marcar enviado</Button> : null}<Button type="button" size="sm" variant="outline" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'CANCELLED')}><XCircle size={13} /> Cancelar saldo</Button><Button type="button" size="sm" variant="outline" loading={busy === order.id} onClick={() => void receivePartial(order)}><CheckCircle2 size={13} /> Registrar quantidades</Button><Button type="button" size="sm" loading={busy === order.id} onClick={() => void updateStatus(order.id, 'RECEIVED')}><CheckCircle2 size={13} /> Receber tudo</Button></div> : null}
             </div>
           )
         })}

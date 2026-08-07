@@ -78,6 +78,12 @@ export type QuoteData = {
     zipCode?: string | null
   } | null
   items: QuoteItemData[]
+  revisions?: Array<{
+    id: string
+    version: number
+    snapshot: string
+    createdAt: string
+  }>
   environmentImages?: Array<{
     id: string
     environmentName: string

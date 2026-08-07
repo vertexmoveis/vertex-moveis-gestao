@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/header'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
+import type { Prisma } from '@prisma/client'
 
 type SessionUser = { id?: string; role?: string }
 
@@ -12,25 +13,29 @@ function stars(value: number | null) {
   return value ? `${'★'.repeat(value)}${'☆'.repeat(5 - value)}` : 'Sem avaliação'
 }
 
-export default async function PostSalePage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+export default async function PostSalePage({ searchParams }: { searchParams: Promise<{ filter?: string; page?: string }> }) {
   const session = await getServerSession(authOptions)
   const user = (session?.user || {}) as SessionUser
-  const { filter } = await searchParams
+  const { filter, page: pageParam } = await searchParams
   const projectScope = user.role === 'ADMIN' ? {} : { managerId: user.id || '__sem_usuario__' }
   const attentionOnly = filter === 'attention'
-  const [projects, openTickets, pendingFollowUps, answeredChanges] = await Promise.all([
+  const page = Math.max(1, Number.parseInt(pageParam || '1', 10) || 1)
+  const pageSize = 30
+  const projectWhere: Prisma.ProjectWhereInput = {
+    ...projectScope,
+    archivedAt: null,
+    ...(attentionOnly ? { satisfactionRating: { lte: 2 } } : {
+      OR: [
+        { stage: 'COMPLETED' },
+        { warrantyTickets: { some: { status: { notIn: ['RESOLVED', 'CANCELED'] } } } },
+        { satisfactionRespondedAt: { not: null } },
+      ],
+    }),
+  }
+  const now = new Date()
+  const [projects, projectTotal, openTickets, overdueTickets, pendingFollowUps, answeredChanges] = await Promise.all([
     prisma.project.findMany({
-      where: {
-        ...projectScope,
-        archivedAt: null,
-        ...(attentionOnly ? { satisfactionRating: { lte: 2 } } : {
-          OR: [
-            { stage: 'COMPLETED' },
-            { warrantyTickets: { some: { status: { notIn: ['RESOLVED', 'CANCELED'] } } } },
-            { satisfactionRespondedAt: { not: null } },
-          ],
-        }),
-      },
+      where: projectWhere,
       select: {
         id: true,
         name: true,
@@ -43,26 +48,32 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
         client: { select: { name: true, whatsapp: true, phone: true } },
         warrantyTickets: {
           where: { status: { notIn: ['RESOLVED', 'CANCELED'] } },
-          select: { id: true },
+          select: { id: true, dueAt: true },
         },
       },
       orderBy: [{ satisfactionRespondedAt: 'desc' }, { actualEndDate: 'desc' }],
-      take: 100,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     }),
+    prisma.project.count({ where: projectWhere }),
     prisma.warrantyTicket.count({ where: { status: { notIn: ['RESOLVED', 'CANCELED'] }, project: { ...projectScope, archivedAt: null } } }),
+    prisma.warrantyTicket.count({ where: { status: { notIn: ['RESOLVED', 'CANCELED'] }, dueAt: { lt: now }, project: { ...projectScope, archivedAt: null } } }),
     prisma.project.count({ where: { ...projectScope, archivedAt: null, stage: 'COMPLETED', postSaleFollowUpAt: { lte: new Date() }, postSaleContactedAt: null } }),
     prisma.projectChangeOrder.count({ where: { status: { in: ['CLIENT_APPROVED', 'CLIENT_REJECTED'] }, project: { ...projectScope, archivedAt: null } } }),
   ])
   const rated = projects.filter((project) => project.satisfactionRating)
   const average = rated.length ? rated.reduce((sum, project) => sum + (project.satisfactionRating || 0), 0) / rated.length : 0
+  const totalPages = Math.max(1, Math.ceil(projectTotal / pageSize))
+  const pageHref = (target: number) => `/dashboard/post-sale?${new URLSearchParams({ ...(attentionOnly ? { filter: 'attention' } : {}), page: String(target) })}`
 
   return (
     <>
       <Header title="Pós-venda" subtitle="Acompanhamento, satisfação e assistência depois da instalação" />
       <main className="space-y-5 p-4 sm:p-6">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Metric icon={Headphones} label="Assistências abertas" value={openTickets} tone="orange" />
           <Metric icon={MessageSquareText} label="Retornos pendentes" value={pendingFollowUps} tone="blue" />
+          <Metric icon={AlertTriangle} label="Garantias vencidas" value={overdueTickets} tone="red" />
           <Metric icon={AlertTriangle} label="Alterações respondidas" value={answeredChanges} tone="red" />
           <Metric icon={Star} label="Média de satisfação" value={rated.length ? average.toFixed(1).replace('.', ',') : '-'} tone="green" />
         </section>
@@ -95,6 +106,15 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
               })}
             </div>
           ) : <p className="px-5 py-12 text-center text-sm text-[#888]">Nenhum cliente neste filtro.</p>}
+          {totalPages > 1 ? (
+            <div className="flex items-center justify-between border-t border-[#E8E8E8] px-5 py-4 text-xs">
+              <p className="text-[#777]">Página {page} de {totalPages} · {projectTotal} clientes</p>
+              <div className="flex gap-2">
+                {page > 1 ? <Link href={pageHref(page - 1)} className="border border-[#D9D9D9] px-3 py-2 font-semibold">Anterior</Link> : null}
+                {page < totalPages ? <Link href={pageHref(page + 1)} className="border border-[#D9D9D9] px-3 py-2 font-semibold">Próxima</Link> : null}
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
     </>

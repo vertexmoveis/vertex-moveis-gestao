@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Bell, Plus, X, FolderOpen, UserRound, Calculator } from 'lucide-react'
+import { Search, Bell, Plus, X, FolderOpen, UserRound, Calculator, Clock3, Check } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,8 @@ type HeaderNotification = {
   body: string
   href: string
   tone?: 'danger' | 'warning' | 'info'
+  fingerprint: string
+  read?: boolean
 }
 
 type GlobalSearchResult = {
@@ -75,6 +77,22 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
   const [searchLoading, setSearchLoading] = useState(false)
   const [query, setQuery] = useState('')
   const router = useRouter()
+
+  const updateNotificationState = useCallback(async (item: HeaderNotification, action: 'READ' | 'SNOOZE' | 'RESOLVE') => {
+    if (action === 'READ') {
+      setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, read: true } : notification))
+    } else {
+      setNotifications((current) => current.filter((notification) => notification.id !== item.id))
+    }
+    notificationCache = null
+    notificationCacheTime = 0
+
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alertId: item.id, fingerprint: item.fingerprint, action }),
+    }).catch(() => undefined)
+  }, [])
 
   const refreshNotifications = useCallback(async () => {
     setNotificationsLoading(true)
@@ -306,16 +324,17 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
                   </div>
                 ) : (
                   notifications.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setNotificationsOpen(false)
-                        router.push(item.href)
-                      }}
-                      className="w-full px-4 py-3 text-left transition-colors hover:bg-[#F7F7F7]"
-                    >
-                      <div className="flex items-start gap-2">
+                    <div key={item.id} className={cn('flex items-start gap-1 px-2 py-2 transition-colors hover:bg-[#F7F7F7]', item.read && 'opacity-70')}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void updateNotificationState(item, 'READ')
+                          setNotificationsOpen(false)
+                          router.push(item.href)
+                        }}
+                        className="min-w-0 flex-1 px-2 py-1 text-left"
+                      >
+                        <div className="flex items-start gap-2">
                         <span
                           className={cn(
                             'mt-1 h-2 w-2 flex-shrink-0 rounded-full',
@@ -326,8 +345,15 @@ export function Header({ title, subtitle, userName, action }: HeaderProps) {
                           <p className="text-sm font-medium text-[#121212]">{item.title}</p>
                           <p className="mt-1 text-xs text-[#777]">{item.body}</p>
                         </div>
-                      </div>
-                    </button>
+                        </div>
+                      </button>
+                      <button type="button" title="Adiar por 1 dia" aria-label="Adiar por 1 dia" onClick={() => void updateNotificationState(item, 'SNOOZE')} className="mt-1 flex h-8 w-8 items-center justify-center rounded-md text-[#777] hover:bg-white hover:text-[#121212]">
+                        <Clock3 size={14} />
+                      </button>
+                      <button type="button" title="Marcar como resolvido" aria-label="Marcar como resolvido" onClick={() => void updateNotificationState(item, 'RESOLVE')} className="mt-1 flex h-8 w-8 items-center justify-center rounded-md text-[#777] hover:bg-white hover:text-emerald-600">
+                        <Check size={14} />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>

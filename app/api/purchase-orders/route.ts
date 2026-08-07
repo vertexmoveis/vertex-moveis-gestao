@@ -11,6 +11,7 @@ const createSchema = z.object({
   items: z.array(z.object({
     materialId: z.string().min(1),
     projectId: z.string().min(1).nullable().optional(),
+    projectMaterialId: z.string().min(1).nullable().optional(),
     quantity: z.coerce.number().positive().max(1_000_000),
     unitCost: z.coerce.number().min(0).max(10_000_000),
   }).strict()).min(1).max(200),
@@ -50,6 +51,20 @@ export async function POST(req: NextRequest) {
   const materialIds = [...new Set(parsed.data.items.map((item) => item.materialId))]
   const materials = await prisma.materialCatalogItem.count({ where: { id: { in: materialIds }, active: true } })
   if (materials !== materialIds.length) return badRequest('Um dos materiais não está disponível no catálogo.')
+  const projectMaterialIds = [...new Set(parsed.data.items.map((item) => item.projectMaterialId).filter((value): value is string => Boolean(value)))]
+  if (projectMaterialIds.length > 0) {
+    const projectMaterials = await prisma.projectMaterial.findMany({
+      where: { id: { in: projectMaterialIds } },
+      select: { id: true, projectId: true, materialId: true },
+    })
+    const validProjectMaterials = new Map(projectMaterials.map((item) => [item.id, item]))
+    const invalidLink = parsed.data.items.some((item) => {
+      if (!item.projectMaterialId) return false
+      const linked = validProjectMaterials.get(item.projectMaterialId)
+      return !linked || linked.projectId !== item.projectId || linked.materialId !== item.materialId
+    })
+    if (invalidLink) return badRequest('Um dos materiais não pertence ao projeto informado.')
+  }
   const expectedAt = parsed.data.expectedAt ? new Date(`${parsed.data.expectedAt}T12:00:00.000Z`) : null
   if (expectedAt && Number.isNaN(expectedAt.getTime())) return badRequest('Data prevista inválida.')
 
@@ -60,13 +75,19 @@ export async function POST(req: NextRequest) {
         expectedAt,
         notes: parsed.data.notes || null,
         createdById: auth.user.id,
-        items: { create: parsed.data.items.map((item) => ({ ...item, projectId: item.projectId || null })) },
+        items: { create: parsed.data.items.map((item) => ({
+          ...item,
+          projectId: item.projectId || null,
+          projectMaterialId: item.projectMaterialId || null,
+        })) },
       },
       include,
     })
-    const projectIds = [...new Set(parsed.data.items.map((item) => item.projectId).filter((value): value is string => Boolean(value)))]
-    if (projectIds.length > 0) {
-      await tx.projectMaterial.updateMany({ where: { projectId: { in: projectIds }, status: 'PENDING' }, data: { status: 'ORDERED' } })
+    if (projectMaterialIds.length > 0) {
+      await tx.projectMaterial.updateMany({
+        where: { id: { in: projectMaterialIds }, status: 'PENDING' },
+        data: { status: 'ORDERED' },
+      })
     }
     return created
   })

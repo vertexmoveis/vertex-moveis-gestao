@@ -10,7 +10,7 @@ import {
   serverError,
   serviceUnavailable,
 } from '@/lib/security'
-import { WARRANTY_PRIORITIES } from '@/lib/warranty'
+import { WARRANTY_PRIORITIES, warrantyDueAt } from '@/lib/warranty'
 import { toDateOnlyUtc } from '@/lib/date-only'
 
 const createSchema = z.object({
@@ -49,6 +49,7 @@ function serializeTicket(ticket: {
   priority: string
   status: string
   openedAt: Date
+  dueAt: Date | null
   scheduledAt: Date | null
   resolvedAt: Date | null
   resolution: string | null
@@ -60,6 +61,7 @@ function serializeTicket(ticket: {
   return {
     ...ticket,
     openedAt: ticket.openedAt.toISOString(),
+    dueAt: ticket.dueAt?.toISOString() || null,
     scheduledAt: ticket.scheduledAt?.toISOString() || null,
     resolvedAt: ticket.resolvedAt?.toISOString() || null,
     createdAt: ticket.createdAt.toISOString(),
@@ -122,6 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           title: parsed.data.title,
           description: parsed.data.description,
           priority: parsed.data.priority,
+          dueAt: warrantyDueAt(parsed.data.priority),
           status: scheduledAt ? 'SCHEDULED' : 'OPEN',
           scheduledAt,
         },

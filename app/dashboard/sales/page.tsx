@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
-import { ArrowRight, CheckCircle, Clock, Target, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { ArrowRight, CalendarClock, CheckCircle, Clock, Target, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react'
 import type { Prisma } from '@prisma/client'
 import { Header } from '@/components/layout/header'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -38,7 +38,9 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
       : { createdById: user.id || '__sem_usuario__' }),
   }
 
-  const [funnelRows, soldTotals, lostTotals, waitingQuotes, sellerRows, sellers] = await Promise.all([
+  const followUpLimit = new Date()
+  followUpLimit.setDate(followUpLimit.getDate() + 7)
+  const [funnelRows, soldTotals, lostTotals, waitingQuotes, sellerRows, sellers, commercialActions, closedQuotes, lossReasons] = await Promise.all([
     prisma.quote.groupBy({
       by: ['status'],
       where: { ...sellerScope, createdAt: { gte: range.start, lt: range.end } },
@@ -86,6 +88,44 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
           orderBy: { name: 'asc' },
         })
       : Promise.resolve([]),
+    prisma.client.findMany({
+      where: {
+        archivedAt: null,
+        relationshipStage: { in: ['CONTACT', 'NEGOTIATING'] },
+        nextCommercialActionAt: { not: null, lte: followUpLimit },
+        ...(isAdmin
+          ? requestedSeller ? { managerId: requestedSeller } : {}
+          : { managerId: user.id || '__sem_usuario__' }),
+      },
+      select: {
+        id: true,
+        name: true,
+        nextCommercialAction: true,
+        nextCommercialActionAt: true,
+        commercialSource: true,
+      },
+      orderBy: { nextCommercialActionAt: 'asc' },
+      take: 12,
+    }),
+    prisma.quote.findMany({
+      where: {
+        ...sellerScope,
+        sentAt: { not: null },
+        OR: [
+          { approvedAt: { gte: range.start, lt: range.end } },
+          { lostAt: { gte: range.start, lt: range.end } },
+        ],
+      },
+      select: { sentAt: true, approvedAt: true, lostAt: true },
+      take: 500,
+    }),
+    prisma.quote.groupBy({
+      by: ['lossReason'],
+      where: { ...sellerScope, status: 'LOST', lostAt: { gte: range.start, lt: range.end } },
+      _count: { _all: true },
+      orderBy: { _count: { lossReason: 'desc' } },
+      take: 6,
+    }),
   ])
 
   const counts = QUOTE_STATUSES.reduce<Record<QuoteStatus, number>>((result, status) => {
@@ -113,6 +153,14 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
   }))
   const totalCreated = Object.values(counts).reduce((total, count) => total + count, 0)
   const closedCount = soldTotals._count._all + lostTotals._count._all
+  const responseHours = closedQuotes.flatMap((quote) => {
+    const outcome = quote.approvedAt || quote.lostAt
+    if (!quote.sentAt || !outcome) return []
+    return [Math.max(0, (outcome.getTime() - quote.sentAt.getTime()) / (60 * 60 * 1000))]
+  })
+  const averageResponseHours = responseHours.length
+    ? responseHours.reduce((sum, hours) => sum + hours, 0) / responseHours.length
+    : null
 
   return {
     isAdmin,
@@ -130,6 +178,12 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
       sentAt: quote.approvalRequests[0]?.sentAt || quote.sentAt,
     })),
     sellerRanking,
+    commercialActions,
+    averageResponseHours,
+    lossReasons: lossReasons.map((reason) => ({
+      label: reason.lossReason?.trim() || 'Motivo não informado',
+      count: reason._count._all,
+    })),
   }
 }
 
@@ -161,11 +215,12 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           <button type="submit" className="h-10 rounded-lg bg-[#121212] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#2A2A2A]">Atualizar</button>
         </form>
 
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
           <Metric icon={TrendingUp} label="Vendido no mês" value={formatCurrency(data.soldTotal)} detail={`${data.soldCount} venda${data.soldCount !== 1 ? 's' : ''} fechada${data.soldCount !== 1 ? 's' : ''}`} tone="green" />
           <Metric icon={Target} label="Conversão" value={`${data.conversion}%`} detail={`${data.soldCount} ganho${data.soldCount !== 1 ? 's' : ''} e ${data.lostCount} perdido${data.lostCount !== 1 ? 's' : ''}`} tone="orange" />
           <Metric icon={Clock} label="Aguardando retorno" value={data.counts.WAITING_APPROVAL} detail="Orçamentos enviados ao cliente" tone="blue" />
           <Metric icon={Wallet} label="Custo das vendas" value={formatCurrency(data.soldCost)} detail="Projetos fechados neste mês" tone="gray" />
+          <Metric icon={Clock} label="Tempo para resposta" value={data.averageResponseHours === null ? '-' : data.averageResponseHours < 48 ? `${Math.round(data.averageResponseHours)}h` : `${Math.round(data.averageResponseHours / 24)} dias`} detail="Média entre envio e decisão" tone="gray" />
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
@@ -224,6 +279,50 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             </CardBody>
           </Card>
         </div>
+
+        {data.lossReasons.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <div><h2 className="text-sm font-semibold text-[#121212]">Motivos de perda</h2><p className="mt-1 text-xs text-[#9E9E9E]">Razões registradas nos orçamentos perdidos no período</p></div>
+            </CardHeader>
+            <CardBody className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {data.lossReasons.map((reason) => (
+                <div key={reason.label} className="flex items-center justify-between border border-[#E8E8E8] px-3 py-3 text-sm">
+                  <span className="min-w-0 truncate text-[#555]">{reason.label}</span>
+                  <span className="ml-3 font-bold text-[#121212]">{reason.count}</span>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        ) : null}
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[#121212]">Próximas ações comerciais</h2>
+                <p className="mt-1 text-xs text-[#9E9E9E]">Retornos vencidos e previstos para os próximos 7 dias</p>
+              </div>
+              <span className="rounded-full bg-[#F5F5F5] px-3 py-1 text-xs font-semibold text-[#555]">{data.commercialActions.length}</span>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            {data.commercialActions.length === 0 ? (
+              <div className="flex items-center gap-3 px-5 py-5 text-sm text-emerald-700"><CheckCircle size={18} />Nenhuma ação comercial pendente.</div>
+            ) : (
+              <div className="divide-y divide-[#F0F0F0]">
+                {data.commercialActions.map((client) => (
+                  <Link key={client.id} href={`/dashboard/clients/${client.id}`} className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#FAFAFA]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F5F5F5] text-[#555]"><CalendarClock size={16} /></span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold group-hover:text-[#FF6B00]">{client.name}</span><span className="mt-0.5 block truncate text-xs text-[#777]">{client.nextCommercialAction || 'Realizar contato'}{client.commercialSource ? ` · ${client.commercialSource}` : ''}</span></span>
+                    <span className="text-xs font-semibold text-[#555]">{client.nextCommercialActionAt ? formatDate(client.nextCommercialActionAt) : '-'}</span>
+                    <ArrowRight size={15} className="text-[#BDBDBD] group-hover:text-[#FF6B00]" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHeader>

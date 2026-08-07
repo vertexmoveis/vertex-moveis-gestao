@@ -12,6 +12,7 @@ export type ProductionCapacityWeek = {
 }
 
 export type ProductionCapacityEntry = {
+  start?: Date | string | null
   deadline: Date | string | null | undefined
   weight?: number | null
 }
@@ -25,6 +26,15 @@ function addUtcDays(value: Date, days: number) {
 function mondayForDate(value: Date) {
   const day = value.getUTCDay()
   return addUtcDays(value, day === 0 ? -6 : 1 - day)
+}
+
+function weeksSpanned(start: string, end: string) {
+  const startDate = toDateOnlyUtc(start)
+  const endDate = toDateOnlyUtc(end)
+  if (!startDate || !endDate) return 1
+  const startMonday = mondayForDate(startDate)
+  const endMonday = mondayForDate(endDate)
+  return Math.max(Math.round((endMonday.getTime() - startMonday.getTime()) / (7 * 86_400_000)) + 1, 1)
 }
 
 export function getProductionCapacityWeeks(
@@ -45,7 +55,10 @@ export function getProductionCapacityWeeks(
     const weight = typeof entry === 'object' && entry !== null && !(entry instanceof Date)
       ? Math.max(Number(entry.weight) || 1, 0.25)
       : 1
-    return [{ key, weight }]
+    const start = typeof entry === 'object' && entry !== null && !(entry instanceof Date)
+      ? dateOnlyKey(entry.start) || key
+      : key
+    return [{ key, start: start > key ? key : start, weight }]
   })
 
   return Array.from({ length: Math.max(weekCount, 1) }, (_, index) => {
@@ -53,9 +66,9 @@ export function getProductionCapacityWeeks(
     const endDate = addUtcDays(startDate, 6)
     const start = dateOnlyKey(startDate)!
     const end = dateOnlyKey(endDate)!
-    const scheduled = entries
-      .filter((entry) => entry.key >= start && entry.key <= end)
-      .reduce((total, entry) => total + entry.weight, 0)
+    const scheduled = Math.round(entries
+      .filter((entry) => entry.start <= end && entry.key >= start)
+      .reduce((total, entry) => total + entry.weight / weeksSpanned(entry.start, entry.key), 0) * 100) / 100
     const usagePercent = Math.round((scheduled / safeCapacity) * 100)
     const state: ProductionCapacityState = scheduled > safeCapacity
       ? 'OVERLOADED'

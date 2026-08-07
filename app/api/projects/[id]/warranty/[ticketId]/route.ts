@@ -11,7 +11,7 @@ import {
   serverError,
   serviceUnavailable,
 } from '@/lib/security'
-import { WARRANTY_PRIORITIES, WARRANTY_STATUSES } from '@/lib/warranty'
+import { WARRANTY_PRIORITIES, WARRANTY_STATUSES, warrantyDueAt } from '@/lib/warranty'
 
 const updateSchema = z.object({
   title: z.string().trim().min(3).max(120).optional(),
@@ -88,6 +88,9 @@ export async function PATCH(
 
   try {
     const now = new Date()
+    const dueAt = parsed.data.priority && parsed.data.priority !== existing.priority
+      ? warrantyDueAt(parsed.data.priority, existing.openedAt)
+      : existing.dueAt
     const ticket = await prisma.$transaction(async (tx) => {
       const updated = await tx.warrantyTicket.update({
         where: { id: ticketId },
@@ -95,6 +98,7 @@ export async function PATCH(
           ...parsed.data,
           scheduledAt,
           resolution,
+          dueAt,
           resolvedAt: status === 'RESOLVED' ? existing.resolvedAt || now : null,
         },
         include: {
@@ -126,6 +130,7 @@ export async function PATCH(
     return NextResponse.json({
       ...ticket,
       openedAt: ticket.openedAt.toISOString(),
+      dueAt: ticket.dueAt?.toISOString() || null,
       scheduledAt: ticket.scheduledAt?.toISOString() || null,
       resolvedAt: ticket.resolvedAt?.toISOString() || null,
       createdAt: ticket.createdAt.toISOString(),

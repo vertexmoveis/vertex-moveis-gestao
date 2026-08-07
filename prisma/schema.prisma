@@ -44,6 +44,23 @@ model User {
   commissions       SalesCommission[]
   purchaseOrders    PurchaseOrder[]        @relation("PurchaseOrderCreatedBy")
   privacyRequests   PrivacyRequest[]       @relation("PrivacyRequestCreatedBy")
+  alertStates       UserAlertState[]
+}
+
+model UserAlertState {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertId      String
+  fingerprint  String
+  readAt       DateTime?
+  snoozedUntil DateTime?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, alertId])
+  @@index([userId, snoozedUntil])
 }
 
 model Client {
@@ -75,6 +92,9 @@ model Client {
   lastCommercialActivityAt   DateTime?
   inactivatedAt              DateTime?
   inactiveReason             String?
+  commercialSource           String?
+  nextCommercialAction       String?
+  nextCommercialActionAt     DateTime?
   archivedAt                 DateTime?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -95,6 +115,7 @@ model Client {
   @@index([relationshipStage, archivedAt])
   @@index([managerId, relationshipStage, archivedAt])
   @@index([lastCommercialActivityAt])
+  @@index([nextCommercialActionAt, relationshipStage])
 }
 
 model Project {
@@ -167,9 +188,9 @@ model Project {
   postSaleFollowUpAt             DateTime?
   postSaleContactedAt            DateTime?
   warrantyEndsAt                 DateTime?
-  satisfactionRating            Int?
-  satisfactionComment           String?
-  satisfactionRespondedAt       DateTime?
+  satisfactionRating             Int?
+  satisfactionComment            String?
+  satisfactionRespondedAt        DateTime?
 
   @@index([status])
   @@index([stage])
@@ -255,14 +276,14 @@ model Quote {
 }
 
 model QuoteGroup {
-  id          String   @id @default(cuid())
+  id          String                  @id @default(cuid())
   clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client      Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
   createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?                   @relation(fields: [createdById], references: [id], onDelete: SetNull)
   title       String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
   quotes      Quote[]
   images      QuoteEnvironmentImage[]
 
@@ -272,21 +293,21 @@ model QuoteGroup {
 }
 
 model QuoteEnvironmentImage {
-  id              String     @id @default(cuid())
-  groupId         String
-  group           QuoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  environmentName String
-  name            String
-  caption         String?
-  type            String
-  url             String     @unique
-  size            Int?
-  securityStatus  String     @default("PENDING")
-  securityDetails String?
+  id                String     @id @default(cuid())
+  groupId           String
+  group             QuoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  environmentName   String
+  name              String
+  caption           String?
+  type              String
+  url               String     @unique
+  size              Int?
+  securityStatus    String     @default("PENDING")
+  securityDetails   String?
   securityCheckedAt DateTime?
-  position        Int        @default(0)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  position          Int        @default(0)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@index([groupId, environmentName, position])
 }
@@ -424,23 +445,24 @@ model MaterialSupplierPrice {
 }
 
 model ProjectMaterial {
-  id                String               @id @default(cuid())
-  projectId         String
-  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  materialId        String?
-  material          MaterialCatalogItem? @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  materialName      String
-  finish            String?
-  unit              String               @default("m2")
-  estimatedQuantity Float                @default(0)
-  purchasedQuantity Float                @default(0)
-  estimatedCost     Decimal              @default(0) @db.Decimal(14, 2)
-  actualCost        Decimal?             @db.Decimal(14, 2)
-  supplier          String?
-  status            String               @default("PENDING")
-  notes             String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id                 String               @id @default(cuid())
+  projectId          String
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId         String?
+  material           MaterialCatalogItem? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  materialName       String
+  finish             String?
+  unit               String               @default("m2")
+  estimatedQuantity  Float                @default(0)
+  purchasedQuantity  Float                @default(0)
+  estimatedCost      Decimal              @default(0) @db.Decimal(14, 2)
+  actualCost         Decimal?             @db.Decimal(14, 2)
+  supplier           String?
+  status             String               @default("PENDING")
+  notes              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([projectId])
   @@index([status])
@@ -571,23 +593,23 @@ model ProjectQualityCheck {
 }
 
 model ProjectChangeOrder {
-  id          String    @id @default(cuid())
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdById String?
-  createdBy   User?     @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  title       String
-  description String
-  amountDelta Decimal   @default(0) @db.Decimal(14, 2)
-  daysDelta   Int       @default(0)
-  status      String    @default("DRAFT")
-  approvedAt  DateTime?
-  clientRespondedAt     DateTime?
-  clientRespondentName  String?
-  clientResponseNote    String?
-  clientResponseIpHash  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  projectId            String
+  project              Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById          String?
+  createdBy            User?     @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  title                String
+  description          String
+  amountDelta          Decimal   @default(0) @db.Decimal(14, 2)
+  daysDelta            Int       @default(0)
+  status               String    @default("DRAFT")
+  approvedAt           DateTime?
+  clientRespondedAt    DateTime?
+  clientRespondentName String?
+  clientResponseNote   String?
+  clientResponseIpHash String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([projectId, status])
 }
@@ -642,22 +664,25 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id               String              @id @default(cuid())
-  orderId          String
-  order            PurchaseOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  materialId       String
-  material         MaterialCatalogItem @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  projectId        String?
-  project          Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  quantity         Float
-  receivedQuantity Float               @default(0)
-  unitCost         Decimal             @default(0) @db.Decimal(14, 2)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  orderId           String
+  order             PurchaseOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  materialId        String
+  material          MaterialCatalogItem @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  projectId         String?
+  project           Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectMaterialId String?
+  projectMaterial   ProjectMaterial?    @relation(fields: [projectMaterialId], references: [id], onDelete: SetNull)
+  quantity          Float
+  receivedQuantity  Float               @default(0)
+  unitCost          Decimal             @default(0) @db.Decimal(14, 2)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([orderId])
   @@index([materialId])
   @@index([projectId])
+  @@index([projectMaterialId])
 }
 
 model SalesCommission {
@@ -833,21 +858,21 @@ model Note {
 }
 
 model ProjectFile {
-  id                String    @id @default(cuid())
+  id                String          @id @default(cuid())
   projectId         String
-  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   warrantyTicketId  String?
   warrantyTicket    WarrantyTicket? @relation(fields: [warrantyTicketId], references: [id], onDelete: SetNull)
   name              String
   type              String
-  category          String    @default("OTHER")
+  category          String          @default("OTHER")
   url               String
   size              Int?
-  securityStatus    String    @default("PENDING")
+  securityStatus    String          @default("PENDING")
   securityCheckedAt DateTime?
   securityDetails   String?
   expiresAt         DateTime?
-  createdAt         DateTime  @default(now())
+  createdAt         DateTime        @default(now())
 
   @@unique([projectId, url])
   @@index([projectId, category])
@@ -992,27 +1017,29 @@ model ProjectContract {
 }
 
 model WarrantyTicket {
-  id           String    @id @default(cuid())
+  id           String        @id @default(cuid())
   projectId    String
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdById  String?
-  createdBy    User?     @relation("WarrantyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("WarrantyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   assignedToId String?
-  assignedTo   User?     @relation("WarrantyAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedTo   User?         @relation("WarrantyAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   title        String
   description  String
-  priority     String    @default("NORMAL")
-  status       String    @default("OPEN")
-  openedAt     DateTime  @default(now())
+  priority     String        @default("NORMAL")
+  status       String        @default("OPEN")
+  openedAt     DateTime      @default(now())
+  dueAt        DateTime?
   scheduledAt  DateTime?
   resolvedAt   DateTime?
   resolution   String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   files        ProjectFile[]
 
   @@index([projectId, status])
   @@index([status, priority, openedAt])
   @@index([assignedToId, status])
   @@index([scheduledAt])
+  @@index([status, dueAt])
 }

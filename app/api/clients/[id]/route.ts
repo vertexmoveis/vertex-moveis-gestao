@@ -42,6 +42,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       relationshipStage: true,
       relationshipStageChangedAt: true,
       lastCommercialActivityAt: true,
+      commercialSource: true,
+      nextCommercialAction: true,
+      nextCommercialActionAt: true,
       inactivatedAt: true,
       inactiveReason: true,
       createdAt: true,
@@ -100,6 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     updatedAt: client.updatedAt.toISOString(),
     relationshipStageChangedAt: client.relationshipStageChangedAt.toISOString(),
     lastCommercialActivityAt: client.lastCommercialActivityAt?.toISOString() || null,
+    nextCommercialActionAt: client.nextCommercialActionAt?.toISOString() || null,
     inactivatedAt: client.inactivatedAt?.toISOString() || null,
     projects: client.projects.map((p) => ({
       ...p,

@@ -29,6 +29,7 @@ type WarrantyTicket = {
   priority: WarrantyPriority
   status: WarrantyStatus
   openedAt: string
+  dueAt: string | null
   scheduledAt: string | null
   resolvedAt: string | null
   resolution: string | null
@@ -243,6 +244,7 @@ export function ProjectWarrantyCard({
             <p className="text-xs text-[#777]">{openCount} chamado{openCount !== 1 ? 's' : ''} em aberto</p>
             {tickets.map((ticket) => {
               const closed = ticket.status === 'RESOLVED' || ticket.status === 'CANCELED'
+              const overdue = !closed && Boolean(ticket.dueAt && new Date(ticket.dueAt) < new Date())
               return (
                 <div key={ticket.id} className="rounded-lg border border-[#E8E8E8] p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -254,6 +256,11 @@ export function ProjectWarrantyCard({
                         </span>
                       </div>
                       <p className="mt-1 text-xs leading-5 text-[#666]">{ticket.description}</p>
+                      {ticket.dueAt ? (
+                        <p className={`mt-2 text-xs font-semibold ${overdue ? 'text-red-600' : 'text-[#666]'}`}>
+                          {overdue ? 'Prazo de atendimento vencido em' : 'Atender até'} {formatDateOnly(ticket.dueAt)}
+                        </p>
+                      ) : null}
                     </div>
                     <span className="rounded-full bg-[#F3F3F3] px-2 py-1 text-[10px] font-semibold text-[#555]">
                       {WARRANTY_STATUS_LABELS[ticket.status]}
