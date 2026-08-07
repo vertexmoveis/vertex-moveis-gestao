@@ -6,6 +6,11 @@ import { numberValue } from '@/lib/money'
 import { calculateCommission, estimateSheets, minutesBetween, QUALITY_CHECKS } from '@/lib/operational-toolkit'
 import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
 import { maxReservableQuantity } from '@/lib/inventory-reservations'
+import {
+  buildPaymentSchedule,
+  PaymentScheduleConflictError,
+  reconcilePaymentSchedule,
+} from '@/lib/payments'
 
 const pieceSchema = z.object({
   action: z.literal('PIECE_CREATE'),
@@ -31,7 +36,29 @@ const changeSchema = z.object({
 async function getProject(projectId: string) {
   return prisma.project.findFirst({
     where: { id: projectId, archivedAt: null },
-    select: { id: true, name: true, managerId: true, value: true, deliveryDeadlineDate: true, productionWeight: true },
+    select: {
+      id: true,
+      name: true,
+      managerId: true,
+      value: true,
+      deliveryDeadlineDate: true,
+      productionWeight: true,
+      downPayment: true,
+      downPaymentDate: true,
+      installmentCount: true,
+      firstInstallmentDate: true,
+      startDate: true,
+      payments: {
+        select: {
+          id: true,
+          installmentNumber: true,
+          type: true,
+          amount: true,
+          dueDate: true,
+          paidAt: true,
+        },
+      },
+    },
   })
 }
 
@@ -219,13 +246,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if ((existing.status === 'APPROVED' || existing.status === 'REJECTED') && existing.status !== parsed.data.status) {
       return NextResponse.json({ error: 'Uma alteração finalizada não pode ser reaberta automaticamente.' }, { status: 409 })
     }
-    const change = await prisma.$transaction(async (tx) => {
+    if (parsed.data.status === 'SENT' && existing.status !== 'DRAFT') {
+      return NextResponse.json({ error: 'Somente uma alteração em rascunho pode ser enviada ao cliente.' }, { status: 409 })
+    }
+    if (parsed.data.status === 'APPROVED' && existing.status !== 'CLIENT_APPROVED') {
+      return NextResponse.json({ error: 'Aguarde o aceite do cliente antes de aplicar valor e prazo.' }, { status: 409 })
+    }
+
+    try {
+      const change = await prisma.$transaction(async (tx) => {
       if (parsed.data.status === 'APPROVED' && existing.status !== 'APPROVED') {
         const nextProjectValue = numberValue(project.value) + numberValue(existing.amountDelta)
+        const schedule = buildPaymentSchedule({
+          value: nextProjectValue,
+          downPayment: numberValue(project.downPayment),
+          downPaymentDate: project.downPaymentDate,
+          installmentCount: project.installmentCount,
+          firstInstallmentDate: project.firstInstallmentDate,
+          baseDate: project.startDate,
+        })
+        const paymentChanges = reconcilePaymentSchedule(schedule, project.payments)
         const deliveryDeadlineDate = existing.daysDelta > 0 && project.deliveryDeadlineDate
           ? addBusinessDays(project.deliveryDeadlineDate, existing.daysDelta)
           : project.deliveryDeadlineDate
-        await tx.project.update({ where: { id }, data: { value: nextProjectValue, deliveryDeadlineDate } })
+        await tx.project.update({
+          where: { id },
+          data: {
+            value: nextProjectValue,
+            installmentValue: schedule.terms.installmentValue,
+            deliveryDeadlineDate,
+            contractRevisionRequiredAt: new Date(),
+            contractRevisionChanges: ['alteração comercial aprovada pelo cliente'],
+          },
+        })
+        if (paymentChanges.deleteIds.length > 0) {
+          await tx.projectPayment.deleteMany({ where: { id: { in: paymentChanges.deleteIds } } })
+        }
+        for (const payment of paymentChanges.updates) {
+          await tx.projectPayment.update({
+            where: { id: payment.id },
+            data: { amount: payment.amount, dueDate: payment.dueDate },
+          })
+        }
+        if (paymentChanges.creates.length > 0) {
+          await tx.projectPayment.createMany({
+            data: paymentChanges.creates.map((payment) => ({ ...payment, projectId: id })),
+          })
+        }
         const commissions = await tx.salesCommission.findMany({ where: { projectId: id }, select: { id: true, percent: true } })
         await Promise.all(commissions.map((commission) => tx.salesCommission.update({
           where: { id: commission.id },
@@ -234,8 +301,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await tx.timelineEvent.create({ data: { projectId: id, event: 'Alteração aprovada', description: `${existing.title}: ajuste de R$ ${numberValue(existing.amountDelta).toFixed(2)} e ${existing.daysDelta} dia(s) útil(eis).` } })
       }
       return tx.projectChangeOrder.update({ where: { id: existing.id }, data: { status: parsed.data.status, approvedAt: parsed.data.status === 'APPROVED' ? new Date() : null }, include: { createdBy: { select: { id: true, name: true } } } })
-    })
-    return NextResponse.json(serialize(change))
+      })
+      return NextResponse.json(serialize(change))
+    } catch (error) {
+      if (error instanceof PaymentScheduleConflictError) {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
+      throw error
+    }
   }
 
   if (action === 'RESERVATION_SET') {

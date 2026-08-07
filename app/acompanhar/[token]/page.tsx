@@ -6,6 +6,8 @@ import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
 import { hashProjectPortalToken } from '@/lib/project-portal'
 import { PublicInstallationActions } from '@/components/projects/public-installation-actions'
+import { PublicProjectSupport } from '@/components/projects/public-project-support'
+import { canOpenPublicWarranty, warrantyDeadline } from '@/lib/project-portal-support'
 import {
   normalizeProductionStage,
   PRODUCTION_STAGE_FLOW,
@@ -56,6 +58,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
           deliveryDeadlineDate: true,
           estimatedEndDate: true,
           actualEndDate: true,
+          warrantyEndsAt: true,
           updatedAt: true,
           client: { select: { name: true } },
           environments: {
@@ -67,6 +70,17 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             orderBy: { scheduledStart: 'asc' },
             take: 1,
             select: { id: true, scheduledStart: true, status: true },
+          },
+          warrantyTickets: {
+            orderBy: { openedAt: 'desc' },
+            take: 10,
+            select: { id: true, title: true, status: true, openedAt: true, resolution: true },
+          },
+          changeOrders: {
+            where: { status: { in: ['SENT', 'CLIENT_APPROVED', 'CLIENT_REJECTED', 'APPROVED', 'REJECTED'] } },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+            select: { id: true, title: true, description: true, amountDelta: true, daysDelta: true, status: true },
           },
         },
       },
@@ -90,6 +104,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
     : Math.round((Math.max(stageIndex, 0) / (PRODUCTION_STAGE_FLOW.length - 1)) * 100)
   const deadline = project.deliveryDeadlineDate || project.estimatedEndDate
   const installation = project.installationSchedules[0]
+  const warrantyEnd = warrantyDeadline(project)
 
   return (
     <main className="min-h-screen bg-[#F4F4F2] text-[#121212]">
@@ -204,6 +219,20 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             </div>
           </section>
         ) : null}
+
+        <PublicProjectSupport
+          token={token}
+          canOpenWarranty={canOpenPublicWarranty(project)}
+          warrantyLabel={warrantyEnd ? `Garantia até ${formatDateOnly(warrantyEnd)}` : null}
+          tickets={project.warrantyTickets.map((ticket) => ({
+            ...ticket,
+            openedAt: ticket.openedAt.toISOString(),
+          })) as Parameters<typeof PublicProjectSupport>[0]['tickets']}
+          changes={project.changeOrders.map((change) => ({
+            ...change,
+            amountDelta: Number(change.amountDelta),
+          }))}
+        />
 
         <footer className="py-4 text-center text-xs text-[#888]">
           Este link é pessoal. Em caso de dúvida, fale diretamente com a Vertex Móveis.
