@@ -265,9 +265,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const approvalUrl = new URL(`/proposta/${request.token}`, req.url).toString()
   const message = orderedQuotes.length > 1
-    ? buildQuoteOptionsApprovalMessage(orderedQuotes, approvalUrl, reminder)
+    ? buildQuoteOptionsApprovalMessage(orderedQuotes, approvalUrl, reminder, Boolean(request.viewedAt))
     : reminder
-      ? buildQuoteFollowUpMessage(quote, approvalUrl)
+      ? buildQuoteFollowUpMessage(quote, approvalUrl, Boolean(request.viewedAt))
       : buildQuoteApprovalMessage(quote, approvalUrl)
 
   return NextResponse.json({

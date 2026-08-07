@@ -12,6 +12,7 @@ import { numberValue } from '@/lib/money'
 import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { automaticReservationQuantity } from '@/lib/inventory-reservations'
 
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const catalogMaterials = materialDrafts.length > 0
         ? await tx.materialCatalogItem.findMany({
             where: { name: { in: [...new Set(materialDrafts.map((material) => material.materialName))] } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, unit: true, stockQuantity: true },
           })
         : []
       const materialIds = new Map(catalogMaterials.map((material) => [material.name, material.id]))
@@ -186,6 +187,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         select: { id: true, name: true },
       })
 
+      const requiredByMaterial = new Map<string, number>()
+      for (const material of materialDrafts) {
+        const catalogMaterial = catalogMaterials.find((candidate) => candidate.name === material.materialName)
+        if (!catalogMaterial || catalogMaterial.unit !== material.unit) continue
+        requiredByMaterial.set(
+          catalogMaterial.id,
+          (requiredByMaterial.get(catalogMaterial.id) || 0) + material.estimatedQuantity,
+        )
+      }
+
+      const materialIdsForReservation = [...requiredByMaterial.keys()]
+      const activeReservations = materialIdsForReservation.length > 0
+        ? await tx.inventoryReservation.groupBy({
+            by: ['materialId'],
+            where: { materialId: { in: materialIdsForReservation }, status: 'ACTIVE' },
+            _sum: { quantity: true },
+          })
+        : []
+      const activeReservedByMaterial = new Map(activeReservations.map((reservation) => [
+        reservation.materialId,
+        reservation._sum.quantity || 0,
+      ]))
+      const reservations = catalogMaterials.flatMap((material) => {
+        const requiredQuantity = requiredByMaterial.get(material.id) || 0
+        const quantity = automaticReservationQuantity({
+          requiredQuantity,
+          stockQuantity: material.stockQuantity,
+          activeReservedQuantity: activeReservedByMaterial.get(material.id) || 0,
+        })
+        return quantity > 0 ? [{ projectId: project.id, materialId: material.id, quantity }] : []
+      })
+      if (reservations.length > 0) {
+        await tx.inventoryReservation.createMany({ data: reservations })
+      }
+
       const paidOnCreation = await tx.projectPayment.findMany({
         where: { projectId: project.id, paidAt: { not: null } },
         select: { id: true, amount: true, paymentMethod: true },
@@ -228,6 +264,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           details: `Orçamento "${quote.title}" virou projeto`,
         },
       })
+
+      if (reservations.length > 0) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: project.id,
+            event: 'Materiais reservados no estoque',
+            description: `${reservations.length} ${reservations.length === 1 ? 'material foi separado' : 'materiais foram separados'} automaticamente para o projeto.`,
+          },
+        })
+      }
 
       await syncClientRelationshipStage(tx, quote.clientId, { activityAt: paymentConfirmedAt })
       return project

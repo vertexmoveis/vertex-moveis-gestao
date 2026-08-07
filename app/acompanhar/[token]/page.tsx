@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, Clock3, MapPin, PackageCheck } from 'lucide
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
 import { hashProjectPortalToken } from '@/lib/project-portal'
+import { PublicInstallationActions } from '@/components/projects/public-installation-actions'
 import {
   normalizeProductionStage,
   PRODUCTION_STAGE_FLOW,
@@ -65,7 +66,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] } },
             orderBy: { scheduledStart: 'asc' },
             take: 1,
-            select: { scheduledStart: true, status: true },
+            select: { id: true, scheduledStart: true, status: true },
           },
         },
       },
@@ -188,6 +189,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
                 </p>
               </div>
             </div>
+            <PublicInstallationActions token={token} status={installation.status} />
           </section>
         ) : null}
 

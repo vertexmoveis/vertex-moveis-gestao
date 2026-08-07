@@ -189,6 +189,7 @@ export interface ProjectData {
   productionBlockedAt?: string | null
   productionBlockReason?: string | null
   stageDeadlineDate?: string | null
+  pendingMaterialCount?: number
   environments?: ProjectEnvironmentData[]
   environmentSummary?: { total: number; completed: number }
   createdAt: string

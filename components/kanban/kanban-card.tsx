@@ -6,6 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
 import {
   CalendarClock,
+  Boxes,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,7 @@ import {
   GripVertical,
   Loader2,
   LockKeyhole,
+  SlidersHorizontal,
   UnlockKeyhole,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
@@ -211,6 +213,31 @@ export function KanbanCard({
 
           {!isDragging ? (
             <div className="flex shrink-0 items-center gap-0.5">
+              <Link
+                href={`/dashboard/projects/${project.id}#operacao`}
+                aria-label="Abrir centro operacional"
+                title="Abrir centro operacional"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={stopPointer}
+                className="relative flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5]"
+              >
+                <SlidersHorizontal size={14} />
+              </Link>
+              <Link
+                href={`/dashboard/projects/${project.id}#materiais`}
+                aria-label="Abrir materiais e compras"
+                title={project.pendingMaterialCount ? `${project.pendingMaterialCount} material(is) exigem atenção` : 'Abrir materiais e compras'}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={stopPointer}
+                className="relative flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5]"
+              >
+                <Boxes size={14} />
+                {project.pendingMaterialCount ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center bg-[#FF6B00] px-0.5 text-[8px] font-bold text-white">
+                    {Math.min(project.pendingMaterialCount, 9)}{project.pendingMaterialCount > 9 ? '+' : ''}
+                  </span>
+                ) : null}
+              </Link>
               <button
                 type="button"
                 aria-label="Voltar etapa"

@@ -595,11 +595,17 @@ export function buildQuoteApprovalMessage(quote: QuoteContactMessage, approvalUr
   ].join('\n')
 }
 
-export function buildQuoteFollowUpMessage(quote: QuoteContactMessage, approvalUrl: string) {
+export function buildQuoteFollowUpMessage(
+  quote: QuoteContactMessage,
+  approvalUrl: string,
+  viewed = false,
+) {
   return [
     `Olá, ${quote.client?.name || 'tudo bem'}! Tudo certo?`,
     '',
-    `Queria saber o que você achou do orçamento do seu projeto "${quote.title}", no valor de ${formatQuoteCurrency(quote.total)}.`,
+    viewed
+      ? `Vi que você conseguiu abrir o orçamento do projeto "${quote.title}", no valor de ${formatQuoteCurrency(quote.total)}.`
+      : `Queria confirmar se você conseguiu abrir o orçamento do projeto "${quote.title}", no valor de ${formatQuoteCurrency(quote.total)}.`,
     'Ficou alguma dúvida, algum detalhe que você gostaria de ajustar ou algo que não ficou como imaginava?',
     '',
     'Sua opinião é importante para deixarmos o projeto exatamente como você precisa.',
@@ -640,6 +646,7 @@ export function buildQuoteOptionsApprovalMessage(
   quotes: QuoteContactMessage[],
   approvalUrl: string,
   reminder = false,
+  viewed = false,
 ) {
   const clientName = quotes.find((quote) => quote.client?.name)?.client?.name || 'tudo bem'
   const options = quotes.map((quote, index) => (
@@ -651,7 +658,9 @@ export function buildQuoteOptionsApprovalMessage(
     reminder ? `Olá, ${clientName}! Tudo certo?` : `Olá, ${clientName}!`,
     '',
     reminder
-      ? `Queria saber o que você achou das ${optionCount} opções que preparamos para o seu projeto:`
+      ? viewed
+        ? `Vi que você abriu as ${optionCount} opções que preparamos. Queria saber o que achou:`
+        : `Queria confirmar se você conseguiu abrir as ${optionCount} opções que preparamos:`
       : `Preparamos ${optionCount} opções para o seu projeto:`,
     ...options,
     '',

@@ -17,6 +17,7 @@ export type PurchaseMaterial = {
   unit: 'm2' | 'metro' | 'unidade'
   estimatedQuantity: number
   purchasedQuantity: number
+  reservedQuantity: number
   estimatedCost: number
   actualCost: number | null
   supplier: string | null
@@ -117,7 +118,7 @@ export function PurchasesBoard({ initialMaterials, limited }: { initialMaterials
         <div className="overflow-hidden rounded-lg border border-[#E8E8E8] bg-white">
           <div className="divide-y divide-[#F0F0F0]">
             {visible.map((material) => {
-              const remaining = Math.max(material.estimatedQuantity - material.purchasedQuantity, 0)
+              const remaining = Math.max(material.estimatedQuantity - material.purchasedQuantity - material.reservedQuantity, 0)
               const nextStatus = material.status === 'PENDING' ? 'ORDERED' : material.status === 'ORDERED' ? 'RECEIVED' : null
               return (
                 <div key={material.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -128,7 +129,9 @@ export function PurchasesBoard({ initialMaterials, limited }: { initialMaterials
                     </div>
                     <p className="mt-1 text-xs text-[#777]">{material.project.name} · {material.project.client.name}{material.project.room ? ` · ${material.project.room}` : ''}</p>
                     <p className="mt-1 text-xs text-[#9E9E9E]">
-                      Falta: {remaining.toFixed(2)} {unitLabel(material.unit)} · Previsto: {formatCurrency(material.estimatedCost)}{material.supplier ? ` · ${material.supplier}` : ''}
+                      Falta comprar: {remaining.toFixed(2)} {unitLabel(material.unit)}
+                      {material.reservedQuantity > 0 ? ` · ${material.reservedQuantity.toFixed(2)} ${unitLabel(material.unit)} já reservado no estoque` : ''}
+                      {` · Previsto: ${formatCurrency(material.estimatedCost)}`}{material.supplier ? ` · ${material.supplier}` : ''}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">

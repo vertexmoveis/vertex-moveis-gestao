@@ -63,6 +63,11 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
       productionBlockedAt: true,
       productionBlockReason: true,
       stageDeadlineDate: true,
+      _count: {
+        select: {
+          materials: { where: { status: { in: ['PENDING', 'ORDERED'] } } },
+        },
+      },
       environments: {
         select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true },
         orderBy: { position: 'asc' },
@@ -82,6 +87,7 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
     productionBlockedAt: p.productionBlockedAt?.toISOString() || null,
     productionBlockReason: p.productionBlockReason,
     stageDeadlineDate: p.stageDeadlineDate?.toISOString() || null,
+    pendingMaterialCount: p._count.materials,
     value: isAdmin ? optionalMoneyValue(p.value) : null,
     productionCost: isAdmin ? optionalMoneyValue(p.productionCost) : null,
     downPayment: isAdmin ? optionalMoneyValue(p.downPayment) : null,

@@ -25,11 +25,34 @@ export default async function PurchasesPage() {
     orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
     take: PURCHASE_LIMIT + 1,
   })
+  const projectIds = [...new Set(materials.map((material) => material.projectId))]
+  const materialIds = [...new Set(materials.flatMap((material) => material.materialId ? [material.materialId] : []))]
+  const reservations = projectIds.length > 0 && materialIds.length > 0
+    ? await prisma.inventoryReservation.findMany({
+        where: {
+          status: 'ACTIVE',
+          projectId: { in: projectIds },
+          materialId: { in: materialIds },
+        },
+        select: { projectId: true, materialId: true, quantity: true },
+      })
+    : []
 
   const limited = materials.length > PURCHASE_LIMIT
-  const initialMaterials: PurchaseMaterial[] = materials.slice(0, PURCHASE_LIMIT).flatMap((material) => (
-    material.unit === 'm2' || material.unit === 'metro' || material.unit === 'unidade'
-      ? [{
+  const reservationBalance = new Map(reservations.map((reservation) => [
+    `${reservation.projectId}:${reservation.materialId}`,
+    reservation.quantity,
+  ]))
+  const initialMaterials: PurchaseMaterial[] = materials.slice(0, PURCHASE_LIMIT).flatMap((material) => {
+    if (material.unit !== 'm2' && material.unit !== 'metro' && material.unit !== 'unidade') return []
+    const reservationKey = material.materialId ? `${material.projectId}:${material.materialId}` : ''
+    const reservedAvailable = reservationKey ? reservationBalance.get(reservationKey) || 0 : 0
+    const requiredAfterPurchase = Math.max(material.estimatedQuantity - material.purchasedQuantity, 0)
+    const reservedQuantity = Math.min(requiredAfterPurchase, reservedAvailable)
+    if (reservationKey) reservationBalance.set(reservationKey, Math.max(reservedAvailable - reservedQuantity, 0))
+    if (requiredAfterPurchase - reservedQuantity <= 0.0001) return []
+
+    return [{
           id: material.id,
           projectId: material.projectId,
           materialId: material.materialId,
@@ -38,6 +61,7 @@ export default async function PurchasesPage() {
           unit: material.unit,
           estimatedQuantity: material.estimatedQuantity,
           purchasedQuantity: material.purchasedQuantity,
+          reservedQuantity,
           estimatedCost: moneyValue(material.estimatedCost),
           actualCost: moneyValue(material.actualCost),
           supplier: material.supplier,
@@ -45,8 +69,7 @@ export default async function PurchasesPage() {
           notes: material.notes,
           project: material.project,
         }]
-      : []
-  ))
+  })
 
   return (
     <div className="flex h-full flex-col">

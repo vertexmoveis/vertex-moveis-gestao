@@ -5,6 +5,7 @@ import { addBusinessDays } from '@/lib/business-days'
 import { numberValue } from '@/lib/money'
 import { calculateCommission, estimateSheets, minutesBetween, QUALITY_CHECKS } from '@/lib/operational-toolkit'
 import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
+import { maxReservableQuantity } from '@/lib/inventory-reservations'
 
 const pieceSchema = z.object({
   action: z.literal('PIECE_CREATE'),
@@ -244,8 +245,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await prisma.inventoryReservation.deleteMany({ where: { projectId: id, materialId: parsed.data.materialId } })
       return NextResponse.json({ deleted: true })
     }
-    const material = await prisma.materialCatalogItem.findUnique({ where: { id: parsed.data.materialId }, select: { id: true } })
+    const material = await prisma.materialCatalogItem.findUnique({
+      where: { id: parsed.data.materialId },
+      select: { id: true, stockQuantity: true },
+    })
     if (!material) return NextResponse.json({ error: 'Material não encontrado.' }, { status: 404 })
+
+    const [reserved, currentReservation] = await Promise.all([
+      prisma.inventoryReservation.aggregate({
+        where: { materialId: material.id, status: 'ACTIVE' },
+        _sum: { quantity: true },
+      }),
+      prisma.inventoryReservation.findUnique({
+        where: { projectId_materialId: { projectId: id, materialId: material.id } },
+        select: { quantity: true, status: true },
+      }),
+    ])
+    const maximum = maxReservableQuantity({
+      stockQuantity: material.stockQuantity,
+      activeReservedQuantity: reserved._sum.quantity || 0,
+      currentProjectQuantity: currentReservation?.status === 'ACTIVE' ? currentReservation.quantity : 0,
+    })
+    if (parsed.data.quantity > maximum + 0.0001) {
+      return NextResponse.json({
+        error: `Estoque insuficiente. Há ${maximum.toLocaleString('pt-BR')} disponível para este projeto.`,
+      }, { status: 409 })
+    }
     const reservation = await prisma.inventoryReservation.upsert({
       where: { projectId_materialId: { projectId: id, materialId: parsed.data.materialId } },
       create: { projectId: id, materialId: parsed.data.materialId, quantity: parsed.data.quantity },

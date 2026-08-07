@@ -76,7 +76,7 @@ export function PurchaseOrdersPanel({ materials }: { materials: PurchaseMaterial
         items: chosen.map((item) => ({
           materialId: item.materialId,
           projectId: item.projectId,
-          quantity: Math.max(item.estimatedQuantity - item.purchasedQuantity, 0.01),
+          quantity: Math.max(item.estimatedQuantity - item.purchasedQuantity - item.reservedQuantity, 0.01),
           unitCost: item.estimatedQuantity > 0 ? item.estimatedCost / item.estimatedQuantity : 0,
         })),
       }),
