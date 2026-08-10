@@ -5,7 +5,7 @@ import { COMPANY_PROFILE_ID } from '@/lib/company-profile'
 import { isCompanyPresentationImageBlobUrl } from '@/lib/company-presentation-images'
 import { requireRole, serverError } from '@/lib/security'
 
-export async function GET(_req: Request, { params }: { params: Promise<{ imageId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ imageId: string }> }) {
   const auth = await requireRole(['ADMIN'])
   if (!auth.ok) return auth.response
   const { imageId } = await params
@@ -15,13 +15,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ imageId
   if (!image || !['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus)) {
     return NextResponse.json({ error: 'Imagem não encontrada.' }, { status: 404 })
   }
-  const blob = await get(image.url, { access: 'private', useCache: true })
+  const range = req.headers.get('range')
+  const blob = await get(image.url, {
+    access: 'private',
+    useCache: true,
+    headers: range ? { Range: range } : undefined,
+  })
   if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Imagem indisponível.' }, { status: 404 })
+  const contentRange = blob.headers.get('content-range')
   return new NextResponse(blob.stream, {
+    status: contentRange ? 206 : 200,
     headers: {
       'Cache-Control': 'private, max-age=300',
       'Content-Type': image.type,
-      'Content-Length': String(blob.blob.size),
+      'Content-Length': blob.headers.get('content-length') || String(blob.blob.size),
+      'Accept-Ranges': blob.headers.get('accept-ranges') || 'bytes',
+      ...(contentRange ? { 'Content-Range': contentRange } : {}),
+      ...(blob.headers.get('etag') ? { ETag: blob.headers.get('etag')! } : {}),
       'X-Content-Type-Options': 'nosniff',
     },
   })
