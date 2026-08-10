@@ -8,7 +8,10 @@ import {
 import { PublicProposalIntro } from '@/components/quotes/public-proposal-intro'
 import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
 import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
-import { selectCompanyPresentationImages } from '@/lib/company-presentation'
+import {
+  buildBeforeAfterPairs,
+  selectCompanyPresentationMedia,
+} from '@/lib/company-presentation'
 import { prisma } from '@/lib/db'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import {
@@ -173,7 +176,7 @@ export default async function PublicQuoteApprovalPage({
         securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] },
       },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-      take: 30,
+      take: 60,
     }),
   ])
 
@@ -224,7 +227,9 @@ export default async function PublicQuoteApprovalPage({
   const clientName = quotes[0].client.name
   const company = withCompanyProfileDefaults(storedCompanyProfile)
   const quoteEnvironments = [...new Set(quotes.flatMap((quote) => quote.items.map((item) => item.environmentName || item.environment)).filter(Boolean))]
-  const selectedPresentationImages = selectCompanyPresentationImages(presentationImages, quoteEnvironments, 4)
+  const selectedPresentationImages = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'PORTFOLIO', 4)
+  const selectedBeforeAfterPairs = buildBeforeAfterPairs(presentationImages, quoteEnvironments, 3)
+  const selectedPresentationVideos = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'VIDEO', 2)
   const phoneDigits = (company.phone || '').replace(/\D/g, '')
   const whatsappNumber = phoneDigits ? (phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`) : ''
   const whatsappUrl = whatsappNumber
@@ -263,6 +268,27 @@ export default async function PublicQuoteApprovalPage({
               src: `/api/public/quote-approvals/${token}/presentation-images/${image.id}`,
               alt: image.caption || `${image.environmentName} produzido pela Vertex Móveis`,
               caption: image.caption || image.environmentName,
+            }))}
+            beforeAfterPairs={selectedBeforeAfterPairs.map((pair) => ({
+              title: pair.title,
+              before: {
+                id: pair.before.id,
+                src: `/api/public/quote-approvals/${token}/presentation-images/${pair.before.id}`,
+                alt: pair.before.caption || `Antes de ${pair.title}`,
+                caption: pair.before.caption || '',
+              },
+              after: {
+                id: pair.after.id,
+                src: `/api/public/quote-approvals/${token}/presentation-images/${pair.after.id}`,
+                alt: pair.after.caption || `Depois de ${pair.title}`,
+                caption: pair.after.caption || '',
+              },
+            }))}
+            videos={selectedPresentationVideos.map((video) => ({
+              id: video.id,
+              src: `/api/public/quote-approvals/${token}/presentation-images/${video.id}`,
+              alt: video.caption || video.name,
+              caption: video.caption || video.environmentName,
             }))}
             whatsappUrl={whatsappUrl}
           />

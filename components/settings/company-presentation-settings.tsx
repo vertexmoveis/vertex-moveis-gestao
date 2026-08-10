@@ -2,7 +2,7 @@
 
 import { upload } from '@vercel/blob/client'
 import Image from 'next/image'
-import { ImagePlus, Loader2, Save, Trash2, Upload } from 'lucide-react'
+import { Film, ImagePlus, Loader2, Save, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -15,6 +15,9 @@ import {
   COMPANY_PRESENTATION_IMAGE_ACCEPT,
   COMPANY_PRESENTATION_IMAGE_MAX_SIZE,
   COMPANY_PRESENTATION_IMAGE_PREFIX,
+  COMPANY_PRESENTATION_VIDEO_ACCEPT,
+  COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
+  type CompanyPresentationMediaKind,
 } from '@/lib/company-presentation-images'
 import type { CompanyProfileData } from '@/lib/company-profile'
 import { sanitizeQuoteImageName } from '@/lib/quote-images'
@@ -40,6 +43,8 @@ export function CompanyPresentationSettings({
   const [profile, setProfile] = useState(initialProfile)
   const [images, setImages] = useState(initialImages)
   const [environmentName, setEnvironmentName] = useState<string>('Todos os ambientes')
+  const [mediaKind, setMediaKind] = useState<CompanyPresentationMediaKind>('PORTFOLIO')
+  const [pairKey, setPairKey] = useState('')
   const [caption, setCaption] = useState('')
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
@@ -82,8 +87,13 @@ export function CompanyPresentationSettings({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (file.size > COMPANY_PRESENTATION_IMAGE_MAX_SIZE) {
-      setImageError('A imagem ultrapassa o limite de 8 MB.')
+    const maxSize = mediaKind === 'VIDEO' ? COMPANY_PRESENTATION_VIDEO_MAX_SIZE : COMPANY_PRESENTATION_IMAGE_MAX_SIZE
+    if (file.size > maxSize) {
+      setImageError(mediaKind === 'VIDEO' ? 'O vídeo ultrapassa o limite de 50 MB.' : 'A imagem ultrapassa o limite de 8 MB.')
+      return
+    }
+    if ((mediaKind === 'BEFORE' || mediaKind === 'AFTER') && !pairKey.trim()) {
+      setImageError('Informe o nome da obra para montar o antes e depois.')
       return
     }
 
@@ -94,7 +104,7 @@ export function CompanyPresentationSettings({
         access: 'private',
         contentType: file.type,
         handleUploadUrl: '/api/settings/company/presentation/images/upload',
-        clientPayload: JSON.stringify({ environmentName, name: file.name, caption }),
+        clientPayload: JSON.stringify({ environmentName, name: file.name, caption, mediaKind, pairKey: pairKey.trim() || null }),
         onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
       })
       const response = await fetch('/api/settings/company/presentation/images', {
@@ -104,6 +114,8 @@ export function CompanyPresentationSettings({
           environmentName,
           name: file.name,
           caption,
+          mediaKind,
+          pairKey: pairKey.trim() || null,
           type: blob.contentType || file.type,
           url: blob.url,
           size: file.size,
@@ -121,7 +133,7 @@ export function CompanyPresentationSettings({
   }
 
   const remove = async (image: CompanyPresentationImageData) => {
-    if (!window.confirm(`Remover a imagem "${image.caption || image.name}" do portfólio?`)) return
+    if (!window.confirm(`Remover "${image.caption || image.name}" da apresentação?`)) return
     setDeletingId(image.id)
     setImageError('')
     const response = await fetch(`/api/settings/company/presentation/images/${image.id}`, { method: 'DELETE' })
@@ -134,7 +146,8 @@ export function CompanyPresentationSettings({
     setImages((current) => current.filter((item) => item.id !== image.id))
   }
 
-  const previewImage = images.find((image) => ['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus))
+  const previewImage = images.find((image) => image.mediaKind === 'PORTFOLIO' && ['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus))
+  const beforeAfterKeys = [...new Set(images.filter((image) => image.pairKey).map((image) => image.pairKey as string))]
 
   return (
     <Card>
@@ -201,24 +214,64 @@ export function CompanyPresentationSettings({
         </div>
 
         <div className="border-t border-[#ECECEC] pt-5">
-          <div className="grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-end">
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-[#121212]">Fotos, antes e depois e vídeos</h3>
+            <p className="mt-1 text-xs text-[#777]">Escolha o tipo do conteúdo. O sistema mostra primeiro os trabalhos relacionados ao ambiente do orçamento.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[190px_190px_1fr]">
             <Select
-              label="Ambiente da foto"
+              label="Tipo de conteúdo"
+              value={mediaKind}
+              onChange={(event) => setMediaKind(event.target.value as CompanyPresentationMediaKind)}
+              options={[
+                { value: 'PORTFOLIO', label: 'Foto de portfólio' },
+                { value: 'BEFORE', label: 'Foto: antes' },
+                { value: 'AFTER', label: 'Foto: depois' },
+                { value: 'VIDEO', label: 'Vídeo' },
+              ]}
+            />
+            <Select
+              label="Ambiente"
               value={environmentName}
               onChange={(event) => setEnvironmentName(event.target.value)}
               options={COMPANY_PRESENTATION_ENVIRONMENTS.map((value) => ({ value, label: value }))}
             />
             <Input
-              label="Legenda (opcional)"
+              label={mediaKind === 'VIDEO' ? 'Título do vídeo' : 'Legenda (opcional)'}
               value={caption}
               maxLength={240}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="Ex.: Cozinha planejada entregue em Cotia"
             />
+          </div>
+          {(mediaKind === 'BEFORE' || mediaKind === 'AFTER') ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <Input
+                label="Nome da obra para unir o par"
+                value={pairKey}
+                maxLength={120}
+                onChange={(event) => setPairKey(event.target.value)}
+                placeholder="Ex.: Cozinha da família Silva"
+                list="presentation-pair-keys"
+              />
+              <datalist id="presentation-pair-keys">
+                {beforeAfterKeys.map((key) => <option key={key} value={key} />)}
+              </datalist>
+              <p className="text-xs text-[#777] md:col-span-2">Use exatamente o mesmo nome na foto “Antes” e na foto “Depois”.</p>
+            </div>
+          ) : null}
+          <div className="mt-4 flex justify-end">
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} loading={progress !== null}>
-              <Upload size={15} /> {progress === null ? 'Adicionar foto' : `${progress}%`}
+              {mediaKind === 'VIDEO' ? <Film size={15} /> : <Upload size={15} />}
+              {progress === null ? (mediaKind === 'VIDEO' ? 'Adicionar vídeo' : 'Adicionar foto') : `${progress}%`}
             </Button>
-            <input ref={inputRef} type="file" accept={COMPANY_PRESENTATION_IMAGE_ACCEPT} className="sr-only" onChange={(event) => void handleUpload(event)} />
+            <input
+              ref={inputRef}
+              type="file"
+              accept={mediaKind === 'VIDEO' ? COMPANY_PRESENTATION_VIDEO_ACCEPT : COMPANY_PRESENTATION_IMAGE_ACCEPT}
+              className="sr-only"
+              onChange={(event) => void handleUpload(event)}
+            />
           </div>
           {imageError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{imageError}</p> : null}
         </div>
@@ -227,7 +280,16 @@ export function CompanyPresentationSettings({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {images.map((image) => (
               <article key={image.id} className="overflow-hidden rounded-lg border border-[#E8E8E8] bg-white">
-                {['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus) ? (
+                {['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus) && image.mediaKind === 'VIDEO' ? (
+                  <video
+                    src={`/api/settings/company/presentation/images/${image.id}`}
+                    controls
+                    preload="none"
+                    className="aspect-video w-full bg-black object-contain"
+                  >
+                    Seu navegador não consegue reproduzir este vídeo.
+                  </video>
+                ) : ['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus) ? (
                   <div className="relative aspect-[16/10] bg-[#F4F4F4]">
                     <Image src={`/api/settings/company/presentation/images/${image.id}`} alt={image.caption || image.name} fill unoptimized sizes="(max-width: 640px) 100vw, 360px" className="object-cover" />
                   </div>
@@ -238,12 +300,15 @@ export function CompanyPresentationSettings({
                 )}
                 <div className="flex items-start justify-between gap-3 p-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase text-[#FF6B00]">{image.environmentName}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#FF6B00]">
+                      {{ PORTFOLIO: 'Portfólio', BEFORE: 'Antes', AFTER: 'Depois', VIDEO: 'Vídeo' }[image.mediaKind as CompanyPresentationMediaKind] || 'Portfólio'} · {image.environmentName}
+                    </p>
                     <p className="mt-1 truncate text-sm font-semibold text-[#121212]">{image.caption || image.name}</p>
+                    {image.pairKey ? <p className="mt-1 truncate text-xs text-[#777]">Obra: {image.pairKey}</p> : null}
                   </div>
                   <button
                     type="button"
-                    title="Remover foto"
+                    title="Remover conteúdo"
                     onClick={() => void remove(image)}
                     disabled={deletingId === image.id}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
@@ -255,7 +320,7 @@ export function CompanyPresentationSettings({
             ))}
           </div>
         ) : (
-          <p className="py-4 text-center text-sm text-[#888]">Adicione fotos reais para personalizar a apresentação dos clientes.</p>
+          <p className="py-4 text-center text-sm text-[#888]">Adicione fotos e vídeos reais para personalizar a apresentação dos clientes.</p>
         )}
 
         <div className="flex flex-col gap-3 border-t border-[#ECECEC] pt-4 sm:flex-row sm:items-center sm:justify-between">

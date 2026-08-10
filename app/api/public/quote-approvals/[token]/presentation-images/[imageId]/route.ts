@@ -36,6 +36,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     headers: {
       'Cache-Control': 'public, max-age=300, s-maxage=3600',
       'Content-Type': image.type,
+      'Content-Length': String(blob.blob.size),
       'X-Content-Type-Options': 'nosniff',
     },
   })

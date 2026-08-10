@@ -21,6 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ imageId
     headers: {
       'Cache-Control': 'private, max-age=300',
       'Content-Type': image.type,
+      'Content-Length': String(blob.blob.size),
       'X-Content-Type-Options': 'nosniff',
     },
   })
