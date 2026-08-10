@@ -80,6 +80,6 @@ test('identifica HEIC pela extensão quando o navegador não informa o tipo', ()
   assert.equal(presentationUploadContentType('foto.heif', ''), 'image/heif')
 })
 
-test('aceita vídeos de apresentação com até 100 MB', () => {
-  assert.equal(COMPANY_PRESENTATION_VIDEO_MAX_SIZE, 100 * 1024 * 1024)
+test('aceita vídeos de apresentação com até 300 MB', () => {
+  assert.equal(COMPANY_PRESENTATION_VIDEO_MAX_SIZE, 300 * 1024 * 1024)
 })
