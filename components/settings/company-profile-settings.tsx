@@ -14,6 +14,7 @@ type EditableCompanyProfile = Pick<
   | 'document'
   | 'phone'
   | 'email'
+  | 'instagram'
   | 'street'
   | 'number'
   | 'complement'
@@ -38,6 +39,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
     document: initialProfile.document,
     phone: initialProfile.phone,
     email: initialProfile.email,
+    instagram: initialProfile.instagram,
     street: initialProfile.street,
     number: initialProfile.number,
     complement: initialProfile.complement,
@@ -78,6 +80,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
         document: data.document,
         phone: data.phone,
         email: data.email,
+        instagram: data.instagram,
         street: data.street,
         number: data.number,
         complement: data.complement,
@@ -120,6 +123,12 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
           <Input label="CNPJ" value={profile.document || ''} onChange={(event) => update('document', event.target.value)} />
           <Input label="Telefone" value={profile.phone || ''} onChange={(event) => update('phone', event.target.value)} />
           <Input label="E-mail" type="email" value={profile.email || ''} onChange={(event) => update('email', event.target.value)} />
+          <Input
+            label="Instagram da Vertex"
+            value={profile.instagram || ''}
+            onChange={(event) => update('instagram', event.target.value)}
+            placeholder="@usuario ou instagram.com/usuario"
+          />
           <Input
             label="Prazo padrão (dias úteis)"
             type="number"

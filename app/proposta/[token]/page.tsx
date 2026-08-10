@@ -7,7 +7,11 @@ import {
 } from '@/components/quotes/public-approval-actions'
 import { PublicProposalIntro } from '@/components/quotes/public-proposal-intro'
 import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
-import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
+import {
+  COMPANY_PROFILE_ID,
+  normalizeInstagramUrl,
+  withCompanyProfileDefaults,
+} from '@/lib/company-profile'
 import {
   buildBeforeAfterPairs,
   selectCompanyPresentationMedia,
@@ -291,6 +295,7 @@ export default async function PublicQuoteApprovalPage({
               caption: video.caption || video.environmentName,
             }))}
             whatsappUrl={whatsappUrl}
+            instagramUrl={normalizeInstagramUrl(company.instagram)}
           />
         ) : null}
         {quotes.map((quote, index) => (

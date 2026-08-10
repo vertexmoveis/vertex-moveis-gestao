@@ -319,6 +319,7 @@ model CompanyProfile {
   document                    String?
   phone                       String?
   email                       String?
+  instagram                   String?
   street                      String?
   number                      String?
   complement                  String?

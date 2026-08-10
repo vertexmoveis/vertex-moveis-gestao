@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
-import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE, serializeCompanyProfile } from '@/lib/company-profile'
+import {
+  COMPANY_PROFILE_ID,
+  DEFAULT_COMPANY_PROFILE,
+  normalizeInstagramUrl,
+  serializeCompanyProfile,
+} from '@/lib/company-profile'
 import { badRequest, requireAuth, requireRole, serverError } from '@/lib/security'
 
 const optionalText = (max: number) => z.preprocess(
@@ -18,6 +23,18 @@ const companyProfileSchema = z.object({
     (value) => value === '' ? null : value,
     z.string().trim().email('Informe um e-mail válido').max(160).nullable().optional()
   ).transform((value) => value || null),
+  instagram: z.preprocess(
+    (value) => value === '' ? null : value,
+    z.string().trim().max(200).nullable().optional(),
+  ).transform((value, ctx) => {
+    if (!value) return null
+    const normalized = normalizeInstagramUrl(value)
+    if (!normalized) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe um usuário ou link válido do Instagram.' })
+      return z.NEVER
+    }
+    return normalized
+  }),
   street: optionalText(160),
   number: optionalText(30),
   complement: optionalText(100),

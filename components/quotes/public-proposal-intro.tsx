@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { ArrowDown, CheckCircle2, MessageCircle, Play } from 'lucide-react'
+import { ArrowDown, AtSign, CheckCircle2, MessageCircle, Play } from 'lucide-react'
 import { trackPublicQuotePdf } from '@/lib/public-quote-engagement'
 
 type PresentationImage = {
@@ -29,6 +29,7 @@ export function PublicProposalIntro({
   beforeAfterPairs,
   videos,
   whatsappUrl,
+  instagramUrl,
 }: {
   token: string
   companyName: string
@@ -41,6 +42,7 @@ export function PublicProposalIntro({
   beforeAfterPairs: BeforeAfterPair[]
   videos: PresentationImage[]
   whatsappUrl: string
+  instagramUrl: string
 }) {
   const primaryImage = images[0]
   const supportingImages = images.slice(1)
@@ -94,6 +96,16 @@ export function PublicProposalIntro({
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/60 bg-black/20 px-6 text-sm font-bold text-white transition-colors hover:bg-black/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
                 >
                   <MessageCircle size={18} /> Falar com a Vertex
+                </a>
+              ) : null}
+              {instagramUrl ? (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/60 bg-black/20 px-6 text-sm font-bold text-white transition-colors hover:bg-black/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+                >
+                  <AtSign size={18} /> Ver Instagram
                 </a>
               ) : null}
             </div>
