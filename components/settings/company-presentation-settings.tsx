@@ -221,19 +221,19 @@ export function CompanyPresentationSettings({
 
         <div className="border-t border-[#ECECEC] pt-5">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-[#121212]">Fotos, antes e depois e vídeos</h3>
-            <p className="mt-1 text-xs text-[#777]">Escolha o tipo do conteúdo. O sistema mostra primeiro os trabalhos relacionados ao ambiente do orçamento.</p>
+            <h3 className="text-sm font-semibold text-[#121212]">Portfólio em fotos e vídeos</h3>
+            <p className="mt-1 text-xs text-[#777]">Adicione fotos ou vídeos ao portfólio. Use “Antes” e “Depois” somente para comparar a mesma obra.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[190px_190px_1fr]">
             <Select
-              label="Tipo de conteúdo"
+              label="Formato do portfólio"
               value={mediaKind}
               onChange={(event) => setMediaKind(event.target.value as CompanyPresentationMediaKind)}
               options={[
-                { value: 'PORTFOLIO', label: 'Foto de portfólio' },
+                { value: 'PORTFOLIO', label: 'Portfólio: foto' },
                 { value: 'BEFORE', label: 'Foto: antes' },
                 { value: 'AFTER', label: 'Foto: depois' },
-                { value: 'VIDEO', label: 'Vídeo' },
+                { value: 'VIDEO', label: 'Portfólio: vídeo' },
               ]}
             />
             <Select
@@ -269,7 +269,13 @@ export function CompanyPresentationSettings({
           <div className="mt-4 flex justify-end">
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} loading={progress !== null}>
               {mediaKind === 'VIDEO' ? <Film size={15} /> : <Upload size={15} />}
-              {progress === null ? (mediaKind === 'VIDEO' ? 'Adicionar vídeo' : 'Adicionar foto') : `${progress}%`}
+              {progress === null
+                ? mediaKind === 'VIDEO'
+                  ? 'Adicionar vídeo ao portfólio'
+                  : mediaKind === 'PORTFOLIO'
+                    ? 'Adicionar foto ao portfólio'
+                    : 'Adicionar foto'
+                : `${progress}%`}
             </Button>
             <input
               ref={inputRef}
@@ -307,7 +313,7 @@ export function CompanyPresentationSettings({
                 <div className="flex items-start justify-between gap-3 p-3">
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase text-[#FF6B00]">
-                      {{ PORTFOLIO: 'Portfólio', BEFORE: 'Antes', AFTER: 'Depois', VIDEO: 'Vídeo' }[image.mediaKind as CompanyPresentationMediaKind] || 'Portfólio'} · {image.environmentName}
+                      {{ PORTFOLIO: 'Portfólio · Foto', BEFORE: 'Antes', AFTER: 'Depois', VIDEO: 'Portfólio · Vídeo' }[image.mediaKind as CompanyPresentationMediaKind] || 'Portfólio'} · {image.environmentName}
                     </p>
                     <p className="mt-1 truncate text-sm font-semibold text-[#121212]">{image.caption || image.name}</p>
                     {image.pairKey ? <p className="mt-1 truncate text-xs text-[#777]">Obra: {image.pairKey}</p> : null}
