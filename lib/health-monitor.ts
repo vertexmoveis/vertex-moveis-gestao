@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { prisma } from './db'
 import { getWhatsAppIntegrationStatus } from './whatsapp-cloud'
 
-export type HealthCheckItem = {
+type HealthCheckItem = {
   id: string
   label: string
   status: 'OK' | 'WARNING' | 'ERROR'

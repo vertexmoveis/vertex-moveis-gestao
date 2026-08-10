@@ -10,7 +10,7 @@ export function hashProjectPortalToken(token: string) {
   return createHash('sha256').update(token, 'utf8').digest('hex')
 }
 
-export function encryptProjectPortalToken(token: string) {
+function encryptProjectPortalToken(token: string) {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', portalEncryptionKey(), iv)
   const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()])

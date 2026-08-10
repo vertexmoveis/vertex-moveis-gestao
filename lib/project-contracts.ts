@@ -8,7 +8,7 @@ import {
 import { moneyValue, type NumericValue } from './money'
 import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from './quotes'
 
-export const PROJECT_CONTRACT_SNAPSHOT_VERSION = 1
+const PROJECT_CONTRACT_SNAPSHOT_VERSION = 1
 
 type AddressSource = {
   address?: string | null
@@ -126,7 +126,7 @@ function contractCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-export function formatContractAddress(source: AddressSource) {
+function formatContractAddress(source: AddressSource) {
   if (source.address?.trim()) return source.address.trim()
 
   const firstLine = [source.street, source.number].filter(Boolean).join(', ')
@@ -140,7 +140,7 @@ export function hashProjectContractToken(token: string) {
   return createHash('sha256').update(token, 'utf8').digest('hex')
 }
 
-export function encryptProjectContractToken(token: string) {
+function encryptProjectContractToken(token: string) {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', contractEncryptionKey(), iv)
   const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()])

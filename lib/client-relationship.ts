@@ -20,12 +20,12 @@ export const CLIENT_RELATIONSHIP_LABELS: Record<ClientRelationshipStage, string>
   INACTIVE: 'Inativo',
 }
 
-export function normalizeDigits(value?: string | null) {
+function normalizeDigits(value?: string | null) {
   const normalized = value?.replace(/\D/g, '') || ''
   return normalized || null
 }
 
-export function normalizeEmail(value?: string | null) {
+function normalizeEmail(value?: string | null) {
   const normalized = value?.trim().toLowerCase() || ''
   return normalized || null
 }

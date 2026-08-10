@@ -3,11 +3,10 @@ import { PAYMENT_TYPE_DOWN_PAYMENT } from '@/lib/payments'
 import { isDateOnlyExpired } from '@/lib/date-only'
 
 // Contracts became part of the standard production workflow on this date.
-export const PROJECT_CONTRACT_WORKFLOW_STARTED_AT = new Date('2026-08-03T03:00:00.000Z')
+const PROJECT_CONTRACT_WORKFLOW_STARTED_AT = new Date('2026-08-03T03:00:00.000Z')
 
 export type ProjectContractWorkflowStatus = 'NONE' | 'DRAFT' | 'SENT' | 'SIGNED' | 'VOID' | 'EXPIRED'
-export const PROJECT_CONTRACT_REQUIREMENTS = ['REQUIRED', 'OPTIONAL_LEGACY', 'WAIVED'] as const
-export type ProjectContractRequirement = typeof PROJECT_CONTRACT_REQUIREMENTS[number]
+export type ProjectContractRequirement = 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED'
 
 export type ProjectWorkflowPayment = {
   type: string
@@ -31,7 +30,7 @@ function validDate(value: Date | string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-export function isLegacyContractProject(createdAt: Date | string) {
+function isLegacyContractProject(createdAt: Date | string) {
   const created = validDate(createdAt)
   return Boolean(created && created.getTime() < PROJECT_CONTRACT_WORKFLOW_STARTED_AT.getTime())
 }

@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
-export const WHATSAPP_MESSAGE_KINDS = [
+const WHATSAPP_MESSAGE_KINDS = [
   'QUOTE_REMINDER',
   'PAYMENT_REMINDER',
   'INSTALLATION_REMINDER',

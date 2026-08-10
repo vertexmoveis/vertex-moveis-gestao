@@ -1,4 +1,4 @@
-export type QuoteFinancialWarning = {
+type QuoteFinancialWarning = {
   key: 'MISSING_COST' | 'LOW_MARGIN' | 'LOSS' | 'HIGH_DISCOUNT' | 'FALLBACK_PRICE'
   severity: 'warning' | 'critical'
   message: string

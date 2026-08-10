@@ -1,6 +1,6 @@
 import { dateOnlyKey, dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-only'
 
-export type ProductionCapacityState = 'AVAILABLE' | 'ATTENTION' | 'OVERLOADED'
+type ProductionCapacityState = 'AVAILABLE' | 'ATTENTION' | 'OVERLOADED'
 
 export type ProductionCapacityWeek = {
   start: string

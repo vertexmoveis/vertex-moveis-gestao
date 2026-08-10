@@ -7,7 +7,7 @@ function encryptionKey() {
   return createHash('sha256').update(secret, 'utf8').digest()
 }
 
-export function encryptTwoFactorSecret(secret: string) {
+function encryptTwoFactorSecret(secret: string) {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv)
   const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()])

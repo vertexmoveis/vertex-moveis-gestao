@@ -33,10 +33,6 @@ function isGeneralEnvironment(value: string) {
   return normalizeEnvironment(value) === 'todos os ambientes'
 }
 
-export function isPresentationMediaKind(value: string): value is CompanyPresentationMediaKind {
-  return ['PORTFOLIO', 'BEFORE', 'AFTER', 'VIDEO'].includes(value)
-}
-
 function matchesEnvironment(imageEnvironment: string, quoteEnvironment: string) {
   const imageValue = normalizeEnvironment(imageEnvironment)
   const quoteValue = normalizeEnvironment(quoteEnvironment)

@@ -20,7 +20,7 @@ export const CONTRACT_CENTER_STATUS_LABELS: Record<ContractCenterStatus, string>
   LEGACY: 'Projeto antigo',
 }
 
-export const CONTRACT_REMINDER_DAYS = [2, 5, 7] as const
+const CONTRACT_REMINDER_DAYS = [2, 5, 7] as const
 const DAY_MS = 24 * 60 * 60 * 1000
 
 type ContractStateInput = {

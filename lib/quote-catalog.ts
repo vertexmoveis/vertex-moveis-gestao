@@ -15,7 +15,7 @@ export type QuoteFurnitureOption = {
   suggestedMode: QuoteCalculationMode
 }
 
-export type QuoteEnvironmentTemplate = {
+type QuoteEnvironmentTemplate = {
   id: string
   name: string
   items: readonly { type: string; model: string }[]
@@ -290,7 +290,7 @@ const NON_JOINERY_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = 
   ],
 }
 
-export const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = {
+const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = {
   Cozinha: [
     group('Armário', ['Armário aéreo', 'Armário aéreo em L', 'Armário aéreo basculante', 'Armário aéreo de canto', 'Armário aéreo com nicho', 'Armário aéreo com portas de vidro', 'Armário sobre geladeira', 'Ponte sobre geladeira', 'Armário inferior', 'Armário inferior em L', 'Armário inferior de canto'], CABINET_ACCESSORIES),
     group('Gabinete', ['Gabinete de pia', 'Gabinete em L', 'Gabinete em U', 'Gabinete de canto', 'Gabinete para cooktop', 'Gabinete para lava-louças', 'Gabinete com portas', 'Gabinete com gavetas', 'Gabinete com gaveteiro'], [...CABINET_ACCESSORIES, 'Lixeira embutida', 'Organizador de panelas']),
@@ -568,7 +568,7 @@ const QUOTE_ENVIRONMENT_TEMPLATES: Record<string, readonly QuoteEnvironmentTempl
 QUOTE_ENVIRONMENT_TEMPLATES.Suíte = QUOTE_ENVIRONMENT_TEMPLATES.Dormitório
 QUOTE_ENVIRONMENT_TEMPLATES['Home theater'] = QUOTE_ENVIRONMENT_TEMPLATES.Sala
 
-export function normalizeQuoteCatalogSearch(value: string) {
+function normalizeQuoteCatalogSearch(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

@@ -5,7 +5,7 @@ const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 const nullableString = (max: number) =>
   z.preprocess(emptyToUndefined, z.string().trim().max(max).optional()).transform((v) => v || null)
 
-export const projectStatuses = [
+const projectStatuses = [
   'APPROVED',
   'MEASUREMENT_SCHEDULED',
   'DESIGN_ENGINEERING',
@@ -16,7 +16,7 @@ export const projectStatuses = [
   'DELAYED',
 ] as const
 
-export const productionStages = [
+const productionStages = [
   'PENDING_START',
   'MEASUREMENT',
   'DESIGN',

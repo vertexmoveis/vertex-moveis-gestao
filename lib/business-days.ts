@@ -19,7 +19,7 @@ function parseDateOnly(value: DateLike) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
 }
 
-export function isBusinessDay(value: DateLike) {
+function isBusinessDay(value: DateLike) {
   const date = parseDateOnly(value)
   if (!date) return false
 

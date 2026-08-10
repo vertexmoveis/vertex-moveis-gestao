@@ -139,7 +139,7 @@ export function matchesProductionAttention(
   return state.noDeadline
 }
 
-export function productionStageIndex(stage: ProductionStage) {
+function productionStageIndex(stage: ProductionStage) {
   return PRODUCTION_STAGE_FLOW.indexOf(normalizeProductionStage(stage))
 }
 

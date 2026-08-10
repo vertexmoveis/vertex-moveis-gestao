@@ -15,18 +15,16 @@ import { moneyValue, numberValue, optionalMoneyValue, type NumericValue } from '
 export {
   QUOTE_CALCULATION_MODE_LABELS,
   QUOTE_ENVIRONMENT_OPTIONS,
-  QUOTE_FURNITURE_CATALOG,
   getQuoteFurnitureAccessories,
   getQuoteFurnitureDescription,
   getQuoteEnvironmentTemplates,
   getQuoteFurnitureGroup,
   getQuoteFurnitureGroups,
   getQuoteFurnitureOptions,
-  normalizeQuoteCatalogSearch,
   resolveQuoteFurnitureSelection,
   searchQuoteFurnitureOptions,
 } from '@/lib/quote-catalog'
-export type { QuoteCalculationMode, QuoteEnvironmentTemplate, QuoteFurnitureOption } from '@/lib/quote-catalog'
+export type { QuoteCalculationMode, QuoteFurnitureOption } from '@/lib/quote-catalog'
 export {
   DEFAULT_QUOTE_INTERNAL_FINISH,
   QUOTE_INTERNAL_FINISHES,
@@ -89,7 +87,7 @@ export const QUOTE_PAYMENT_METHOD_LABELS: Record<QuotePaymentMethod, string> = {
   PIX: 'Pix (3% de desconto)',
   CARD: 'Cartão parcelado',
 }
-export const QUOTE_PIX_DISCOUNT_PERCENT = 3
+const QUOTE_PIX_DISCOUNT_PERCENT = 3
 
 export const QUOTE_DIFFICULTY_LABELS: Record<QuoteDifficulty, string> = {
   NORMAL: 'Normal',
@@ -125,7 +123,7 @@ export function safeQuoteDifficulty(value?: string | null): QuoteDifficulty {
   return value === 'DIFICIL' || value === 'MUITO_DIFICIL' ? value : 'NORMAL'
 }
 
-export function getQuoteEnvironmentPricePerM2(environment: string, fallback = DEFAULT_QUOTE_PRICING.pricePerM2) {
+function getQuoteEnvironmentPricePerM2(environment: string, fallback = DEFAULT_QUOTE_PRICING.pricePerM2) {
   return normalizeText(environment).includes('cozinha') ? 2000 : fallback || 2000
 }
 
@@ -407,7 +405,7 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
   }
 }
 
-export function serializeQuoteItem(item: QuoteItem) {
+function serializeQuoteItem(item: QuoteItem) {
   return {
     ...item,
     manualPrice: optionalMoneyValue(item.manualPrice),
@@ -612,33 +610,6 @@ export function buildQuoteFollowUpMessage(
     `Você pode rever o orçamento em PDF e aprovar por aqui: ${approvalUrl}`,
     '',
     'Fico à disposição.',
-  ].join('\n')
-}
-
-export function buildQuoteComparisonApprovalMessage(
-  quotes: [QuoteContactMessage, QuoteContactMessage],
-  approvalUrl: string,
-  reminder = false,
-) {
-  const clientName = quotes[0].client?.name || quotes[1].client?.name || 'tudo bem'
-  const options = quotes.map((quote, index) => (
-    `${index + 1}. ${quote.title}: ${formatQuoteCurrency(quote.total)}`
-  ))
-
-  return [
-    reminder ? `Olá, ${clientName}! Tudo certo?` : `Olá, ${clientName}!`,
-    '',
-    reminder
-      ? 'Queria saber o que você achou das duas opções que preparamos para o seu projeto:'
-      : 'Preparamos duas opções para o seu projeto:',
-    ...options,
-    '',
-    reminder
-      ? 'Ficou alguma dúvida ou gostaria de ajustar algum detalhe?'
-      : 'No mesmo link você pode comparar os orçamentos em PDF, valores e formas de pagamento.',
-    `Veja os dois orçamentos e escolha o seu preferido aqui: ${approvalUrl}`,
-    '',
-    'Qualquer dúvida, pode me responder por aqui.',
   ].join('\n')
 }
 

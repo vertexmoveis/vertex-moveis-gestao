@@ -33,7 +33,3 @@ export const ACTIVE_INSTALLATION_SCHEDULE_STATUSES: InstallationScheduleStatus[]
   'ON_ROUTE',
   'IN_PROGRESS',
 ]
-
-export function blocksInstallationResource(status: InstallationScheduleStatus) {
-  return status !== 'COMPLETED' && status !== 'CANCELLED'
-}

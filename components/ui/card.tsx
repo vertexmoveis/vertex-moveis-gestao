@@ -35,11 +35,3 @@ export function CardHeader({ children, className }: { children: React.ReactNode;
 export function CardBody({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('px-5 py-4', className)}>{children}</div>
 }
-
-export function CardFooter({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('px-5 py-4 border-t border-[#F0F0F0] bg-[#FAFAFA] rounded-b-xl', className)}>
-      {children}
-    </div>
-  )
-}

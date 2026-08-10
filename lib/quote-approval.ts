@@ -1,9 +1,9 @@
 import { parseQuoteAccessories } from './quotes'
 import { moneyValue, type NumericValue } from './money'
 
-export const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
-export const QUOTE_APPROVAL_BUNDLE_SNAPSHOT_VERSION = 3
-export const QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION = 4
+const QUOTE_APPROVAL_SNAPSHOT_VERSION = 2
+const QUOTE_APPROVAL_BUNDLE_SNAPSHOT_VERSION = 3
+const QUOTE_APPROVAL_OPTIONS_SNAPSHOT_VERSION = 4
 
 type QuoteApprovalItemSource = {
   id?: string

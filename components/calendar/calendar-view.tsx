@@ -20,7 +20,7 @@ import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import type { ProjectStatus } from '@/types'
 
-export type CalendarEventType = 'production' | 'delivery' | 'installation' | 'finance'
+type CalendarEventType = 'production' | 'delivery' | 'installation' | 'finance'
 
 export interface CalendarEvent {
   id: string

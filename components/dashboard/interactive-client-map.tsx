@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type * as Leaflet from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 type Coordinates = {
   lat: number

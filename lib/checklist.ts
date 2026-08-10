@@ -1,7 +1,7 @@
 import type { Prisma, ProjectChecklistItem } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
-export const DEFAULT_PROJECT_CHECKLIST = [
+const DEFAULT_PROJECT_CHECKLIST = [
   'Medição',
   'Projeto técnico',
   'Produção',

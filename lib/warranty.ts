@@ -26,18 +26,6 @@ export const WARRANTY_STATUS_LABELS: Record<WarrantyStatus, string> = {
   CANCELED: 'Cancelado',
 }
 
-export function isWarrantyPriority(value: string): value is WarrantyPriority {
-  return WARRANTY_PRIORITIES.includes(value as WarrantyPriority)
-}
-
-export function isWarrantyStatus(value: string): value is WarrantyStatus {
-  return WARRANTY_STATUSES.includes(value as WarrantyStatus)
-}
-
-export function warrantyStatusIsClosed(value: string) {
-  return value === 'RESOLVED' || value === 'CANCELED'
-}
-
 export function warrantyDueAt(priority: WarrantyPriority, from: Date = new Date()) {
   const businessDays = priority === 'URGENT' ? 1 : priority === 'HIGH' ? 2 : 5
   const due = new Date(from)

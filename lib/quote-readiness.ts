@@ -1,7 +1,7 @@
 import { isDateOnlyExpired } from './date-only'
 import type { NumericValue } from './money'
 
-export type QuoteReadinessIssue = {
+type QuoteReadinessIssue = {
   key: string
   label: string
 }

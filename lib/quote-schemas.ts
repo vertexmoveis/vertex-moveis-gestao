@@ -84,7 +84,7 @@ const deliveryBusinessDaysField = z
   })
   .refine((value) => !Number.isNaN(value), 'Informe um prazo entre 1 e 365 dias úteis')
 
-export const quoteItemSchema = z.object({
+const quoteItemSchema = z.object({
   environment: z.string().trim().min(1, 'Informe o ambiente').max(120),
   environmentName: nullableString(120),
   description: z.string().trim().min(1, 'Informe o móvel').max(240),

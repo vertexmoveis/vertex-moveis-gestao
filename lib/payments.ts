@@ -26,7 +26,7 @@ function addMonths(date: Date, months: number) {
   return monthStart
 }
 
-export function calculatePaymentTerms({ value, downPayment, installmentCount }: PaymentScheduleInput) {
+function calculatePaymentTerms({ value, downPayment, installmentCount }: PaymentScheduleInput) {
   const totalValue = Math.max(value || 0, 0)
   const safeDownPayment = Math.min(Math.max(downPayment || 0, 0), totalValue)
   const safeInstallmentCount = Math.max(Math.floor(installmentCount || 0), 0)

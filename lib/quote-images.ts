@@ -1,6 +1,3 @@
-import { get } from '@vercel/blob'
-import { matchesProjectFileSignature } from '@/lib/project-file-security'
-
 export const QUOTE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export const QUOTE_IMAGE_ACCEPT = QUOTE_IMAGE_TYPES.join(',')
 export const QUOTE_IMAGE_MAX_SIZE = 8 * 1024 * 1024
@@ -29,22 +26,4 @@ export function isQuoteImageBlobUrl(url: string, groupId: string) {
   } catch {
     return false
   }
-}
-
-export async function readQuoteImageDataUrl(url: string) {
-  const result = await get(url, { access: 'private', useCache: true })
-  if (!result || result.statusCode !== 200) return null
-  if (result.blob.size > QUOTE_IMAGE_MAX_SIZE) {
-    await result.stream.cancel()
-    return null
-  }
-
-  const type = (result.blob.contentType || '').split(';')[0].trim().toLowerCase()
-  if (!isQuoteImageType(type)) {
-    await result.stream.cancel()
-    return null
-  }
-  const bytes = new Uint8Array(await new Response(result.stream).arrayBuffer())
-  if (!matchesProjectFileSignature(type, bytes)) return null
-  return `data:${type};base64,${Buffer.from(bytes).toString('base64')}`
 }
