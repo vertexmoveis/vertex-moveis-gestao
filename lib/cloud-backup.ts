@@ -9,6 +9,7 @@ const BACKUP_TABLES = [
   'Client',
   'PrivacyRequest',
   'CompanyProfile',
+  'CompanyPresentationImage',
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'QuotePriceRule',

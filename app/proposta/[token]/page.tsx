@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ExternalLink, FileText } from 'lucide-react'
 import {
   PublicApprovalActions,
   type PublicApprovalOption,
 } from '@/components/quotes/public-approval-actions'
+import { PublicProposalIntro } from '@/components/quotes/public-proposal-intro'
+import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
+import { COMPANY_PROFILE_ID, withCompanyProfileDefaults } from '@/lib/company-profile'
+import { selectCompanyPresentationImages } from '@/lib/company-presentation'
 import { prisma } from '@/lib/db'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import {
@@ -101,19 +104,14 @@ function QuotePdfPreview({
   const optionLabel = quoteVariationDisplayName(quote)
 
   return (
-    <section className={optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : ''}>
+    <section id={optionNumber === 1 ? 'orcamento' : undefined} className={`scroll-mt-4 ${optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : ''}`}>
       <div className="border-b border-[#ECE9E5] bg-white px-4 py-5 sm:px-8">
-        <a
+        <PublicQuotePdfLink
+          token={token}
           href={pdfUrl}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={comparison ? `Abrir orçamento em PDF: ${optionLabel}` : 'Abrir orçamento em PDF'}
-          className="inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-lg bg-[#FF6B00] px-5 py-3 text-center text-base font-bold text-white shadow-sm transition-colors hover:bg-[#E85F00] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#FFB780] sm:text-lg"
-        >
-          <FileText size={22} className="shrink-0" />
-          <span>{comparison ? `Abrir orçamento em PDF - ${optionLabel}` : 'Abrir orçamento em PDF'}</span>
-          <ExternalLink size={18} className="shrink-0" />
-        </a>
+          ariaLabel={comparison ? `Abrir orçamento em PDF: ${optionLabel}` : 'Abrir orçamento em PDF'}
+          label={comparison ? `Abrir orçamento em PDF - ${optionLabel}` : 'Abrir orçamento em PDF'}
+        />
       </div>
 
       <div className="hidden overflow-hidden bg-[#E8E8E8] sm:block">
@@ -155,17 +153,29 @@ export default async function PublicQuoteApprovalPage({
     },
     items: { orderBy: { position: 'asc' as const } },
   }
-  const request = await prisma.quoteApprovalRequest.findUnique({
-    where: { token },
-    include: {
-      quote: { include: quoteInclude },
-      comparisonQuote: { include: quoteInclude },
-      options: {
-        orderBy: { position: 'asc' },
-        include: { quote: { include: quoteInclude } },
+  const [request, storedCompanyProfile, presentationImages] = await Promise.all([
+    prisma.quoteApprovalRequest.findUnique({
+      where: { token },
+      include: {
+        quote: { include: quoteInclude },
+        comparisonQuote: { include: quoteInclude },
+        options: {
+          orderBy: { position: 'asc' },
+          include: { quote: { include: quoteInclude } },
+        },
       },
-    },
-  })
+    }),
+    prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
+    prisma.companyPresentationImage.findMany({
+      where: {
+        companyId: COMPANY_PROFILE_ID,
+        active: true,
+        securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] },
+      },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      take: 30,
+    }),
+  ])
 
   if (!request) notFound()
   if (request.invalidatedAt) {
@@ -212,6 +222,14 @@ export default async function PublicQuoteApprovalPage({
     selectedQuote ? quoteVariationDisplayName(selectedQuote) : undefined,
   )
   const clientName = quotes[0].client.name
+  const company = withCompanyProfileDefaults(storedCompanyProfile)
+  const quoteEnvironments = [...new Set(quotes.flatMap((quote) => quote.items.map((item) => item.environmentName || item.environment)).filter(Boolean))]
+  const selectedPresentationImages = selectCompanyPresentationImages(presentationImages, quoteEnvironments, 4)
+  const phoneDigits = (company.phone || '').replace(/\D/g, '')
+  const whatsappNumber = phoneDigits ? (phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`) : ''
+  const whatsappUrl = whatsappNumber
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Olá! Sou ${clientName} e gostaria de falar sobre o orçamento ${quotes[0].title}.`)}`
+    : ''
   const lowestTotal = Math.min(...quotes.map((quote) => quote.total))
   const approvalOptions: PublicApprovalOption[] = comparison
     ? quotes.map((quote, index) => ({
@@ -227,6 +245,28 @@ export default async function PublicQuoteApprovalPage({
   return (
     <main className="min-h-screen bg-[#F4F3F0] sm:px-6 sm:py-8">
       <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
+        {company.presentationEnabled ? (
+          <PublicProposalIntro
+            token={token}
+            companyName={company.tradeName}
+            clientName={clientName}
+            quoteTitle={quotes[0].title}
+            heading={company.presentationHeading}
+            text={company.presentationText}
+            highlights={[
+              company.presentationHighlight1,
+              company.presentationHighlight2,
+              company.presentationHighlight3,
+            ]}
+            images={selectedPresentationImages.map((image) => ({
+              id: image.id,
+              src: `/api/public/quote-approvals/${token}/presentation-images/${image.id}`,
+              alt: image.caption || `${image.environmentName} produzido pela Vertex Móveis`,
+              caption: image.caption || image.environmentName,
+            }))}
+            whatsappUrl={whatsappUrl}
+          />
+        ) : null}
         {quotes.map((quote, index) => (
           <QuotePdfPreview
             key={quote.id}

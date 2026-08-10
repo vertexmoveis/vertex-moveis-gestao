@@ -313,8 +313,8 @@ model QuoteEnvironmentImage {
 }
 
 model CompanyProfile {
-  id                          String   @id @default("vertex")
-  tradeName                   String   @default("Vertex Móveis")
+  id                          String                     @id @default("vertex")
+  tradeName                   String                     @default("Vertex Móveis")
   legalName                   String?
   document                    String?
   phone                       String?
@@ -326,16 +326,44 @@ model CompanyProfile {
   city                        String?
   state                       String?
   zipCode                     String?
-  defaultDeliveryBusinessDays Int      @default(30)
-  quoteReminderDays           Int      @default(3)
-  leadNoResponseDays          Int      @default(30)
-  leadCloseSuggestionDays     Int      @default(90)
-  weeklyProductionCapacity    Int      @default(4)
-  standardSheetWidthMm        Int      @default(2750)
-  standardSheetHeightMm       Int      @default(1850)
-  sheetWastePercent           Float    @default(15)
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  defaultDeliveryBusinessDays Int                        @default(30)
+  quoteReminderDays           Int                        @default(3)
+  leadNoResponseDays          Int                        @default(30)
+  leadCloseSuggestionDays     Int                        @default(90)
+  weeklyProductionCapacity    Int                        @default(4)
+  standardSheetWidthMm        Int                        @default(2750)
+  standardSheetHeightMm       Int                        @default(1850)
+  sheetWastePercent           Float                      @default(15)
+  presentationEnabled         Boolean                    @default(true)
+  presentationHeading         String                     @default("Móveis planejados para o seu espaço")
+  presentationText            String                     @default("Projetamos e produzimos móveis sob medida, com acompanhamento até a instalação.")
+  presentationHighlight1      String                     @default("Móveis planejados sob medida")
+  presentationHighlight2      String                     @default("Orçamento claro e detalhado")
+  presentationHighlight3      String                     @default("Acompanhamento até a instalação")
+  presentationImages          CompanyPresentationImage[]
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+}
+
+model CompanyPresentationImage {
+  id                String         @id @default(cuid())
+  companyId         String         @default("vertex")
+  company           CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  environmentName   String         @default("Todos os ambientes")
+  name              String
+  caption           String?
+  type              String
+  url               String         @unique
+  size              Int?
+  active            Boolean        @default(true)
+  securityStatus    String         @default("PENDING")
+  securityDetails   String?
+  securityCheckedAt DateTime?
+  position          Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([companyId, active, environmentName, position])
 }
 
 model QuoteItem {
@@ -733,6 +761,8 @@ model QuoteApprovalRequest {
   sentAt                    DateTime              @default(now())
   viewedAt                  DateTime?
   viewCount                 Int                   @default(0)
+  pdfViewedAt               DateTime?
+  pdfViewCount              Int                   @default(0)
   reminderCount             Int                   @default(0)
   lastReminderAt            DateTime?
   approvedAt                DateTime?

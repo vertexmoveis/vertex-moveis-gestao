@@ -24,6 +24,12 @@ export const DEFAULT_COMPANY_PROFILE = {
   standardSheetWidthMm: 2750,
   standardSheetHeightMm: 1850,
   sheetWastePercent: 15,
+  presentationEnabled: true,
+  presentationHeading: 'Móveis planejados para o seu espaço',
+  presentationText: 'Projetamos e produzimos móveis sob medida, com acompanhamento até a instalação.',
+  presentationHighlight1: 'Móveis planejados sob medida',
+  presentationHighlight2: 'Orçamento claro e detalhado',
+  presentationHighlight3: 'Acompanhamento até a instalação',
 } as const
 
 export type CompanyProfileData = Omit<CompanyProfile, 'createdAt' | 'updatedAt'> & {
@@ -54,6 +60,12 @@ export function withCompanyProfileDefaults(profile?: Partial<CompanyProfile> | n
     standardSheetWidthMm: profile?.standardSheetWidthMm || DEFAULT_COMPANY_PROFILE.standardSheetWidthMm,
     standardSheetHeightMm: profile?.standardSheetHeightMm || DEFAULT_COMPANY_PROFILE.standardSheetHeightMm,
     sheetWastePercent: profile?.sheetWastePercent ?? DEFAULT_COMPANY_PROFILE.sheetWastePercent,
+    presentationEnabled: profile?.presentationEnabled ?? DEFAULT_COMPANY_PROFILE.presentationEnabled,
+    presentationHeading: profile?.presentationHeading || DEFAULT_COMPANY_PROFILE.presentationHeading,
+    presentationText: profile?.presentationText || DEFAULT_COMPANY_PROFILE.presentationText,
+    presentationHighlight1: profile?.presentationHighlight1 || DEFAULT_COMPANY_PROFILE.presentationHighlight1,
+    presentationHighlight2: profile?.presentationHighlight2 || DEFAULT_COMPANY_PROFILE.presentationHighlight2,
+    presentationHighlight3: profile?.presentationHighlight3 || DEFAULT_COMPANY_PROFILE.presentationHighlight3,
   }
 }
 

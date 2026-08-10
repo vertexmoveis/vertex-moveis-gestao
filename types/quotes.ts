@@ -155,5 +155,7 @@ export type QuoteData = {
     sentAt: string
     viewedAt?: string | null
     viewCount?: number
+    pdfViewedAt?: string | null
+    pdfViewCount?: number
   } | null
 }

@@ -8,11 +8,13 @@ import { BackupButton } from '@/components/settings/backup-button'
 import { PricingMaterialsSettings } from '@/components/settings/pricing-materials-settings'
 import { OperationsResourcesSettings } from '@/components/settings/operations-resources-settings'
 import { CompanyProfileSettings } from '@/components/settings/company-profile-settings'
+import { CompanyPresentationSettings } from '@/components/settings/company-presentation-settings'
 import { UserManagementSettings } from '@/components/settings/user-management-settings'
 import { TrashSettings } from '@/components/settings/trash-settings'
 import { TwoFactorSettings } from '@/components/settings/two-factor-settings'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
+import { serializeCompanyPresentationImage } from '@/lib/company-presentation'
 import { ensureDefaultQuoteSettings, serializeQuotePriceRule } from '@/lib/quote-price-rules'
 import { moneyValue } from '@/lib/money'
 import { getWhatsAppIntegrationStatus } from '@/lib/whatsapp-cloud'
@@ -58,9 +60,15 @@ export default async function SettingsPage() {
         }),
       ])
     : [[], [], [], []]
-  const companyProfile = isAdmin
-    ? await prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } })
-    : null
+  const [companyProfile, presentationImages] = isAdmin
+    ? await Promise.all([
+        prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
+        prisma.companyPresentationImage.findMany({
+          where: { companyId: COMPANY_PROFILE_ID },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        }),
+      ])
+    : [null, []]
   const [latestBackup, recentErrorCount, recentErrors, whatsAppRows, latestHealth, latestRestore] = isAdmin
     ? await Promise.all([
         prisma.systemEvent.findFirst({
@@ -306,6 +314,13 @@ export default async function SettingsPage() {
 
         {isAdmin && (
           <CompanyProfileSettings initialProfile={serializeCompanyProfile(companyProfile)} />
+        )}
+
+        {isAdmin && (
+          <CompanyPresentationSettings
+            initialProfile={serializeCompanyProfile(companyProfile)}
+            initialImages={presentationImages.map(serializeCompanyPresentationImage)}
+          />
         )}
 
         {isAdmin && (

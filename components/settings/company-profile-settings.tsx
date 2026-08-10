@@ -7,7 +7,29 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import type { CompanyProfileData } from '@/lib/company-profile'
 
-type EditableCompanyProfile = Omit<CompanyProfileData, 'id' | 'createdAt' | 'updatedAt'>
+type EditableCompanyProfile = Pick<
+  CompanyProfileData,
+  | 'tradeName'
+  | 'legalName'
+  | 'document'
+  | 'phone'
+  | 'email'
+  | 'street'
+  | 'number'
+  | 'complement'
+  | 'neighborhood'
+  | 'city'
+  | 'state'
+  | 'zipCode'
+  | 'defaultDeliveryBusinessDays'
+  | 'quoteReminderDays'
+  | 'leadNoResponseDays'
+  | 'leadCloseSuggestionDays'
+  | 'weeklyProductionCapacity'
+  | 'standardSheetWidthMm'
+  | 'standardSheetHeightMm'
+  | 'sheetWastePercent'
+>
 
 export function CompanyProfileSettings({ initialProfile }: { initialProfile: CompanyProfileData }) {
   const [profile, setProfile] = useState<EditableCompanyProfile>({

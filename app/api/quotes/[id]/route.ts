@@ -139,6 +139,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         sentAt: true,
         viewedAt: true,
         viewCount: true,
+        pdfViewedAt: true,
+        pdfViewCount: true,
         options: { orderBy: { position: 'asc' }, select: { quoteId: true } },
       },
     }),
@@ -178,6 +180,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           options: undefined,
           sentAt: activeApprovalRequest.sentAt.toISOString(),
           viewedAt: activeApprovalRequest.viewedAt?.toISOString() || null,
+          pdfViewedAt: activeApprovalRequest.pdfViewedAt?.toISOString() || null,
         }
       : null,
     revisions: quote.revisions.map((revision) => ({

@@ -774,6 +774,13 @@ export default function QuoteDetailPage() {
                         ? `${quote.activeApprovalRequest.viewCount || 1} ${(quote.activeApprovalRequest.viewCount || 1) === 1 ? 'abertura' : 'aberturas'} · última em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(quote.activeApprovalRequest.viewedAt))}`
                         : 'O link foi enviado, mas ainda não foi aberto.'}
                     </p>
+                    {quote.activeApprovalRequest.pdfViewedAt ? (
+                      <p className="mt-1 font-medium text-emerald-700">
+                        Cliente avançou até o PDF {quote.activeApprovalRequest.pdfViewCount || 1}x · última em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(quote.activeApprovalRequest.pdfViewedAt))}
+                      </p>
+                    ) : quote.activeApprovalRequest.viewedAt ? (
+                      <p className="mt-1 text-amber-700">A apresentação foi aberta, mas o cliente ainda não avançou pelo botão do orçamento.</p>
+                    ) : null}
                   </div>
                 ) : null}
                 <Button

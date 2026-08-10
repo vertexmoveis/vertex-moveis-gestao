@@ -19,6 +19,7 @@ const tableOrder = [
   'Client',
   'PrivacyRequest',
   'CompanyProfile',
+  'CompanyPresentationImage',
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'QuotePriceRule',
