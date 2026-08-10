@@ -117,7 +117,11 @@ export function PublicProposalIntro({
                   src={activeVideo.src}
                   controls
                   playsInline
-                  preload="none"
+                  preload="metadata"
+                  onLoadedMetadata={(event) => {
+                    const video = event.currentTarget
+                    if (video.duration > 0 && video.currentTime === 0) video.currentTime = Math.min(0.5, video.duration / 10)
+                  }}
                   className="aspect-video w-full rounded-lg bg-black object-contain shadow-sm"
                 >
                   Seu navegador não consegue reproduzir este vídeo.

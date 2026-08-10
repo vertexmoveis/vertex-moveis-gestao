@@ -2,7 +2,7 @@
 
 import { upload } from '@vercel/blob/client'
 import Image from 'next/image'
-import { Film, ImagePlus, Loader2, Save, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Film, ImagePlus, Loader2, Save, Trash2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -61,6 +61,7 @@ export function CompanyPresentationSettings({
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [movingId, setMovingId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [imageError, setImageError] = useState('')
 
@@ -131,7 +132,8 @@ export function CompanyPresentationSettings({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.id) throw new Error(data?.error || 'Não foi possível registrar a imagem.')
-      setImages((current) => [data as CompanyPresentationImageData, ...current.filter((image) => image.id !== data.id)])
+      setImages((current) => [...current.filter((image) => image.id !== data.id), data as CompanyPresentationImageData]
+        .sort((left, right) => left.position - right.position || left.createdAt.localeCompare(right.createdAt)))
       setCaption('')
     } catch (error) {
       setImageError(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.')
@@ -152,6 +154,43 @@ export function CompanyPresentationSettings({
       return
     }
     setImages((current) => current.filter((item) => item.id !== image.id))
+  }
+
+  const move = async (image: CompanyPresentationImageData, direction: 'up' | 'down') => {
+    setMovingId(image.id)
+    setImageError('')
+    const previous = images
+    const sameKind = images.filter((item) => item.mediaKind === image.mediaKind)
+    const currentIndex = sameKind.findIndex((item) => item.id === image.id)
+    const target = sameKind[currentIndex + (direction === 'up' ? -1 : 1)]
+    if (!target) {
+      setMovingId(null)
+      return
+    }
+    const currentPosition = images.indexOf(image)
+    const targetPosition = images.indexOf(target)
+    const optimistic = [...images]
+    optimistic[currentPosition] = target
+    optimistic[targetPosition] = image
+    setImages(optimistic)
+
+    const response = await fetch(`/api/settings/company/presentation/images/${image.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction }),
+    })
+    const data = await response.json().catch(() => null)
+    setMovingId(null)
+    if (!response.ok) {
+      setImages(previous)
+      setImageError(data?.error || 'Não foi possível alterar a ordem dos vídeos.')
+      return
+    }
+    if (Array.isArray(data?.orderedIds)) {
+      const rank = new Map<string, number>(data.orderedIds.map((id: string, index: number) => [id, index]))
+      setImages((current) => current.map((item) => rank.has(item.id) ? { ...item, position: rank.get(item.id)! } : item)
+        .sort((left, right) => left.position - right.position || left.createdAt.localeCompare(right.createdAt)))
+    }
   }
 
   const previewImage = images.find((image) => image.mediaKind === 'PORTFOLIO' && ['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus))
@@ -292,13 +331,20 @@ export function CompanyPresentationSettings({
 
         {images.length ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {images.map((image) => (
+            {images.map((image) => {
+              const sameKind = images.filter((item) => item.mediaKind === image.mediaKind)
+              const kindIndex = sameKind.findIndex((item) => item.id === image.id)
+              return (
               <article key={image.id} className="overflow-hidden rounded-lg border border-[#E8E8E8] bg-white">
                 {['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus) && image.mediaKind === 'VIDEO' ? (
                   <video
                     src={`/api/settings/company/presentation/images/${image.id}`}
                     controls
-                    preload="none"
+                    preload="metadata"
+                    onLoadedMetadata={(event) => {
+                      const video = event.currentTarget
+                      if (video.duration > 0 && video.currentTime === 0) video.currentTime = Math.min(0.5, video.duration / 10)
+                    }}
                     className="aspect-video w-full bg-black object-contain"
                   >
                     Seu navegador não consegue reproduzir este vídeo.
@@ -320,6 +366,17 @@ export function CompanyPresentationSettings({
                     <p className="mt-1 truncate text-sm font-semibold text-[#121212]">{image.caption || image.name}</p>
                     {image.pairKey ? <p className="mt-1 truncate text-xs text-[#777]">Obra: {image.pairKey}</p> : null}
                   </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                  {image.mediaKind === 'VIDEO' ? (
+                    <>
+                      <button type="button" title="Mover vídeo para antes" aria-label="Mover vídeo para antes" onClick={() => void move(image, 'up')} disabled={kindIndex === 0 || movingId !== null} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#555] hover:bg-[#F3F3F3] disabled:opacity-30">
+                        <ArrowUp size={15} />
+                      </button>
+                      <button type="button" title="Mover vídeo para depois" aria-label="Mover vídeo para depois" onClick={() => void move(image, 'down')} disabled={kindIndex === sameKind.length - 1 || movingId !== null} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#555] hover:bg-[#F3F3F3] disabled:opacity-30">
+                        <ArrowDown size={15} />
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     type="button"
                     title="Remover conteúdo"
@@ -329,9 +386,10 @@ export function CompanyPresentationSettings({
                   >
                     {deletingId === image.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
+                  </div>
                 </div>
               </article>
-            ))}
+            )})}
           </div>
         ) : (
           <p className="py-4 text-center text-sm text-[#888]">Adicione fotos e vídeos reais para personalizar a apresentação dos clientes.</p>

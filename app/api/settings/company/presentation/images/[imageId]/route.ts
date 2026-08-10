@@ -27,6 +27,48 @@ export async function GET(_req: Request, { params }: { params: Promise<{ imageId
   })
 }
 
+export async function PATCH(req: Request, { params }: { params: Promise<{ imageId: string }> }) {
+  const auth = await requireRole(['ADMIN'])
+  if (!auth.ok) return auth.response
+  const { imageId } = await params
+  const body = await req.json().catch(() => null) as { direction?: unknown } | null
+  if (body?.direction !== 'up' && body?.direction !== 'down') {
+    return NextResponse.json({ error: 'Direção inválida.' }, { status: 400 })
+  }
+
+  const image = await prisma.companyPresentationImage.findFirst({
+    where: { id: imageId, companyId: COMPANY_PROFILE_ID },
+  })
+  if (!image) return NextResponse.json({ error: 'Conteúdo não encontrado.' }, { status: 404 })
+
+  const ordered = await prisma.companyPresentationImage.findMany({
+    where: { companyId: COMPANY_PROFILE_ID, mediaKind: image.mediaKind },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true },
+  })
+  const currentIndex = ordered.findIndex((item) => item.id === image.id)
+  const targetIndex = currentIndex + (body.direction === 'up' ? -1 : 1)
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) {
+    return NextResponse.json({ success: true })
+  }
+
+  const reordered = [...ordered]
+  const [moved] = reordered.splice(currentIndex, 1)
+  reordered.splice(targetIndex, 0, moved)
+
+  try {
+    await prisma.$transaction(
+      reordered.map((item, position) => prisma.companyPresentationImage.update({
+        where: { id: item.id },
+        data: { position },
+      })),
+    )
+    return NextResponse.json({ success: true, orderedIds: reordered.map((item) => item.id) })
+  } catch {
+    return serverError()
+  }
+}
+
 export async function DELETE(_req: Request, { params }: { params: Promise<{ imageId: string }> }) {
   const auth = await requireRole(['ADMIN'])
   if (!auth.ok) return auth.response
