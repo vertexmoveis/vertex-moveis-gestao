@@ -94,7 +94,9 @@ export function CompanyPresentationSettings({
     if (!file) return
     const maxSize = mediaKind === 'VIDEO' ? COMPANY_PRESENTATION_VIDEO_MAX_SIZE : COMPANY_PRESENTATION_IMAGE_MAX_SIZE
     if (file.size > maxSize) {
-      setImageError(mediaKind === 'VIDEO' ? 'O vídeo ultrapassa o limite de 50 MB.' : 'A imagem ultrapassa o limite de 8 MB.')
+      setImageError(mediaKind === 'VIDEO'
+        ? `O vídeo ultrapassa o limite de ${COMPANY_PRESENTATION_VIDEO_MAX_SIZE / 1024 / 1024} MB.`
+        : 'A imagem ultrapassa o limite de 8 MB.')
       return
     }
     if ((mediaKind === 'BEFORE' || mediaKind === 'AFTER') && !pairKey.trim()) {

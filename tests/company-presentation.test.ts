@@ -7,7 +7,10 @@ import {
 } from '@/lib/company-presentation'
 import { matchesPresentationMediaSignature } from '@/lib/company-presentation-media-security'
 import { presentationJpegName } from '@/lib/company-presentation-heic'
-import { presentationUploadContentType } from '@/lib/company-presentation-images'
+import {
+  COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
+  presentationUploadContentType,
+} from '@/lib/company-presentation-images'
 
 const images = [
   { id: 'general', environmentName: 'Todos os ambientes', position: 0, createdAt: '2026-08-01T10:00:00.000Z' },
@@ -75,4 +78,8 @@ test('troca a extensão HEIC ou HEIF por JPG após a conversão', () => {
 test('identifica HEIC pela extensão quando o navegador não informa o tipo', () => {
   assert.equal(presentationUploadContentType('foto-do-iphone.HEIC', ''), 'image/heic')
   assert.equal(presentationUploadContentType('foto.heif', ''), 'image/heif')
+})
+
+test('aceita vídeos de apresentação com até 100 MB', () => {
+  assert.equal(COMPANY_PRESENTATION_VIDEO_MAX_SIZE, 100 * 1024 * 1024)
 })
