@@ -17,6 +17,7 @@ import {
   COMPANY_PRESENTATION_IMAGE_PREFIX,
   COMPANY_PRESENTATION_VIDEO_ACCEPT,
   COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
+  presentationUploadContentType,
   type CompanyPresentationMediaKind,
 } from '@/lib/company-presentation-images'
 import type { CompanyProfileData } from '@/lib/company-profile'
@@ -100,9 +101,10 @@ export function CompanyPresentationSettings({
     setImageError('')
     setProgress(0)
     try {
+      const contentType = presentationUploadContentType(file.name, file.type)
       const blob = await upload(`${COMPANY_PRESENTATION_IMAGE_PREFIX}${sanitizeQuoteImageName(file.name)}`, file, {
         access: 'private',
-        contentType: file.type,
+        contentType,
         handleUploadUrl: '/api/settings/company/presentation/images/upload',
         clientPayload: JSON.stringify({ environmentName, name: file.name, caption, mediaKind, pairKey: pairKey.trim() || null }),
         onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
@@ -116,7 +118,7 @@ export function CompanyPresentationSettings({
           caption,
           mediaKind,
           pairKey: pairKey.trim() || null,
-          type: blob.contentType || file.type,
+          type: blob.contentType || contentType,
           url: blob.url,
           size: file.size,
         }),

@@ -6,6 +6,8 @@ import {
   selectCompanyPresentationMedia,
 } from '@/lib/company-presentation'
 import { matchesPresentationMediaSignature } from '@/lib/company-presentation-media-security'
+import { presentationJpegName } from '@/lib/company-presentation-heic'
+import { presentationUploadContentType } from '@/lib/company-presentation-images'
 
 const images = [
   { id: 'general', environmentName: 'Todos os ambientes', position: 0, createdAt: '2026-08-01T10:00:00.000Z' },
@@ -55,4 +57,22 @@ test('reconhece assinaturas de vídeo MP4 e WebM', () => {
   assert.equal(matchesPresentationMediaSignature('video/mp4', new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112])), true)
   assert.equal(matchesPresentationMediaSignature('video/webm', new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])), true)
   assert.equal(matchesPresentationMediaSignature('video/mp4', new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7])), false)
+})
+
+test('reconhece fotos HEIC e HEIF da apresentação', () => {
+  const heic = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99])
+  const heif = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 109, 105, 102, 49])
+  assert.equal(matchesPresentationMediaSignature('image/heic', heic), true)
+  assert.equal(matchesPresentationMediaSignature('image/heif', heif), true)
+  assert.equal(matchesPresentationMediaSignature('image/heic', new Uint8Array([0, 1, 2, 3])), false)
+})
+
+test('troca a extensão HEIC ou HEIF por JPG após a conversão', () => {
+  assert.equal(presentationJpegName('cozinha.heic'), 'cozinha.jpg')
+  assert.equal(presentationJpegName('Antes da obra.HEIF'), 'Antes da obra.jpg')
+})
+
+test('identifica HEIC pela extensão quando o navegador não informa o tipo', () => {
+  assert.equal(presentationUploadContentType('foto-do-iphone.HEIC', ''), 'image/heic')
+  assert.equal(presentationUploadContentType('foto.heif', ''), 'image/heif')
 })

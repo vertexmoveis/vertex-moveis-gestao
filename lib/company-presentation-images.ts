@@ -1,12 +1,16 @@
 import { QUOTE_IMAGE_MAX_SIZE, QUOTE_IMAGE_TYPES } from '@/lib/quote-images'
 
-export const COMPANY_PRESENTATION_IMAGE_TYPES = QUOTE_IMAGE_TYPES
+export const COMPANY_PRESENTATION_HEIC_TYPES = ['image/heic', 'image/heif'] as const
+export const COMPANY_PRESENTATION_IMAGE_TYPES = [
+  ...QUOTE_IMAGE_TYPES,
+  ...COMPANY_PRESENTATION_HEIC_TYPES,
+] as const
 export const COMPANY_PRESENTATION_VIDEO_TYPES = ['video/mp4', 'video/webm'] as const
 export const COMPANY_PRESENTATION_MEDIA_TYPES = [
   ...COMPANY_PRESENTATION_IMAGE_TYPES,
   ...COMPANY_PRESENTATION_VIDEO_TYPES,
 ] as const
-export const COMPANY_PRESENTATION_IMAGE_ACCEPT = COMPANY_PRESENTATION_IMAGE_TYPES.join(',')
+export const COMPANY_PRESENTATION_IMAGE_ACCEPT = `${COMPANY_PRESENTATION_IMAGE_TYPES.join(',')},.heic,.heif`
 export const COMPANY_PRESENTATION_VIDEO_ACCEPT = COMPANY_PRESENTATION_VIDEO_TYPES.join(',')
 export const COMPANY_PRESENTATION_MEDIA_ACCEPT = COMPANY_PRESENTATION_MEDIA_TYPES.join(',')
 export const COMPANY_PRESENTATION_IMAGE_MAX_SIZE = QUOTE_IMAGE_MAX_SIZE
@@ -20,6 +24,20 @@ export function isCompanyPresentationImageType(value: string) {
   return COMPANY_PRESENTATION_IMAGE_TYPES.includes(
     value.toLowerCase() as (typeof COMPANY_PRESENTATION_IMAGE_TYPES)[number],
   )
+}
+
+export function isCompanyPresentationHeicType(value: string) {
+  return COMPANY_PRESENTATION_HEIC_TYPES.includes(
+    value.toLowerCase() as (typeof COMPANY_PRESENTATION_HEIC_TYPES)[number],
+  )
+}
+
+export function presentationUploadContentType(name: string, reportedType: string) {
+  const normalizedType = reportedType.trim().toLowerCase()
+  if (normalizedType) return normalizedType
+  if (/\.heic$/i.test(name)) return 'image/heic'
+  if (/\.heif$/i.test(name)) return 'image/heif'
+  return normalizedType
 }
 
 export function isCompanyPresentationVideoType(value: string) {
