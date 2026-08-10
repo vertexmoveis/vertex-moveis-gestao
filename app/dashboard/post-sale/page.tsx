@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { AlertTriangle, ExternalLink, Headphones, MessageSquareText, Star } from 'lucide-react'
 import { Header } from '@/components/layout/header'
+import { PostSaleReviewButton } from '@/components/post-sale/post-sale-review-button'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
@@ -111,13 +112,25 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
                     <div><Link href={`/dashboard/projects/${project.id}`} className="text-sm font-bold hover:text-[#FF6B00]">{project.name}</Link><p className="mt-1 text-xs text-[#777]">{project.client.name}</p></div>
                     <div className="text-xs"><p className="text-[#888]">Entrega</p><p className="mt-1 font-semibold">{project.actualEndDate ? formatDateOnly(project.actualEndDate) : 'Não registrada'}</p></div>
                     <div className="text-xs"><p className="text-[#888]">Satisfação</p><p className={`mt-1 font-bold ${project.satisfactionRating && project.satisfactionRating <= 2 ? 'text-red-600' : 'text-emerald-700'}`}>{stars(project.satisfactionRating)}</p></div>
-                    <div className="text-xs"><p className="font-semibold">{project.warrantyTickets.length ? `${project.warrantyTickets.length} assistência(s) aberta(s)` : needsFollowUp ? 'Retorno pós-venda pendente' : 'Acompanhamento em dia'}</p>{project.satisfactionComment ? <p className="mt-1 line-clamp-2 text-[#777]">“{project.satisfactionComment}”</p> : null}</div>
+                    <div className="text-xs">
+                      <p className="font-semibold">
+                        {project.warrantyTickets.length
+                          ? `${project.warrantyTickets.length} assistência(s) aberta(s)`
+                          : project.postSaleContactedAt
+                            ? `Contato realizado em ${formatDateOnly(project.postSaleContactedAt)}`
+                            : needsFollowUp
+                              ? 'Retorno pós-venda pendente'
+                              : 'Acompanhamento em dia'}
+                      </p>
+                      {project.satisfactionComment ? <p className="mt-1 line-clamp-2 text-[#777]">“{project.satisfactionComment}”</p> : null}
+                    </div>
                     <div className="flex gap-2">
                       {postSaleHref ? (
-                        <a href={postSaleHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 border border-[#FF6B00] px-3 py-2 text-xs font-semibold text-[#B84A00]">
-                          <MessageSquareText size={14} />
-                          Pedir avaliação
-                        </a>
+                        <PostSaleReviewButton
+                          projectId={project.id}
+                          href={postSaleHref}
+                          contacted={Boolean(project.postSaleContactedAt)}
+                        />
                       ) : null}
                       <Link href={`/dashboard/projects/${project.id}`} className="bg-[#121212] px-3 py-2 text-xs font-semibold text-white">Abrir</Link>
                     </div>
