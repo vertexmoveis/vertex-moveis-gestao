@@ -17,11 +17,9 @@ import { formatDateOnly } from '@/lib/date-only'
 import type { QuoteApprovalData } from '@/lib/quote-approval'
 import {
   getQuotePaymentDetails,
-  QUOTE_PRICE_PROFILE_LABELS,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
   quoteVariationDisplayName,
-  safeQuotePriceProfile,
 } from '@/lib/quotes'
 
 const colors = {
@@ -44,6 +42,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 10,
     lineHeight: 1.3,
+  },
+  pageDense: {
+    fontSize: 9.2,
+    lineHeight: 1.18,
   },
   company: {
     flexDirection: 'row',
@@ -98,8 +100,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
   },
   titleBarMain: {
+    width: '60%',
     fontFamily: 'Helvetica-Bold',
     fontSize: 12,
+    textAlign: 'center',
+  },
+  titleBarSpacer: {
+    width: '20%',
+  },
+  titleBarDate: {
+    width: '20%',
+    textAlign: 'right',
   },
   delivery: {
     marginTop: 3,
@@ -204,40 +215,64 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
   },
   totalLabel: {
-    width: '70%',
+    width: '60%',
   },
-  totalValue: {
-    width: '30%',
+  totalQuantity: {
+    width: '10%',
     textAlign: 'right',
   },
-  paymentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    borderLeftWidth: 1,
-    borderColor: colors.line,
+  totalBlank: {
+    width: '15%',
   },
-  paymentCard: {
-    width: '20%',
-    minHeight: 28,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
+  totalValue: {
+    width: '15%',
+    textAlign: 'right',
+  },
+  summaryLine: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderTopWidth: 0,
     borderColor: colors.line,
     paddingVertical: 3,
-    paddingHorizontal: 4,
-  },
-  paymentCardLabel: {
-    color: colors.muted,
-    fontSize: 7.5,
-  },
-  paymentCardAmount: {
-    marginTop: 1,
+    paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
   },
-  paymentCardDate: {
-    marginTop: 1,
-    color: colors.muted,
-    fontSize: 7,
+  summaryLineLabel: {
+    width: '75%',
+    textAlign: 'right',
+  },
+  summaryLineValue: {
+    width: '25%',
+    textAlign: 'right',
+  },
+  paymentDue: {
+    width: '22%',
+  },
+  paymentAmount: {
+    width: '22%',
+    textAlign: 'right',
+  },
+  paymentMethod: {
+    width: '31%',
+  },
+  paymentObservation: {
+    width: '25%',
+  },
+  paymentPairDue: {
+    width: '24%',
+  },
+  paymentPairAmount: {
+    width: '26%',
+    textAlign: 'right',
+  },
+  paymentMethodSummary: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    backgroundColor: colors.softer,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
   },
   notes: {
     marginTop: 4,
@@ -245,6 +280,28 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: 4,
     lineHeight: 1.25,
+  },
+  signature: {
+    marginTop: 8,
+    minHeight: 48,
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderColor: colors.ink,
+    paddingRight: 95,
+    paddingBottom: 8,
+    paddingLeft: 95,
+  },
+  signatureLine: {
+    borderTopWidth: 1,
+    borderColor: colors.ink,
+    paddingTop: 4,
+    textAlign: 'center',
+    fontSize: 8.5,
+  },
+  signatureDense: {
+    marginTop: 4,
+    minHeight: 30,
+    paddingBottom: 4,
   },
   continuationHeader: {
     position: 'absolute',
@@ -326,10 +383,10 @@ function SimpleQuotePdf({
   const itemSubtotal = quote.items.reduce((sum, item) => sum + item.total, 0)
   const totalQuantity = quote.items.reduce((sum, item) => sum + item.quantity, 0)
   const financialDetails = [
-    quote.installationFee > 0 ? `Instalação: ${formatCurrency(quote.installationFee)}` : '',
-    quote.manualDiscount > 0 ? `Desconto: - ${formatCurrency(quote.manualDiscount)}` : '',
-    quote.paymentDiscount > 0 ? `Desconto Pix: - ${formatCurrency(quote.paymentDiscount)}` : '',
-  ].filter(Boolean)
+    ...(quote.installationFee > 0 ? [{ label: 'INSTALAÇÃO', value: quote.installationFee }] : []),
+    ...(quote.manualDiscount > 0 ? [{ label: 'DESCONTO COMERCIAL', value: -quote.manualDiscount }] : []),
+    ...(quote.paymentDiscount > 0 ? [{ label: 'DESCONTO PIX', value: -quote.paymentDiscount }] : []),
+  ]
   const paymentRows = payment.method === 'CARD'
     ? [
         ...(payment.downPayment > 0
@@ -351,8 +408,18 @@ function SimpleQuotePdf({
         label: payment.method === 'PIX' ? 'Pagamento à vista' : 'Pagamento',
         dueDate: quote.createdAt,
         amount: payment.total,
-        method: payment.methodLabel,
+      method: payment.methodLabel,
       }]
+  const streetAddress = [
+    quote.client.street || quote.client.address,
+    quote.client.number,
+    quote.client.neighborhood,
+  ].filter(Boolean).join(', ')
+  const pairedPaymentRows = Array.from(
+    { length: Math.ceil(paymentRows.length / 2) },
+    (_, index) => [paymentRows[index * 2], paymentRows[(index * 2) + 1]],
+  )
+  const denseDocument = quote.items.length + paymentRows.length > 15
   return (
     <Document
       title={`Orçamento ${quoteDisplayCode(quote)} - ${quote.title}`}
@@ -360,7 +427,7 @@ function SimpleQuotePdf({
       subject="Orçamento de móveis planejados"
       creator="Sistema Vertex"
     >
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={[styles.page, denseDocument ? styles.pageDense : {}]}>
         <Text style={styles.continuationHeader} fixed>
           ORÇAMENTO {quoteDisplayCode(quote)} | {quote.client.name}
         </Text>
@@ -392,8 +459,9 @@ function SimpleQuotePdf({
         </View>
 
         <View style={styles.titleBar} wrap={false}>
+          <Text style={styles.titleBarSpacer}></Text>
           <Text style={styles.titleBarMain}>ORÇAMENTO Nº {quoteDisplayCode(quote)}</Text>
-          <Text>{formatDateOnly(quote.createdAt)}</Text>
+          <Text style={styles.titleBarDate}>{formatDateOnly(quote.createdAt)}</Text>
         </View>
         <View style={styles.deliveryRow} wrap={false}>
           <Text style={[styles.delivery, styles.optionDelivery]}>OPÇÃO: {quoteVariationDisplayName(quote)}</Text>
@@ -411,12 +479,24 @@ function SimpleQuotePdf({
         </View>
         <View style={styles.row} wrap={false}>
           <Text style={[styles.cell, styles.clientLabel]}>Endereço</Text>
-          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(clientAddress)}</Text>
+          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(streetAddress || clientAddress)}</Text>
+          <Text style={[styles.cell, styles.clientLabel]}>CEP</Text>
+          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.zipCode)}</Text>
+        </View>
+        <View style={styles.row} wrap={false}>
+          <Text style={[styles.cell, styles.clientLabel]}>Cidade</Text>
+          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.city)}</Text>
+          <Text style={[styles.cell, styles.clientLabel]}>Estado</Text>
+          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.state)}</Text>
+        </View>
+        <View style={styles.row} wrap={false}>
           <Text style={[styles.cell, styles.clientLabel]}>Telefone</Text>
           <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.whatsapp || quote.client.phone)}</Text>
+          <Text style={[styles.cell, styles.clientLabel]}>E-mail</Text>
+          <Text style={[styles.cell, styles.clientValue]}>{valueOrFallback(quote.client.email)}</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Serviços e móveis</Text>
+        <Text style={styles.sectionTitle}>Serviços</Text>
         <View style={styles.itemHeader}>
           <Text style={[styles.headerCell, styles.itemNumber]}>Item</Text>
           <Text style={[styles.headerCell, styles.itemDescription]}>Descrição</Text>
@@ -435,11 +515,8 @@ function SimpleQuotePdf({
               const details = [
                 item.placement,
                 `${quoteCentimetersToMillimeters(item.width)} x ${quoteCentimetersToMillimeters(item.height)} mm`,
-                item.material || 'MDF',
-                QUOTE_PRICE_PROFILE_LABELS[safeQuotePriceProfile(item.priceProfile)],
-                item.finish || 'Acabamento interno não informado',
                 item.notes,
-              ].filter(Boolean).join(' | ')
+              ].filter(Boolean).join(' · ')
 
               return (
                 <View key={item.id} style={styles.row} wrap={false}>
@@ -447,7 +524,7 @@ function SimpleQuotePdf({
                   <View style={[styles.cell, styles.itemDescription]}>
                     <Text>
                       <Text style={styles.serviceName}>{item.description}</Text>
-                      <Text style={styles.serviceDetail}> | {details}</Text>
+                      <Text style={styles.serviceDetail}>{details ? ` (${details})` : ''}</Text>
                     </Text>
                   </View>
                   <Text style={[styles.cell, styles.itemQuantity]}>{item.quantity}</Text>
@@ -459,24 +536,64 @@ function SimpleQuotePdf({
           </View>
         ))}
         <View style={styles.totalRow} wrap={false}>
-          <Text style={[styles.cell, styles.totalLabel]}>
-            {totalQuantity} {totalQuantity === 1 ? 'ITEM' : 'ITENS'} | Móveis: {formatCurrency(itemSubtotal)}
-            {financialDetails.length ? ` | ${financialDetails.join(' | ')}` : ''}
-          </Text>
-          <Text style={[styles.cell, styles.totalValue]}>TOTAL: {formatCurrency(quote.total)}</Text>
+          <Text style={[styles.cell, styles.totalLabel]}>TOTAL</Text>
+          <Text style={[styles.cell, styles.totalQuantity]}>{totalQuantity}</Text>
+          <Text style={[styles.cell, styles.totalBlank]}></Text>
+          <Text style={[styles.cell, styles.totalValue]}>{formatCurrency(itemSubtotal)}</Text>
+        </View>
+        <View style={styles.summaryLine} wrap={false}>
+          <Text style={styles.summaryLineLabel}>SERVIÇOS:</Text>
+          <Text style={styles.summaryLineValue}>{formatCurrency(itemSubtotal)}</Text>
+        </View>
+        {financialDetails.map((detail) => (
+          <View key={detail.label} style={styles.summaryLine} wrap={false}>
+            <Text style={styles.summaryLineLabel}>{detail.label}:</Text>
+            <Text style={styles.summaryLineValue}>{formatCurrency(detail.value)}</Text>
+          </View>
+        ))}
+        <View style={styles.summaryLine} wrap={false}>
+          <Text style={styles.summaryLineLabel}>TOTAL:</Text>
+          <Text style={styles.summaryLineValue}>{formatCurrency(quote.total)}</Text>
         </View>
 
         <View wrap={false}>
-          <Text style={styles.sectionTitle}>Dados do pagamento | {payment.methodLabel}</Text>
-          <View style={styles.paymentGrid}>
-            {paymentRows.map((row) => (
-              <View key={`${row.label}-${row.dueDate || ''}`} style={styles.paymentCard}>
-                <Text style={styles.paymentCardLabel}>{row.label}</Text>
-                <Text style={styles.paymentCardAmount}>{formatCurrency(row.amount)}</Text>
-                <Text style={styles.paymentCardDate}>{row.dueDate ? `Vencimento: ${formatDateOnly(row.dueDate)}` : 'Vencimento a combinar'}</Text>
+          <Text style={styles.sectionTitle}>Dados do pagamento</Text>
+          {paymentRows.length > 5 ? (
+            <>
+              <Text style={styles.paymentMethodSummary}>Forma de pagamento: {payment.methodLabel}</Text>
+              <View style={styles.itemHeader}>
+                <Text style={[styles.headerCell, styles.paymentPairDue]}>Vencimento</Text>
+                <Text style={[styles.headerCell, styles.paymentPairAmount]}>Valor</Text>
+                <Text style={[styles.headerCell, styles.paymentPairDue]}>Vencimento</Text>
+                <Text style={[styles.headerCell, styles.paymentPairAmount]}>Valor</Text>
               </View>
-            ))}
-          </View>
+              {pairedPaymentRows.map(([left, right]) => (
+                <View key={`${left.label}-${left.dueDate || ''}`} style={styles.row} wrap={false}>
+                  <Text style={[styles.cell, styles.paymentPairDue]}>{left.label}: {left.dueDate ? formatDateOnly(left.dueDate) : 'A combinar'}</Text>
+                  <Text style={[styles.cell, styles.paymentPairAmount]}>{formatCurrency(left.amount)}</Text>
+                  <Text style={[styles.cell, styles.paymentPairDue]}>{right ? `${right.label}: ${right.dueDate ? formatDateOnly(right.dueDate) : 'A combinar'}` : ''}</Text>
+                  <Text style={[styles.cell, styles.paymentPairAmount]}>{right ? formatCurrency(right.amount) : ''}</Text>
+                </View>
+              ))}
+            </>
+          ) : (
+            <>
+              <View style={styles.itemHeader}>
+                <Text style={[styles.headerCell, styles.paymentDue]}>Vencimento</Text>
+                <Text style={[styles.headerCell, styles.paymentAmount]}>Valor</Text>
+                <Text style={[styles.headerCell, styles.paymentMethod]}>Forma de pagamento</Text>
+                <Text style={[styles.headerCell, styles.paymentObservation]}>Observação</Text>
+              </View>
+              {paymentRows.map((row) => (
+                <View key={`${row.label}-${row.dueDate || ''}`} style={styles.row} wrap={false}>
+                  <Text style={[styles.cell, styles.paymentDue]}>{row.dueDate ? formatDateOnly(row.dueDate) : 'A combinar'}</Text>
+                  <Text style={[styles.cell, styles.paymentAmount]}>{formatCurrency(row.amount)}</Text>
+                  <Text style={[styles.cell, styles.paymentMethod]}>{row.method}</Text>
+                  <Text style={[styles.cell, styles.paymentObservation]}>{row.label}</Text>
+                </View>
+              ))}
+            </>
+          )}
         </View>
 
         {quote.customerNotes ? (
@@ -485,6 +602,10 @@ function SimpleQuotePdf({
             {quote.customerNotes}
           </Text>
         ) : null}
+
+        <View style={[styles.signature, denseDocument ? styles.signatureDense : {}]} wrap={false}>
+          <Text style={styles.signatureLine}>Assinatura do cliente</Text>
+        </View>
 
       </Page>
     </Document>

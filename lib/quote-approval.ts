@@ -48,6 +48,7 @@ export type QuoteApprovalSource = {
     document?: string | null
     phone?: string | null
     whatsapp?: string | null
+    email?: string | null
     address?: string | null
     street?: string | null
     number?: string | null
@@ -86,6 +87,7 @@ export type QuoteApprovalSnapshot = {
       document: string | null
       phone: string | null
       whatsapp: string | null
+      email?: string | null
       address: string | null
       street: string | null
       number: string | null
@@ -158,6 +160,7 @@ function buildQuoteApprovalData(quote: QuoteApprovalSource): QuoteApprovalData {
       document: quote.client.document || null,
       phone: quote.client.phone || null,
       whatsapp: quote.client.whatsapp || null,
+      email: quote.client.email || null,
       address: quote.client.address || null,
       street: quote.client.street || null,
       number: quote.client.number || null,

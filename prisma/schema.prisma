@@ -320,6 +320,7 @@ model CompanyProfile {
   phone                       String?
   email                       String?
   instagram                   String?
+  googleReviewUrl             String?
   street                      String?
   number                      String?
   complement                  String?

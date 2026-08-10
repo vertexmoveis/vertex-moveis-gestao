@@ -35,6 +35,26 @@ const companyProfileSchema = z.object({
     }
     return normalized
   }),
+  googleReviewUrl: z.preprocess(
+    (value) => value === '' ? null : value,
+    z.string().trim().url('Informe um link válido do Google.').max(500).nullable().optional(),
+  ).transform((value, ctx) => {
+    if (!value) return null
+    try {
+      const hostname = new URL(value).hostname.toLowerCase()
+      const isGoogleHost = hostname === 'google.com'
+        || hostname.endsWith('.google.com')
+        || hostname === 'google.com.br'
+        || hostname.endsWith('.google.com.br')
+      if (!isGoogleHost && hostname !== 'g.page' && hostname !== 'maps.app.goo.gl') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use o link de avaliação ou do perfil da empresa no Google.' })
+        return z.NEVER
+      }
+      return value
+    } catch {
+      return z.NEVER
+    }
+  }),
   street: optionalText(160),
   number: optionalText(30),
   complement: optionalText(100),

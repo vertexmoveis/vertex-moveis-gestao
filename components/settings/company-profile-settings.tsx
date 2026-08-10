@@ -15,6 +15,7 @@ type EditableCompanyProfile = Pick<
   | 'phone'
   | 'email'
   | 'instagram'
+  | 'googleReviewUrl'
   | 'street'
   | 'number'
   | 'complement'
@@ -40,6 +41,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
     phone: initialProfile.phone,
     email: initialProfile.email,
     instagram: initialProfile.instagram,
+    googleReviewUrl: initialProfile.googleReviewUrl,
     street: initialProfile.street,
     number: initialProfile.number,
     complement: initialProfile.complement,
@@ -81,6 +83,7 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
         phone: data.phone,
         email: data.email,
         instagram: data.instagram,
+        googleReviewUrl: data.googleReviewUrl,
         street: data.street,
         number: data.number,
         complement: data.complement,
@@ -128,6 +131,13 @@ export function CompanyProfileSettings({ initialProfile }: { initialProfile: Com
             value={profile.instagram || ''}
             onChange={(event) => update('instagram', event.target.value)}
             placeholder="@usuario ou instagram.com/usuario"
+          />
+          <Input
+            label="Link de avaliação no Google"
+            type="url"
+            value={profile.googleReviewUrl || ''}
+            onChange={(event) => update('googleReviewUrl', event.target.value)}
+            placeholder="https://g.page/r/.../review"
           />
           <Input
             label="Prazo padrão (dias úteis)"
