@@ -7,6 +7,7 @@ import {
 } from '@/components/quotes/public-approval-actions'
 import { PublicProposalIntro } from '@/components/quotes/public-proposal-intro'
 import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
+import { PublicQuoteViewTracker } from '@/components/quotes/public-quote-view-tracker'
 import {
   COMPANY_PROFILE_ID,
   normalizeInstagramUrl,
@@ -195,21 +196,6 @@ export default async function PublicQuoteApprovalPage({
     return <UnavailableProposal message="Este orçamento expirou. Solicite um novo link à Vertex Móveis." />
   }
 
-  const viewedQuoteIds = request.options.length > 0
-    ? request.options.map((option) => option.quoteId)
-    : [request.quoteId, request.comparisonQuoteId].filter((quoteId): quoteId is string => Boolean(quoteId))
-  const viewedAt = new Date()
-  await prisma.$transaction([
-    prisma.quoteApprovalRequest.update({
-      where: { id: request.id },
-      data: { viewedAt, viewCount: { increment: 1 } },
-    }),
-    prisma.quote.updateMany({
-      where: { id: { in: viewedQuoteIds } },
-      data: { viewedAt, viewCount: { increment: 1 } },
-    }),
-  ])
-
   const optionQuotes = request.options.map((option) => option.quote)
   const fallbackSnapshot = optionQuotes.length > 1
     ? buildQuoteApprovalOptionsSnapshot(optionQuotes)
@@ -253,6 +239,7 @@ export default async function PublicQuoteApprovalPage({
 
   return (
     <main className="min-h-screen bg-[#F4F3F0] sm:px-6 sm:py-8">
+      <PublicQuoteViewTracker token={token} />
       <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
         {company.presentationEnabled ? (
           <PublicProposalIntro
