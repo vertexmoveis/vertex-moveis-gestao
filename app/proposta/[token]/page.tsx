@@ -218,7 +218,12 @@ export default async function PublicQuoteApprovalPage({
   const quoteEnvironments = [...new Set(quotes.flatMap((quote) => quote.items.map((item) => item.environmentName || item.environment)).filter(Boolean))]
   const selectedPresentationImages = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'PORTFOLIO', 4)
   const selectedBeforeAfterPairs = buildBeforeAfterPairs(presentationImages, quoteEnvironments, 3)
-  const selectedPresentationVideos = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'VIDEO', 2)
+  const selectedPresentationVideos = selectCompanyPresentationMedia(
+    presentationImages,
+    quoteEnvironments,
+    'VIDEO',
+    presentationImages.length,
+  )
   const lowestTotal = Math.min(...quotes.map((quote) => quote.total))
   const approvalOptions: PublicApprovalOption[] = comparison
     ? quotes.map((quote, index) => ({

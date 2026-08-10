@@ -18,7 +18,6 @@ import {
 } from '@/lib/quote-simple-pdf'
 import { forbidden, getClientIp, requireAuth, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
-import { readQuoteImageDataUrl } from '@/lib/quote-images'
 import {
   buildQuoteWhatsAppMessage,
   QUOTE_CALCULATION_MODE_LABELS,
@@ -75,15 +74,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         client: true,
         createdBy: { select: { name: true, email: true } },
         items: { orderBy: { position: 'asc' } },
-        group: {
-          select: {
-            images: {
-              where: { securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] } },
-              orderBy: [{ environmentName: 'asc' }, { position: 'asc' }],
-              take: 6,
-            },
-          },
-        },
       },
     }),
     prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
@@ -119,11 +109,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .catch(() => new URL('/vertex-symbol.png', req.url).toString())
   const simpleHref = new URL(`/api/quotes/${quote.id}/proposal?modelo=simples`, req.url).toString()
   const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
-  const environmentImages = (await Promise.all(quote.group.images.map(async (image) => {
-    const src = await readQuoteImageDataUrl(image.url).catch(() => null)
-    return src ? { environmentName: image.environmentName, caption: image.caption, src } : null
-  }))).filter((image): image is { environmentName: string; caption: string | null; src: string } => Boolean(image))
-
   if (req.nextUrl.searchParams.get('modelo') === 'simples') {
     const snapshot = parseQuoteApprovalSnapshot(buildQuoteApprovalSnapshot(quote))
     if (!snapshot) {
@@ -133,7 +118,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       quote: snapshot.quote,
       company,
       logoUrl,
-      environmentImages,
     })
 
     return new NextResponse(new Uint8Array(pdf), {

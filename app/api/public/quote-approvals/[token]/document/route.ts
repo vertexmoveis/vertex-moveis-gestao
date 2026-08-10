@@ -15,7 +15,6 @@ import {
 import { isValidPublicToken, publicRateLimitKey } from '@/lib/public-access'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/security'
-import { readQuoteImageDataUrl } from '@/lib/quote-images'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -81,27 +80,13 @@ export async function GET(
     return NextResponse.json({ error: 'Documento não encontrado.' }, { status: 404 })
   }
 
-  const storedImages = await prisma.quoteEnvironmentImage.findMany({
-    where: {
-      securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] },
-      group: { quotes: { some: { id: quote.id } } },
-    },
-    orderBy: [{ environmentName: 'asc' }, { position: 'asc' }],
-    take: 6,
-  })
-
   const logoUrl = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
     .then((file) => `data:image/png;base64,${file.toString('base64')}`)
     .catch(() => undefined)
-  const environmentImages = (await Promise.all(storedImages.map(async (image) => {
-    const src = await readQuoteImageDataUrl(image.url).catch(() => null)
-    return src ? { environmentName: image.environmentName, caption: image.caption, src } : null
-  }))).filter((image): image is { environmentName: string; caption: string | null; src: string } => Boolean(image))
   const pdf = await renderSimpleQuotePdf({
     quote,
     company: serializeCompanyProfile(storedCompanyProfile),
     logoUrl,
-    environmentImages,
   })
 
   return new NextResponse(new Uint8Array(pdf), {

@@ -88,6 +88,28 @@ test('gera o orçamento simples como um PDF válido', async () => {
   assert.ok(pdf.byteLength > 2_000)
 })
 
+test('mantém dez móveis e dez parcelas em uma única página', async () => {
+  const denseQuote: QuoteApprovalData = {
+    ...quote,
+    cardInstallments: 10,
+    cardDownPayment: 0,
+    items: Array.from({ length: 10 }, (_, index) => ({
+      ...quote.items[index % quote.items.length],
+      id: `item-${index + 1}`,
+      total: 950,
+    })),
+  }
+  const pdf = await renderSimpleQuotePdf({
+    quote: denseQuote,
+    company: withCompanyProfileDefaults(),
+  })
+  const pages = Buffer.from(pdf)
+    .toString('latin1')
+    .match(/\/Type\s*\/Page\b/g)
+
+  assert.equal(pages?.length, 1)
+})
+
 test('gera um nome de arquivo seguro e identificável', () => {
   assert.equal(
     simpleQuotePdfFileName(quote),
