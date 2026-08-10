@@ -7,6 +7,7 @@ import {
 } from '@/components/quotes/public-approval-actions'
 import { PublicProposalIntro } from '@/components/quotes/public-proposal-intro'
 import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
+import { PublicProposalScrollReset } from '@/components/quotes/public-proposal-scroll-reset'
 import { PublicQuoteViewTracker } from '@/components/quotes/public-quote-view-tracker'
 import {
   COMPANY_PROFILE_ID,
@@ -111,7 +112,7 @@ function QuotePdfPreview({
   const optionLabel = quoteVariationDisplayName(quote)
 
   return (
-    <section id={optionNumber === 1 ? 'orcamento' : undefined} className={`scroll-mt-4 ${optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : ''}`}>
+    <section className={optionNumber > 1 ? 'border-t-[12px] border-[#F4F3F0]' : undefined}>
       <div className="border-b border-[#ECE9E5] bg-white px-4 py-5 sm:px-8">
         <PublicQuotePdfLink
           token={token}
@@ -126,7 +127,7 @@ function QuotePdfPreview({
           src={`${pdfUrl}#view=FitH`}
           title={`Orçamento ${quoteDisplayCode(quote)} em PDF`}
           className="h-[calc(100vh-4rem)] min-h-[680px] w-full bg-white"
-          loading={optionNumber === 1 ? 'eager' : 'lazy'}
+          loading="lazy"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -238,6 +239,7 @@ export default async function PublicQuoteApprovalPage({
 
   return (
     <main className="min-h-screen bg-[#F4F3F0] sm:px-6 sm:py-8">
+      <PublicProposalScrollReset />
       <PublicQuoteViewTracker token={token} />
       <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
         {company.presentationEnabled ? (
