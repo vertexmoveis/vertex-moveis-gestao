@@ -10,7 +10,6 @@ import { PublicQuotePdfLink } from '@/components/quotes/public-quote-pdf-link'
 import { PublicQuoteViewTracker } from '@/components/quotes/public-quote-view-tracker'
 import {
   COMPANY_PROFILE_ID,
-  normalizeInstagramUrl,
   withCompanyProfileDefaults,
 } from '@/lib/company-profile'
 import {
@@ -220,11 +219,6 @@ export default async function PublicQuoteApprovalPage({
   const selectedPresentationImages = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'PORTFOLIO', 4)
   const selectedBeforeAfterPairs = buildBeforeAfterPairs(presentationImages, quoteEnvironments, 3)
   const selectedPresentationVideos = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'VIDEO', 2)
-  const phoneDigits = (company.phone || '').replace(/\D/g, '')
-  const whatsappNumber = phoneDigits ? (phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`) : ''
-  const whatsappUrl = whatsappNumber
-    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Olá! Sou ${clientName} e gostaria de falar sobre o orçamento ${quotes[0].title}.`)}`
-    : ''
   const lowestTotal = Math.min(...quotes.map((quote) => quote.total))
   const approvalOptions: PublicApprovalOption[] = comparison
     ? quotes.map((quote, index) => ({
@@ -243,17 +237,6 @@ export default async function PublicQuoteApprovalPage({
       <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
         {company.presentationEnabled ? (
           <PublicProposalIntro
-            token={token}
-            companyName={company.tradeName}
-            clientName={clientName}
-            quoteTitle={quotes[0].title}
-            heading={company.presentationHeading}
-            text={company.presentationText}
-            highlights={[
-              company.presentationHighlight1,
-              company.presentationHighlight2,
-              company.presentationHighlight3,
-            ]}
             images={selectedPresentationImages.map((image) => ({
               id: image.id,
               src: `/api/public/quote-approvals/${token}/presentation-images/${image.id}`,
@@ -281,8 +264,6 @@ export default async function PublicQuoteApprovalPage({
               alt: video.caption || video.name,
               caption: video.caption || video.environmentName,
             }))}
-            whatsappUrl={whatsappUrl}
-            instagramUrl={normalizeInstagramUrl(company.instagram)}
           />
         ) : null}
         {quotes.map((quote, index) => (
