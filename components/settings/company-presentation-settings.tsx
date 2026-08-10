@@ -33,6 +33,17 @@ type PresentationProfile = Pick<
   | 'presentationHighlight3'
 >
 
+function presentationProfileFields(profile: PresentationProfile): PresentationProfile {
+  return {
+    presentationEnabled: profile.presentationEnabled,
+    presentationHeading: profile.presentationHeading,
+    presentationText: profile.presentationText,
+    presentationHighlight1: profile.presentationHighlight1,
+    presentationHighlight2: profile.presentationHighlight2,
+    presentationHighlight3: profile.presentationHighlight3,
+  }
+}
+
 export function CompanyPresentationSettings({
   initialProfile,
   initialImages,
@@ -41,7 +52,7 @@ export function CompanyPresentationSettings({
   initialImages: CompanyPresentationImageData[]
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [profile, setProfile] = useState(initialProfile)
+  const [profile, setProfile] = useState(() => presentationProfileFields(initialProfile))
   const [images, setImages] = useState(initialImages)
   const [environmentName, setEnvironmentName] = useState<string>('Todos os ambientes')
   const [mediaKind, setMediaKind] = useState<CompanyPresentationMediaKind>('PORTFOLIO')
@@ -64,18 +75,11 @@ export function CompanyPresentationSettings({
       const response = await fetch('/api/settings/company/presentation', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
+        body: JSON.stringify(presentationProfileFields(profile)),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) throw new Error(data?.error || 'Não foi possível salvar a apresentação.')
-      setProfile({
-        presentationEnabled: data.presentationEnabled,
-        presentationHeading: data.presentationHeading,
-        presentationText: data.presentationText,
-        presentationHighlight1: data.presentationHighlight1,
-        presentationHighlight2: data.presentationHighlight2,
-        presentationHighlight3: data.presentationHighlight3,
-      })
+      setProfile(presentationProfileFields(data))
       setFeedback('Apresentação atualizada para os próximos acessos.')
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Não foi possível salvar a apresentação.')
