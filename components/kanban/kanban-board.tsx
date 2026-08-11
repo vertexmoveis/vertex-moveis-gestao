@@ -511,7 +511,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
           >
             <div className={cn(
               'flex h-full min-w-max items-start gap-4',
-              visibleStages.length <= 4 && 'min-w-full justify-between',
+              visibleStages.length <= 4 && 'min-w-full',
             )}>
               {visibleStages.map((stage) => {
                 const stageStates = grouped[stage].map((project) => getProductionProjectState(project, today))
