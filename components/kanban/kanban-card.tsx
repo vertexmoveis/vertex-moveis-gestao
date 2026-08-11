@@ -128,7 +128,7 @@ export function KanbanCard({
 
         <Link
           href={`/dashboard/projects/${project.id}`}
-          className="line-clamp-2 text-[15px] font-semibold leading-5 text-[#121212] transition-colors hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
+          className="line-clamp-2 text-base font-semibold leading-5 text-[#121212] transition-colors hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={stopPointer}
         >
@@ -219,14 +219,14 @@ export function KanbanCard({
           ) : <span />}
 
           {!isDragging ? (
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               <Link
                 href={`/dashboard/projects/${project.id}#operacao`}
                 aria-label="Abrir centro operacional"
                 title="Abrir centro operacional"
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={stopPointer}
-                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
+                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] transition-colors hover:bg-[#F1F1F1] hover:text-[#222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
               >
                 <SlidersHorizontal size={14} />
               </Link>
@@ -236,7 +236,7 @@ export function KanbanCard({
                 title={project.pendingMaterialCount ? `${project.pendingMaterialCount} material(is) exigem atenção` : 'Abrir materiais e compras'}
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={stopPointer}
-                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
+                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] transition-colors hover:bg-[#F1F1F1] hover:text-[#222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
               >
                 <Boxes size={14} />
                 {project.pendingMaterialCount ? (
@@ -252,7 +252,7 @@ export function KanbanCard({
                 disabled={!previousStage || isPending}
                 onClick={() => previousStage && onMove?.(project, -1)}
                 onPointerDown={stopPointer}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] transition-colors hover:bg-[#F1F1F1] hover:text-[#222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
               >
                 <ChevronLeft size={14} />
               </button>
@@ -264,7 +264,7 @@ export function KanbanCard({
                 onClick={() => onToggleBlock?.(project)}
                 onPointerDown={stopPointer}
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25',
+                  'flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25',
                   attention.blocked ? 'text-amber-700' : 'text-[#666]',
                 )}
               >
@@ -277,7 +277,7 @@ export function KanbanCard({
                 disabled={isPending}
                 onClick={() => onEditDeadline?.(project)}
                 onPointerDown={stopPointer}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] transition-colors hover:bg-[#F1F1F1] hover:text-[#222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
               >
                 <CalendarClock size={14} />
               </button>
@@ -288,7 +288,7 @@ export function KanbanCard({
                 disabled={!nextStage || isPending}
                 onClick={() => nextStage && onMove?.(project, 1)}
                 onPointerDown={stopPointer}
-                className="flex h-8 w-8 items-center justify-center rounded-md bg-[#FF6B00] text-white hover:bg-[#E85F00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2 disabled:bg-[#DDD]"
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-[#FF6B00] text-white transition-colors hover:bg-[#E85F00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2 disabled:bg-[#DDD]"
               >
                 <ChevronRight size={14} />
               </button>

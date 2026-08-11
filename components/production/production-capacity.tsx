@@ -21,7 +21,7 @@ export function ProductionCapacity({ weeks }: { weeks: ProductionCapacityWeek[] 
     <section aria-labelledby="production-capacity-title" className="shrink-0 overflow-hidden rounded-lg border border-[#E7E7E7] bg-white">
       <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border-b border-[#EFEFEF] px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <h2 id="production-capacity-title" className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#121212]">
+          <h2 id="production-capacity-title" className="flex shrink-0 items-center gap-2 text-xs font-semibold text-[#333]">
             <Gauge size={15} className="text-[#FF6B00]" /> Capacidade das próximas semanas
           </h2>
           <span className="hidden truncate text-[11px] text-[#777] md:inline">Entregas previstas nas próximas 4 semanas</span>
@@ -35,7 +35,7 @@ export function ProductionCapacity({ weeks }: { weeks: ProductionCapacityWeek[] 
 
       <div className="grid grid-cols-1 divide-y divide-[#EFEFEF] sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4 xl:divide-x">
         {weeks.map((week) => (
-          <div key={week.start} className="min-w-0 px-4 py-2.5 sm:border-b sm:border-[#EFEFEF] xl:border-b-0">
+          <div key={week.start} className="min-w-0 px-4 py-2 sm:border-b sm:border-[#EFEFEF] xl:border-b-0">
             <div className="flex items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-medium text-[#444]">
                 <CalendarRange size={13} className="shrink-0 text-[#777]" />
@@ -43,14 +43,14 @@ export function ProductionCapacity({ weeks }: { weeks: ProductionCapacityWeek[] 
               </span>
               <span className={`shrink-0 text-[10px] font-semibold ${stateStyles[week.state]}`}>{stateLabels[week.state]}</span>
             </div>
-            <div className="mt-2 flex items-end justify-between gap-2 text-[#121212]">
-              <p className="text-lg font-bold leading-none">
+            <div className="mt-1.5 flex items-end justify-between gap-2 text-[#333]">
+              <p className="text-base font-semibold leading-none">
                 {week.scheduled.toLocaleString('pt-BR')}
                 <span className="ml-1 text-[10px] font-medium text-[#777]">de {week.capacity} pontos</span>
               </p>
-              <span className={`text-[11px] font-semibold ${stateStyles[week.state]}`}>{week.usagePercent}%</span>
+              <span className={`text-[10px] font-medium ${stateStyles[week.state]}`}>{week.usagePercent}%</span>
             </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#E9E9E9]">
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#E9E9E9]">
               <div
                 className={`h-full ${week.state === 'OVERLOADED' ? 'bg-red-500' : week.state === 'ATTENTION' ? 'bg-amber-500' : 'bg-[#777]'}`}
                 style={{ width: `${Math.min(week.usagePercent, 100)}%` }}
