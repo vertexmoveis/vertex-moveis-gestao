@@ -241,6 +241,7 @@ export default async function PublicQuoteApprovalPage({
             videos={selectedPresentationVideos.map((video) => ({
               id: video.id,
               src: `/api/public/quote-approvals/${token}/presentation-images/${video.id}`,
+              poster: video.posterUrl ? `/api/public/quote-approvals/${token}/presentation-images/${video.id}?asset=poster` : undefined,
               caption: video.caption || video.environmentName,
             }))}
           />

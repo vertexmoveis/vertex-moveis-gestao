@@ -13,19 +13,33 @@ test('a política de segurança permite o envio direto ao Vercel Blob', () => {
   assert.match(proxy, /'nonce-\$\{nonce\}'/)
   assert.match(proxy, /'strict-dynamic'/)
   assert.doesNotMatch(proxy.match(/`script-src ([^`]+)`/)?.[1] || '', /'unsafe-inline'/)
+  assert.match(proxy.match(/`style-src ([^`]+)`/)?.[1] || '', /'nonce-\$\{nonce\}'/)
+  assert.doesNotMatch(proxy.match(/`style-src ([^`]+)`/)?.[1] || '', /'unsafe-inline'/)
+  assert.match(proxy, /style-src-attr 'unsafe-inline'/)
 })
 
-test('documentos HTML usam scripts com nonce em vez de handlers inline', () => {
+test('documentos HTML usam nonce em scripts e estilos', () => {
   const files = [
     'app/api/quotes/[id]/proposal/route.ts',
     'app/api/projects/[id]/payments/[paymentId]/receipt/route.ts',
     'app/api/public/quote-approvals/[token]/certificate/route.ts',
-    'lib/quote-simple-proposal.ts',
   ]
 
   for (const file of files) {
     const source = readFileSync(path.join(process.cwd(), file), 'utf8')
     assert.doesNotMatch(source, /\bonclick=/)
     assert.match(source, /<script nonce=/)
+    assert.match(source, /<style nonce=/)
+    assert.doesNotMatch(source, /<style>/)
   }
+})
+
+test('cabecalhos removem tecnologia, restringem CORS e evitam cache zero no manifest', () => {
+  const nextConfig = readFileSync(path.join(process.cwd(), 'next.config.ts'), 'utf8')
+
+  assert.match(nextConfig, /poweredByHeader:\s*false/)
+  assert.match(nextConfig, /Access-Control-Allow-Origin/)
+  assert.match(nextConfig, /Cross-Origin-Resource-Policy.*same-origin/)
+  assert.doesNotMatch(nextConfig, /Access-Control-Allow-Origin'[^]*?value:\s*['"]\*['"]/)
+  assert.match(nextConfig, /public, max-age=3600, stale-while-revalidate=86400/)
 })

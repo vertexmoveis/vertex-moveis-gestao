@@ -94,7 +94,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>Comprovante ${escapeHtml(certificateCode)}</title>
-      <style>
+      <style nonce="${escapeHtml(nonce)}">
         *{box-sizing:border-box} body{margin:0;background:#ececea;color:#121212;font-family:Arial,sans-serif;font-size:13px;line-height:1.45}
         .page{width:min(900px,calc(100% - 28px));margin:28px auto;background:#fff;border-top:7px solid #ff6b00;box-shadow:0 16px 45px rgba(0,0,0,.12)}
         header,.section,footer{padding:26px 34px}.brand{display:flex;justify-content:space-between;gap:24px;border-bottom:1px solid #e8e8e8}.brand h1{margin:0;font-size:22px}.brand p{margin:4px 0;color:#666}.title{text-align:right}.title strong{color:#ff6b00;text-transform:uppercase;font-size:11px;letter-spacing:.08em}
@@ -150,7 +150,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'private, no-store',
       'X-Robots-Tag': 'noindex, nofollow',
-      'Content-Security-Policy': `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'`,
+      'Content-Security-Policy': `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'`,
       'X-Content-Type-Options': 'nosniff',
     },
   })

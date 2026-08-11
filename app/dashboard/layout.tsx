@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { Sidebar } from '@/components/layout/sidebar'
+import { ClientMonitor } from '@/components/monitoring/client-monitor'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -12,6 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="fixed inset-0 flex min-h-[100dvh] overflow-clip bg-[#F5F5F5] print:static print:h-auto print:min-h-screen print:overflow-visible">
       <a href="#conteudo-principal" className="skip-link">Ir para o conteúdo principal</a>
+      <ClientMonitor />
       <Sidebar
         userName={session.user?.name || ''}
         userEmail={session.user?.email || ''}

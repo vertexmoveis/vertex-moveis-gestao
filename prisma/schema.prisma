@@ -359,6 +359,9 @@ model CompanyPresentationImage {
   type              String
   url               String         @unique
   size              Int?
+  posterUrl         String?        @unique
+  posterType        String?
+  posterSize        Int?
   active            Boolean        @default(true)
   securityStatus    String         @default("PENDING")
   securityDetails   String?

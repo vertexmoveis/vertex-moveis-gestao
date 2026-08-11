@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 <head>
   <meta charset="utf-8" />
   <title>Recibo Vertex Móveis</title>
-  <style>
+  <style nonce="${escapeHtml(nonce)}">
     body { font-family: Arial, sans-serif; color: #121212; margin: 40px; }
     .receipt { max-width: 720px; margin: 0 auto; border: 1px solid #ddd; padding: 28px; }
     h1 { margin: 0 0 4px; font-size: 24px; }
@@ -92,6 +92,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 </html>`
 
   return new NextResponse(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': `default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'`,
+    },
   })
 }

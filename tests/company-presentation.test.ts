@@ -3,7 +3,9 @@ import test from 'node:test'
 import { selectCompanyPresentationVideos } from '@/lib/company-presentation'
 import { matchesPresentationMediaSignature } from '@/lib/company-presentation-media-security'
 import {
+  COMPANY_PRESENTATION_POSTER_MAX_SIZE,
   COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
+  isCompanyPresentationPosterType,
   presentationVideoContentType,
 } from '@/lib/company-presentation-images'
 
@@ -50,4 +52,10 @@ test('identifica o tipo do vídeo pela extensão quando necessário', () => {
 
 test('aceita vídeos de apresentação com até 300 MB', () => {
   assert.equal(COMPANY_PRESENTATION_VIDEO_MAX_SIZE, 300 * 1024 * 1024)
+})
+
+test('mantém a capa leve separada do vídeo original em 4K', () => {
+  assert.equal(COMPANY_PRESENTATION_POSTER_MAX_SIZE, 3 * 1024 * 1024)
+  assert.equal(isCompanyPresentationPosterType('image/jpeg'), true)
+  assert.equal(isCompanyPresentationPosterType('video/mp4'), false)
 })

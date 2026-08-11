@@ -1,7 +1,7 @@
 'use client'
 
 import { upload } from '@vercel/blob/client'
-import { ArrowDown, ArrowUp, Film, Loader2, Save, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Film, ImageIcon, Loader2, Save, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -12,6 +12,7 @@ import {
 } from '@/lib/company-presentation'
 import {
   COMPANY_PRESENTATION_MEDIA_PREFIX,
+  COMPANY_PRESENTATION_POSTER_PREFIX,
   COMPANY_PRESENTATION_VIDEO_ACCEPT,
   COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
   presentationVideoContentType,
@@ -20,6 +21,43 @@ import type { CompanyProfileData } from '@/lib/company-profile'
 import { sanitizeQuoteImageName } from '@/lib/quote-images'
 
 type PresentationProfile = Pick<CompanyProfileData, 'presentationEnabled'>
+
+function captureVideoPoster(source: File | string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const objectUrl = typeof source === 'string' ? source : URL.createObjectURL(source)
+    const shouldRevokeUrl = typeof source !== 'string'
+    const video = document.createElement('video')
+    let finished = false
+    const finish = (value: Blob | null) => {
+      if (finished) return
+      finished = true
+      if (shouldRevokeUrl) URL.revokeObjectURL(objectUrl)
+      video.removeAttribute('src')
+      resolve(value)
+    }
+    const timeout = window.setTimeout(() => finish(null), 15_000)
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      video.currentTime = Math.min(1, Math.max(0, video.duration * 0.08))
+    }
+    video.onseeked = () => {
+      window.clearTimeout(timeout)
+      const scale = Math.min(1, 1280 / Math.max(video.videoWidth, 1))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+      canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((blob) => finish(blob), 'image/jpeg', 0.84)
+    }
+    video.onerror = () => {
+      window.clearTimeout(timeout)
+      finish(null)
+    }
+    video.src = objectUrl
+  })
+}
 
 export function CompanyPresentationSettings({
   initialProfile,
@@ -37,6 +75,7 @@ export function CompanyPresentationSettings({
   const [progress, setProgress] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [movingId, setMovingId] = useState<string | null>(null)
+  const [posterGeneratingId, setPosterGeneratingId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [videoError, setVideoError] = useState('')
 
@@ -72,6 +111,7 @@ export function CompanyPresentationSettings({
     setVideoError('')
     setProgress(0)
     try {
+      const posterPromise = captureVideoPoster(file)
       const contentType = presentationVideoContentType(file.name, file.type)
       const blob = await upload(`${COMPANY_PRESENTATION_MEDIA_PREFIX}${sanitizeQuoteImageName(file.name)}`, file, {
         access: 'private',
@@ -94,7 +134,29 @@ export function CompanyPresentationSettings({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.id) throw new Error(data?.error || 'Não foi possível registrar o vídeo.')
-      setVideos((current) => [...current.filter((video) => video.id !== data.id), data as CompanyPresentationImageData]
+      let savedVideo = data as CompanyPresentationImageData
+      const poster = await posterPromise
+      if (poster) {
+        try {
+          const posterUpload = await upload(`${COMPANY_PRESENTATION_POSTER_PREFIX}${sanitizeQuoteImageName(file.name)}.jpg`, poster, {
+            access: 'private',
+            contentType: 'image/jpeg',
+            handleUploadUrl: '/api/settings/company/presentation/images/upload',
+            clientPayload: JSON.stringify({ assetKind: 'POSTER', environmentName, name: `${file.name}.jpg`, caption }),
+          })
+          const posterResponse = await fetch(`/api/settings/company/presentation/images/${data.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset: 'poster', url: posterUpload.url, type: 'image/jpeg', size: poster.size }),
+          })
+          if (posterResponse.ok) {
+            savedVideo = { ...savedVideo, hasPoster: true, posterType: 'image/jpeg', posterSize: poster.size }
+          }
+        } catch {
+          setVideoError('O vídeo 4K foi salvo, mas não foi possível criar a capa automática.')
+        }
+      }
+      setVideos((current) => [...current.filter((video) => video.id !== data.id), savedVideo]
         .sort((left, right) => left.position - right.position || left.createdAt.localeCompare(right.createdAt)))
       setCaption('')
     } catch (error) {
@@ -146,6 +208,44 @@ export function CompanyPresentationSettings({
       const rank = new Map<string, number>(data.orderedIds.map((id: string, index: number) => [id, index]))
       setVideos((current) => current.map((item) => rank.has(item.id) ? { ...item, position: rank.get(item.id)! } : item)
         .sort((left, right) => left.position - right.position || left.createdAt.localeCompare(right.createdAt)))
+    }
+  }
+
+  const generatePoster = async (video: CompanyPresentationImageData) => {
+    setPosterGeneratingId(video.id)
+    setVideoError('')
+    try {
+      const poster = await captureVideoPoster(`/api/settings/company/presentation/images/${video.id}`)
+      if (!poster) throw new Error('Não foi possível capturar uma imagem deste vídeo.')
+      const posterUpload = await upload(
+        `${COMPANY_PRESENTATION_POSTER_PREFIX}${sanitizeQuoteImageName(video.name)}.jpg`,
+        poster,
+        {
+          access: 'private',
+          contentType: 'image/jpeg',
+          handleUploadUrl: '/api/settings/company/presentation/images/upload',
+          clientPayload: JSON.stringify({
+            assetKind: 'POSTER',
+            environmentName: video.environmentName,
+            name: `${video.name}.jpg`,
+            caption: video.caption,
+          }),
+        },
+      )
+      const response = await fetch(`/api/settings/company/presentation/images/${video.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset: 'poster', url: posterUpload.url, type: 'image/jpeg', size: poster.size }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível salvar a capa do vídeo.')
+      setVideos((current) => current.map((item) => item.id === video.id
+        ? { ...item, hasPoster: true, posterType: 'image/jpeg', posterSize: poster.size }
+        : item))
+    } catch (error) {
+      setVideoError(error instanceof Error ? error.message : 'Não foi possível gerar a capa do vídeo.')
+    } finally {
+      setPosterGeneratingId(null)
     }
   }
 
@@ -201,7 +301,7 @@ export function CompanyPresentationSettings({
         </div>
 
         <div className="rounded-lg bg-[#F7F7F7] px-4 py-3 text-xs text-[#666]">
-          Aceita MP4 ou WebM de até 300 MB. Use as setas para escolher a ordem mostrada ao cliente.
+          Aceita MP4 ou WebM em 4K de até 300 MB. O original mantém toda a qualidade; uma capa leve acelera a abertura.
         </div>
         {videoError ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{videoError}</p> : null}
 
@@ -212,6 +312,7 @@ export function CompanyPresentationSettings({
                 {['TYPE_CHECKED', 'CLEAN'].includes(video.securityStatus) ? (
                   <video
                     src={`/api/settings/company/presentation/images/${video.id}`}
+                    poster={video.hasPoster ? `/api/settings/company/presentation/images/${video.id}?asset=poster` : undefined}
                     controls
                     preload="metadata"
                     onLoadedMetadata={(event) => {
@@ -234,6 +335,18 @@ export function CompanyPresentationSettings({
                     <p className="mt-1 truncate text-sm font-semibold text-[#121212]">{video.caption || video.name}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {!video.hasPoster ? (
+                      <button
+                        type="button"
+                        title="Gerar capa do vídeo"
+                        aria-label="Gerar capa do vídeo"
+                        onClick={() => void generatePoster(video)}
+                        disabled={posterGeneratingId !== null}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#555] hover:bg-[#F3F3F3] disabled:opacity-30"
+                      >
+                        {posterGeneratingId === video.id ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
+                      </button>
+                    ) : null}
                     <button type="button" title="Mover vídeo para antes" aria-label="Mover vídeo para antes" onClick={() => void move(video, 'up')} disabled={index === 0 || movingId !== null} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#555] hover:bg-[#F3F3F3] disabled:opacity-30">
                       <ArrowUp size={15} />
                     </button>

@@ -12,10 +12,12 @@ function contentSecurityPolicy(nonce: string, allowSameOriginFraming = false) {
     `frame-ancestors ${allowSameOriginFraming ? "'self'" : "'none'"}`,
     "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ''}`,
-    "style-src 'self' 'unsafe-inline'",
+    `style-src 'self' 'nonce-${nonce}'`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
     "font-src 'self' data:",
     `connect-src 'self' https://vercel.com https://*.blob.vercel-storage.com${isDevelopment ? ' ws: http:' : ''}`,
+    ...(isDevelopment ? [] : ['upgrade-insecure-requests']),
   ].join('; ')
 }
 
@@ -71,6 +73,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }

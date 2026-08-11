@@ -31,19 +31,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     || (isDateOnlyExpired(request.expiresAt) && !request.approvedAt)
   if (unavailable || !image) return NextResponse.json({ error: 'Vídeo não encontrado.' }, { status: 404 })
 
-  const range = req.headers.get('range')
-  const blob = await get(image.url, {
+  const posterRequested = new URL(req.url).searchParams.get('asset') === 'poster'
+  const assetUrl = posterRequested ? image.posterUrl : image.url
+  const assetType = posterRequested ? image.posterType : image.type
+  if (!assetUrl || !assetType) return NextResponse.json({ error: 'Conteúdo não encontrado.' }, { status: 404 })
+  const range = posterRequested ? null : req.headers.get('range')
+  const blob = await get(assetUrl, {
     access: 'private',
     useCache: true,
     headers: range ? { Range: range } : undefined,
   })
-  if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Vídeo indisponível.' }, { status: 404 })
+  if (!blob || ![200, 206].includes(blob.statusCode)) return NextResponse.json({ error: 'Vídeo indisponível.' }, { status: 404 })
   const contentRange = blob.headers.get('content-range')
   return new NextResponse(blob.stream, {
     status: contentRange ? 206 : 200,
     headers: {
       'Cache-Control': 'public, max-age=300, s-maxage=3600',
-      'Content-Type': image.type,
+      'Content-Type': assetType,
       'Content-Length': blob.headers.get('content-length') || String(blob.blob.size),
       'Accept-Ranges': blob.headers.get('accept-ranges') || 'bytes',
       ...(contentRange ? { 'Content-Range': contentRange } : {}),

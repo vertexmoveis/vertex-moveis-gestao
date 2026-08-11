@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
 type PresentationVideo = {
   id: string
   src: string
+  poster?: string
   caption: string
 }
 
@@ -55,6 +56,7 @@ export function PublicProposalIntro({ videos }: { videos: PresentationVideo[] })
           <figure key={activeVideo.id} className="min-w-0">
             <video
               src={activeVideo.src}
+              poster={activeVideo.poster}
               controls
               playsInline
               preload="metadata"

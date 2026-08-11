@@ -12,6 +12,7 @@ import { CompanyPresentationSettings } from '@/components/settings/company-prese
 import { UserManagementSettings } from '@/components/settings/user-management-settings'
 import { TrashSettings } from '@/components/settings/trash-settings'
 import { TwoFactorSettings } from '@/components/settings/two-factor-settings'
+import { SettingsTabs, type SettingsSection } from '@/components/settings/settings-tabs'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, serializeCompanyProfile } from '@/lib/company-profile'
 import { serializeCompanyPresentationImage } from '@/lib/company-presentation'
@@ -37,30 +38,37 @@ const roleLabels: Record<string, string> = {
   VIEWER: 'Consulta',
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ secao?: string }> }) {
   const session = await getServerSession(authOptions)
   const user = session?.user as { name?: string; email?: string; role?: string }
   const isAdmin = user?.role === 'ADMIN'
+  const { secao } = await searchParams
+  const requestedSection = secao === 'empresa' || secao === 'orcamentos' || secao === 'equipe' || secao === 'sistema'
+    ? secao
+    : 'conta'
+  const section: SettingsSection = isAdmin ? requestedSection : 'conta'
+  const loadCompany = isAdmin && section === 'empresa'
+  const loadPricing = isAdmin && section === 'orcamentos'
+  const loadTeam = isAdmin && section === 'equipe'
+  const loadSystem = isAdmin && section === 'sistema'
   const canCreateLocalBackup = process.env.VERCEL !== '1'
-  if (isAdmin) await ensureDefaultQuoteSettings(prisma)
-  const databaseTime = isAdmin
+  if (loadPricing) await ensureDefaultQuoteSettings(prisma)
+  const databaseTime = loadSystem
     ? (await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS now`)[0]?.now || new Date(0)
     : new Date(0)
   const errorWindowStart = new Date(databaseTime.getTime() - 24 * 60 * 60 * 1000)
   const whatsAppWindowStart = new Date(databaseTime.getTime() - 7 * 24 * 60 * 60 * 1000)
   const whatsAppIntegration = getWhatsAppIntegrationStatus()
-  const [priceRules, materials, resources, managedUsers] = isAdmin
-    ? await Promise.all([
-        prisma.quotePriceRule.findMany({ orderBy: [{ active: 'desc' }, { environment: 'asc' }, { name: 'asc' }] }),
-        prisma.materialCatalogItem.findMany({ orderBy: [{ active: 'desc' }, { category: 'asc' }, { name: 'asc' }] }),
-        prisma.operationalResource.findMany({ orderBy: [{ type: 'asc' }, { active: 'desc' }, { name: 'asc' }] }),
-        prisma.user.findMany({
+  const [priceRules, materials, resources, managedUsers] = await Promise.all([
+        loadPricing ? prisma.quotePriceRule.findMany({ orderBy: [{ active: 'desc' }, { environment: 'asc' }, { name: 'asc' }] }) : Promise.resolve([]),
+        loadPricing ? prisma.materialCatalogItem.findMany({ orderBy: [{ active: 'desc' }, { category: 'asc' }, { name: 'asc' }] }) : Promise.resolve([]),
+        loadTeam ? prisma.operationalResource.findMany({ orderBy: [{ type: 'asc' }, { active: 'desc' }, { name: 'asc' }] }) : Promise.resolve([]),
+        loadTeam ? prisma.user.findMany({
           orderBy: [{ active: 'desc' }, { name: 'asc' }],
           select: { id: true, name: true, email: true, role: true, active: true, lastLoginAt: true, createdAt: true },
-        }),
+        }) : Promise.resolve([]),
       ])
-    : [[], [], [], []]
-  const [companyProfile, presentationImages] = isAdmin
+  const [companyProfile, presentationImages] = loadCompany
     ? await Promise.all([
         prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
         prisma.companyPresentationImage.findMany({
@@ -69,7 +77,7 @@ export default async function SettingsPage() {
         }),
       ])
     : [null, []]
-  const [latestBackup, recentErrorCount, recentErrors, whatsAppRows, latestHealth, latestRestore] = isAdmin
+  const [latestBackup, recentErrorCount, recentErrors, whatsAppRows, latestHealth, latestRestore] = loadSystem
     ? await Promise.all([
         prisma.systemEvent.findFirst({
           where: { type: { in: ['BACKUP_SUCCESS', 'BACKUP_FAILURE'] } },
@@ -132,7 +140,10 @@ export default async function SettingsPage() {
         userName={user?.name || ''}
       />
 
+      <SettingsTabs active={section} isAdmin={isAdmin} />
+
       <div className="flex-1 p-4 sm:p-6 max-w-6xl space-y-6">
+        {section === 'conta' ? <>
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-[#121212]">Minha Conta</h2>
@@ -154,25 +165,9 @@ export default async function SettingsPage() {
         </Card>
 
         <TwoFactorSettings />
+        </> : null}
 
-        {isAdmin && (
-          <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-[#121212]">Backup</h2>
-          </CardHeader>
-          <CardBody>
-              {canCreateLocalBackup ? (
-                <BackupButton />
-              ) : (
-                <p className="text-sm text-[#6B7280]">
-                  A cópia local é criada pelo computador da Vertex. O botão manual fica disponível somente na instalação local.
-                </p>
-              )}
-          </CardBody>
-          </Card>
-        )}
-
-        {isAdmin && (
+        {loadSystem && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
@@ -186,6 +181,7 @@ export default async function SettingsPage() {
               </div>
             </CardHeader>
             <CardBody className="space-y-4">
+              {canCreateLocalBackup ? <BackupButton /> : null}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className={`border-l-4 p-3 ${backupHealthy ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'}`}>
                   <div className="flex items-center gap-2"><DatabaseBackup size={15} /><p className="text-xs font-semibold">Último backup</p></div>
@@ -218,7 +214,7 @@ export default async function SettingsPage() {
           </Card>
         )}
 
-        {isAdmin && (
+        {loadSystem && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
@@ -272,7 +268,7 @@ export default async function SettingsPage() {
           </Card>
         )}
 
-        {isAdmin && (
+        {loadSystem && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
@@ -312,18 +308,18 @@ export default async function SettingsPage() {
           </Card>
         )}
 
-        {isAdmin && (
+        {loadCompany && (
           <CompanyProfileSettings initialProfile={serializeCompanyProfile(companyProfile)} />
         )}
 
-        {isAdmin && (
+        {loadCompany && (
           <CompanyPresentationSettings
             initialProfile={serializeCompanyProfile(companyProfile)}
             initialImages={presentationImages.map(serializeCompanyPresentationImage)}
           />
         )}
 
-        {isAdmin && (
+        {loadTeam && (
           <UserManagementSettings
             initialUsers={managedUsers.flatMap((managedUser) => (
               managedUser.role === 'ADMIN' || managedUser.role === 'MANAGER' || managedUser.role === 'VIEWER'
@@ -338,7 +334,7 @@ export default async function SettingsPage() {
           />
         )}
 
-        {isAdmin && (
+        {loadPricing && (
           <PricingMaterialsSettings
             initialPriceRules={priceRules.map(serializeQuotePriceRule)}
             initialMaterials={materials.map((material) => ({
@@ -349,7 +345,7 @@ export default async function SettingsPage() {
           />
         )}
 
-        {isAdmin && (
+        {loadTeam && (
           <OperationsResourcesSettings
             initialResources={resources.flatMap((resource) => (
               resource.type === 'TEAM' || resource.type === 'VEHICLE'
@@ -359,27 +355,8 @@ export default async function SettingsPage() {
           />
         )}
 
-        {isAdmin && <TrashSettings />}
+        {loadSystem && <TrashSettings />}
 
-        <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-[#121212]">Sobre o Sistema</h2>
-          </CardHeader>
-          <CardBody>
-            <div className="space-y-3">
-              {[
-                { label: 'Sistema', value: 'Vertex Móveis - Gestão' },
-                { label: 'Versão', value: '1.0.0' },
-                { label: 'Desenvolvido por', value: 'Vertex Móveis' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-2 border-b border-[#F5F5F5] last:border-0">
-                  <span className="text-sm text-[#9E9E9E]">{item.label}</span>
-                  <span className="text-sm font-medium text-[#121212]">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
       </div>
     </div>
   )

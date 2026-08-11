@@ -634,6 +634,18 @@ export default function ProjectDetailPage() {
           onEdit={() => void openEdit()}
         />
 
+        <nav aria-label="Áreas do projeto" className="sticky top-0 z-20 -mx-1 flex gap-1 overflow-x-auto border-b border-[#E5E5E5] bg-[#F5F5F5]/95 px-1 py-2 backdrop-blur">
+          <a href="#resumo" className="shrink-0 border-b-2 border-[#FF6B00] px-3 py-2 text-sm font-semibold text-[#121212]">Resumo</a>
+          {selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY' ? <a href="#producao" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Produção</a> : null}
+          {selectedPhase !== 'PRODUCTION' ? <a href="#prazos" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Prazos</a> : null}
+          {selectedPhase !== 'PRODUCTION' ? <a href="#financeiro" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Financeiro</a> : null}
+          {selectedPhase === 'PRODUCTION' ? <a href="#materiais" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Materiais</a> : null}
+          {selectedPhase === 'PRODUCTION' ? <a href="#operacao" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Operação</a> : null}
+          <a href="#arquivos" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Arquivos</a>
+          {selectedPhase === 'COMPLETED' ? <a href="#historico" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Histórico</a> : null}
+          <a href="#comentarios" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Comentários</a>
+        </nav>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel */}
           <div className="space-y-4">

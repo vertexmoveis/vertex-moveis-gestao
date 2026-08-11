@@ -13,7 +13,8 @@ export const COMPANY_PRESENTATION_ENVIRONMENTS = [
   'Hall',
 ] as const
 
-export type CompanyPresentationImageData = Omit<CompanyPresentationImage, 'createdAt' | 'updatedAt' | 'securityCheckedAt' | 'url'> & {
+export type CompanyPresentationImageData = Omit<CompanyPresentationImage, 'createdAt' | 'updatedAt' | 'securityCheckedAt' | 'url' | 'posterUrl'> & {
+  hasPoster: boolean
   securityCheckedAt: string | null
   createdAt: string
   updatedAt: string
@@ -77,6 +78,9 @@ export function serializeCompanyPresentationImage(image: CompanyPresentationImag
     pairKey: image.pairKey,
     type: image.type,
     size: image.size,
+    posterType: image.posterType,
+    posterSize: image.posterSize,
+    hasPoster: Boolean(image.posterUrl),
     active: image.active,
     securityStatus: image.securityStatus,
     securityDetails: image.securityDetails,

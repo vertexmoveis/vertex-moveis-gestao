@@ -7,6 +7,7 @@ import { signOut } from 'next-auth/react'
 import {
   Calendar,
   Calculator,
+  ChevronDown,
   FolderOpen,
   HeartHandshake,
   FileSignature,
@@ -103,6 +104,9 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
   const pathname = usePathname()
   const collapsed = useSyncExternalStore(subscribeToSidebarPreference, getSidebarPreference, () => false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => (
+    Object.fromEntries(navSections.map((section) => [section.label, true]))
+  ))
   const expanded = !collapsed || mobileOpen
   const initials = (userName || userEmail || 'VM')
     .split(/\s+/)
@@ -115,6 +119,9 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
   const toggleCollapsed = () => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(!collapsed))
     window.dispatchEvent(new Event(SIDEBAR_CHANGE_EVENT))
+  }
+  const toggleSection = (label: string) => {
+    setOpenSections((current) => ({ ...current, [label]: !current[label] }))
   }
 
   useEffect(() => {
@@ -207,15 +214,23 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
           {navSections.map((section, sectionIndex) => {
             const visibleItems = section.items.filter((item) => !item.adminOnly || userRole === 'ADMIN')
             if (!visibleItems.length) return null
+            const hasActiveItem = visibleItems.some((item) => item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href))
+            const sectionOpen = openSections[section.label] !== false || hasActiveItem
 
             return (
               <div key={section.label} className={cn(sectionIndex > 0 && (expanded ? 'mt-4' : 'mt-2 border-t border-white/10 pt-2'))}>
                 {expanded && (
-                  <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase text-white/35">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.label)}
+                    aria-expanded={sectionOpen}
+                    className="mb-1 flex h-7 w-full items-center justify-between px-3 text-[10px] font-semibold uppercase text-white/40 transition-colors hover:text-white/75"
+                  >
                     {section.label}
-                  </p>
+                    <ChevronDown size={13} className={cn('transition-transform', sectionOpen ? '' : '-rotate-90')} />
+                  </button>
                 )}
-                <div className="space-y-0.5">
+                <div className={cn('space-y-0.5', expanded && !sectionOpen && 'hidden')}>
                   {visibleItems.map((item) => {
                     const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href)
                     const Icon = item.icon
