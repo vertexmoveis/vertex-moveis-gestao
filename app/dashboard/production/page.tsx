@@ -182,9 +182,9 @@ export default async function ProductionPage() {
         userName={session?.user?.name || ''}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 lg:p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-[#F5F5F5] p-4 lg:p-6">
         {production.limited ? (
-          <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
             Mostrando os {PRODUCTION_PROJECT_LIMIT} projetos mais atualizados. Use Projetos para localizar os demais.
           </div>
         ) : null}

@@ -49,6 +49,13 @@ function stopPointer(event: PointerEvent<HTMLElement>) {
   event.stopPropagation()
 }
 
+function compactEnvironmentNames(project: ProjectData) {
+  const names = project.environments?.map((environment) => environment.name).filter(Boolean) || []
+  if (names.length === 0) return project.room
+  if (names.length <= 2) return names.join(', ')
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+}
+
 export function KanbanCard({
   project,
   referenceDate,
@@ -83,21 +90,22 @@ export function KanbanCard({
         }
       : null
   )
+  const environmentNames = compactEnvironmentNames(project)
 
   return (
     <article
       ref={setNodeRef}
       style={style}
       className={cn(
-        'select-none border bg-white shadow-sm transition-all duration-150',
-        attention.overdue ? 'border-red-200' : attention.blocked ? 'border-amber-300' : 'border-[#E3E3E3]',
-        !isPending && 'hover:border-[#CFCFCF] hover:shadow-md',
+        'select-none rounded-lg border border-[#E3E3E3] border-l-2 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all duration-150',
+        attention.overdue ? 'border-l-red-500' : attention.blocked ? 'border-l-amber-500' : 'border-l-[#E3E3E3]',
+        !isPending && 'hover:border-[#CFCFCF] hover:shadow-[0_3px_10px_rgba(0,0,0,0.08)]',
         isSortableDragging && 'opacity-30',
         isDragging && 'rotate-1 shadow-xl',
         isPending && 'opacity-70',
       )}
     >
-      <div className="p-3">
+      <div className="p-3.5">
         <div className="mb-2 flex items-start justify-between gap-2">
           <StatusBadge status={project.status} />
           <div className="flex items-center gap-1">
@@ -108,7 +116,7 @@ export function KanbanCard({
                 aria-label={`Mover ${project.name}`}
                 title="Arrastar projeto"
                 onPointerDown={stopPointer}
-                className="flex h-7 w-7 cursor-grab items-center justify-center text-[#999] hover:bg-[#F5F5F5] hover:text-[#333] active:cursor-grabbing"
+                className="flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-[#999] hover:bg-[#F5F5F5] hover:text-[#333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] active:cursor-grabbing"
                 {...attributes}
                 {...listeners}
               >
@@ -120,29 +128,28 @@ export function KanbanCard({
 
         <Link
           href={`/dashboard/projects/${project.id}`}
-          className="line-clamp-2 text-sm font-semibold text-[#121212] transition-colors hover:text-[#FF6B00]"
+          className="line-clamp-2 text-[15px] font-semibold leading-5 text-[#121212] transition-colors hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={stopPointer}
         >
           {project.name}
         </Link>
-        <p className="mt-0.5 truncate text-xs text-[#777]">{project.client.name}</p>
-        {project.room ? <p className="truncate text-xs text-[#9E9E9E]">{project.room}</p> : null}
+        <p className="mt-0.5 truncate text-[13px] text-[#666]">{project.client.name}</p>
+        {environmentNames ? <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-[#8A8A8A]">{environmentNames}</p> : null}
 
-        {attention.blocked ? (
-          <div className="mt-2 border-l-2 border-amber-500 bg-amber-50/60 px-2 py-1.5">
-            <p className="flex items-center gap-1 text-[10px] font-bold text-amber-800">
-              <LockKeyhole size={11} /> Produção bloqueada
-            </p>
-            <p className="mt-1 line-clamp-2 text-[10px] text-amber-800">
-              {project.productionBlockReason || 'Motivo não informado'}
-            </p>
-          </div>
-        ) : null}
+        <div className="mt-2.5 space-y-1.5">
+          {attention.blocked ? (
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
+              <LockKeyhole size={11} className="shrink-0" />
+              <span className="shrink-0 font-semibold">Produção bloqueada</span>
+              <span aria-hidden="true">·</span>
+              <span className="truncate">{project.productionBlockReason || 'Motivo não informado'}</span>
+            </div>
+          ) : null}
 
-        <div
-          className={cn(
-            'mt-2 flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-semibold',
+          <div
+            className={cn(
+              'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[10px] font-semibold',
             attention.overdue
               ? 'bg-red-50 text-red-700'
               : attention.dueSoon
@@ -150,40 +157,40 @@ export function KanbanCard({
                 : attention.noDeadline
                   ? 'bg-[#F5F5F5] text-[#666]'
                   : 'bg-[#F5F5F5] text-[#555]',
-          )}
-        >
-          <span className="flex items-center gap-1">
-            {attention.overdue || attention.noDeadline ? <CircleAlert size={11} /> : <CalendarClock size={11} />}
-            {productionDeadlineLabel(attention)}
-          </span>
-          {attention.deadline ? (
-            <span>{productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}</span>
-          ) : null}
+            )}
+          >
+            <span className="flex min-w-0 items-center gap-1 truncate">
+              {attention.overdue || attention.noDeadline ? <CircleAlert size={11} className="shrink-0" /> : <CalendarClock size={11} className="shrink-0" />}
+              {productionDeadlineLabel(attention)}
+            </span>
+            {attention.deadline ? (
+              <span className="shrink-0">{productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}</span>
+            ) : null}
+          </div>
         </div>
 
         {environmentSummary && environmentSummary.total > 0 ? (
-          <div className="mt-2 border border-[#ECECEC]">
+          <div className="mt-2.5">
             <button
               type="button"
               onClick={() => setEnvironmentsOpen((current) => !current)}
               onPointerDown={stopPointer}
               aria-expanded={environmentsOpen}
-              className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] hover:bg-[#FAFAFA]"
+              className="flex w-full items-center justify-between rounded-md bg-[#F7F7F7] px-2 py-1.5 text-[10px] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
             >
-              <span className="font-medium text-[#666]">Ambientes</span>
+              <span className="font-medium text-[#666]">Ambientes {environmentSummary.completed} de {environmentSummary.total}</span>
               <span className="flex items-center gap-1 font-semibold text-[#121212]">
-                {environmentSummary.completed}/{environmentSummary.total}
                 {environmentsOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </span>
             </button>
-            <div className="h-1 overflow-hidden bg-[#E8E8E8]">
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#E8E8E8]">
               <div
-                className="h-full bg-emerald-500"
+                className="h-full bg-emerald-500 transition-[width]"
                 style={{ width: `${Math.round((environmentSummary.completed / environmentSummary.total) * 100)}%` }}
               />
             </div>
             {environmentsOpen && project.environments ? (
-              <div className="divide-y divide-[#EFEFEF] border-t border-[#EFEFEF]">
+              <div className="mt-1 divide-y divide-[#EFEFEF] rounded-md border border-[#EFEFEF] bg-white">
                 {project.environments.map((environment) => (
                   <div key={environment.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
                     <span className="truncate text-[10px] font-medium text-[#333]">{environment.name}</span>
@@ -198,28 +205,28 @@ export function KanbanCard({
         ) : null}
 
         {nextStage ? (
-          <p className="mt-2 truncate text-[10px] text-[#777]">
+          <p className="mt-2 rounded-md bg-[#F7F7F7] px-2 py-1.5 text-[10px] text-[#777]">
             Próxima etapa: <span className="font-semibold text-[#333]">{PRODUCTION_STAGE_LABELS[nextStage]}</span>
           </p>
         ) : null}
 
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-[#EFEFEF] pt-2.5">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEFEF] pt-3">
           {project.manager ? (
             <div className="flex min-w-0 items-center gap-1.5">
               <Avatar name={project.manager.name} size="xs" />
-              <span className="truncate text-[10px] text-[#777]">{project.manager.name}</span>
+              <span className="truncate text-[11px] text-[#777]">{project.manager.name}</span>
             </div>
           ) : <span />}
 
           {!isDragging ? (
-            <div className="flex shrink-0 items-center gap-0.5">
+            <div className="flex shrink-0 items-center gap-1">
               <Link
                 href={`/dashboard/projects/${project.id}#operacao`}
                 aria-label="Abrir centro operacional"
                 title="Abrir centro operacional"
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={stopPointer}
-                className="relative flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5]"
+                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
               >
                 <SlidersHorizontal size={14} />
               </Link>
@@ -229,11 +236,11 @@ export function KanbanCard({
                 title={project.pendingMaterialCount ? `${project.pendingMaterialCount} material(is) exigem atenção` : 'Abrir materiais e compras'}
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={stopPointer}
-                className="relative flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5]"
+                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
               >
                 <Boxes size={14} />
                 {project.pendingMaterialCount ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center bg-[#FF6B00] px-0.5 text-[8px] font-bold text-white">
+                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#FF6B00] px-0.5 text-[8px] font-bold text-white">
                     {Math.min(project.pendingMaterialCount, 9)}{project.pendingMaterialCount > 9 ? '+' : ''}
                   </span>
                 ) : null}
@@ -245,7 +252,7 @@ export function KanbanCard({
                 disabled={!previousStage || isPending}
                 onClick={() => previousStage && onMove?.(project, -1)}
                 onPointerDown={stopPointer}
-                className="flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5] disabled:opacity-25"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
               >
                 <ChevronLeft size={14} />
               </button>
@@ -257,8 +264,8 @@ export function KanbanCard({
                 onClick={() => onToggleBlock?.(project)}
                 onPointerDown={stopPointer}
                 className={cn(
-                  'flex h-7 w-7 items-center justify-center hover:bg-[#F5F5F5] disabled:opacity-25',
-                  attention.blocked ? 'text-red-600' : 'text-[#666]',
+                  'flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25',
+                  attention.blocked ? 'text-amber-700' : 'text-[#666]',
                 )}
               >
                 {attention.blocked ? <UnlockKeyhole size={14} /> : <LockKeyhole size={14} />}
@@ -270,7 +277,7 @@ export function KanbanCard({
                 disabled={isPending}
                 onClick={() => onEditDeadline?.(project)}
                 onPointerDown={stopPointer}
-                className="flex h-7 w-7 items-center justify-center text-[#666] hover:bg-[#F5F5F5] disabled:opacity-25"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[#666] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:opacity-25"
               >
                 <CalendarClock size={14} />
               </button>
@@ -281,7 +288,7 @@ export function KanbanCard({
                 disabled={!nextStage || isPending}
                 onClick={() => nextStage && onMove?.(project, 1)}
                 onPointerDown={stopPointer}
-                className="flex h-7 w-7 items-center justify-center bg-[#FF6B00] text-white hover:bg-[#E85F00] disabled:bg-[#DDD]"
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-[#FF6B00] text-white hover:bg-[#E85F00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2 disabled:bg-[#DDD]"
               >
                 <ChevronRight size={14} />
               </button>

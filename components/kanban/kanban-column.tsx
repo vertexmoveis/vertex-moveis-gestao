@@ -37,28 +37,26 @@ export function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: stage })
 
   return (
-    <section className="flex min-h-0 min-w-[285px] flex-1 flex-col">
-      <header
-        className="flex min-h-[52px] items-center justify-between gap-2 border border-b-0 border-[#E3E3E3] bg-white px-3 py-2"
-      >
+    <section className="flex min-h-0 min-w-[320px] max-w-[390px] basis-[350px] flex-1 flex-col overflow-hidden rounded-lg border border-[#E7E7E7] bg-[#F7F7F7]">
+      <header className="flex min-h-12 items-center justify-between gap-2 border-b border-[#E7E7E7] bg-white px-3.5 py-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-            <h2 className="truncate text-xs font-semibold text-[#121212]">{label}</h2>
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+            <h2 className="truncate text-[13px] font-semibold text-[#121212]">{label}</h2>
           </div>
           {overdueCount > 0 || blockedCount > 0 ? (
-            <div className="mt-1 flex items-center gap-2 pl-[18px] text-[9px] font-semibold">
+            <div className="mt-1 flex items-center gap-2.5 pl-4 text-[10px] font-medium">
               {overdueCount > 0 ? (
-                <span className="flex items-center gap-1 text-red-700"><AlertTriangle size={9} /> {overdueCount} atrasado{overdueCount === 1 ? '' : 's'}</span>
+                <span className="flex items-center gap-1 text-red-700"><AlertTriangle size={10} /> {overdueCount} atrasado{overdueCount === 1 ? '' : 's'}</span>
               ) : null}
               {blockedCount > 0 ? (
-                <span className="flex items-center gap-1 text-amber-800"><LockKeyhole size={9} /> {blockedCount} bloqueado{blockedCount === 1 ? '' : 's'}</span>
+                <span className="flex items-center gap-1 text-amber-700"><LockKeyhole size={10} /> {blockedCount} bloqueado{blockedCount === 1 ? '' : 's'}</span>
               ) : null}
             </div>
           ) : null}
         </div>
         <span
-          className="shrink-0 bg-[#F1F1F1] px-2 py-1 text-xs font-bold text-[#555]"
+          className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-md bg-[#F1F1F1] px-1.5 text-[11px] font-semibold text-[#555]"
           title={`${projects.length} projeto${projects.length === 1 ? '' : 's'} nesta etapa`}
         >
           {projects.length}
@@ -68,10 +66,8 @@ export function KanbanColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          'min-h-[280px] flex-1 space-y-2 overflow-y-auto p-2 transition-colors',
-          isOver
-            ? 'border-2 border-dashed border-orange-300 bg-orange-50'
-            : 'border-2 border-transparent bg-[#F6F6F6]',
+          'min-h-[280px] flex-1 space-y-3 overflow-y-auto p-3 transition-colors',
+          isOver && 'bg-orange-50/70 shadow-[inset_0_0_0_2px_#FDBA74]',
         )}
       >
         <SortableContext items={projects.map((project) => project.id)} strategy={verticalListSortingStrategy}>
@@ -89,8 +85,8 @@ export function KanbanColumn({
         </SortableContext>
 
         {projects.length === 0 && !isOver ? (
-          <div className="flex h-20 items-center justify-center text-center text-xs text-[#AAA]">
-            Sem projetos
+          <div className="flex h-24 items-center justify-center text-center text-xs text-[#999]">
+            Sem projetos nesta etapa
           </div>
         ) : null}
       </div>

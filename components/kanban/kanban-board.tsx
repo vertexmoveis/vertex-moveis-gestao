@@ -23,6 +23,7 @@ import {
   List,
   LockKeyhole,
   Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -148,6 +149,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
   const [attentionFilter, setAttentionFilter] = useState<ProductionAttentionFilter>('ALL')
   const [viewMode, setViewMode] = useState<ProductionViewMode>('BOARD')
   const [showEmptyStages, setShowEmptyStages] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [dialog, setDialog] = useState<ActionDialog | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -497,7 +499,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
             title="Voltar colunas"
             disabled={!canScrollLeft}
             onClick={() => scrollBoard('left')}
-            className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#E0E0E0] bg-white shadow-md transition-all hover:bg-[#F5F5F5] disabled:pointer-events-none disabled:opacity-0"
+            className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#E0E0E0] bg-white shadow-md transition-all hover:bg-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:pointer-events-none disabled:opacity-0"
           >
             <ChevronLeft size={18} />
           </button>
@@ -508,7 +510,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
             className="h-full overflow-x-auto overflow-y-hidden scroll-smooth pb-2"
           >
             <div className={cn(
-              'flex h-full min-w-max gap-3',
+              'flex h-full min-w-max gap-4',
               visibleStages.length <= 4 && 'min-w-full',
             )}>
               {visibleStages.map((stage) => {
@@ -539,7 +541,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
             title="Avançar colunas"
             disabled={!canScrollRight}
             onClick={() => scrollBoard('right')}
-            className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#E0E0E0] bg-white shadow-md transition-all hover:bg-[#F5F5F5] disabled:pointer-events-none disabled:opacity-0"
+            className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#E0E0E0] bg-white shadow-md transition-all hover:bg-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] disabled:pointer-events-none disabled:opacity-0"
           >
             <ChevronRight size={18} />
           </button>
@@ -547,7 +549,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
 
         <DragOverlay>
           {activeProject ? (
-            <div className="w-[285px]">
+            <div className="w-[350px]">
               <KanbanCard project={activeProject} referenceDate={today} isDragging />
             </div>
           ) : null}
@@ -557,64 +559,93 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="sticky top-0 z-30 -mx-1 flex flex-wrap items-center gap-2 border border-[#E3E3E3] bg-white px-2 py-2 shadow-sm">
-        <label className="relative min-w-[220px] flex-1">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar projeto, cliente ou ambiente"
-            className="h-9 w-full border border-[#D9D9D9] bg-white pl-9 pr-3 text-xs outline-none focus:border-[#FF6B00]"
-          />
-        </label>
-
-        {managers.length > 1 ? (
-          <select
-            value={managerId}
-            onChange={(event) => setManagerId(event.target.value)}
-            aria-label="Filtrar por responsável"
-            className="h-9 min-w-[170px] border border-[#D9D9D9] bg-white px-3 text-xs outline-none focus:border-[#FF6B00]"
-          >
-            <option value="ALL">Todos os responsáveis</option>
-            {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
-          </select>
-        ) : null}
-
-        <div className="flex h-9 border border-[#D9D9D9] bg-[#F7F7F7] p-0.5" role="group" aria-label="Modo de visualização">
-          <ViewButton icon={LayoutGrid} label="Quadro" active={viewMode === 'BOARD'} onClick={() => setViewMode('BOARD')} />
-          <ViewButton icon={AlertTriangle} label="Atenção" active={viewMode === 'ATTENTION'} onClick={() => setViewMode('ATTENTION')} />
-          <ViewButton icon={List} label="Lista" active={viewMode === 'LIST'} onClick={() => setViewMode('LIST')} />
-        </div>
-
-        {viewMode === 'BOARD' ? (
-          <label className="flex h-9 cursor-pointer items-center gap-2 border border-[#D9D9D9] bg-white px-3 text-xs font-semibold text-[#555] hover:bg-[#FAFAFA]">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="sticky top-0 z-30 shrink-0 rounded-lg border border-[#E7E7E7] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-wrap items-center gap-2 p-2 md:flex-nowrap">
+          <label className="relative min-w-[240px] flex-1">
+            <span className="sr-only">Buscar projeto, cliente ou ambiente</span>
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#777]" />
             <input
-              type="checkbox"
-              checked={showEmptyStages}
-              onChange={(event) => setShowEmptyStages(event.target.checked)}
-              className="sr-only"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar projeto, cliente ou ambiente"
+              className="h-10 w-full rounded-md border border-[#D9D9D9] bg-white pl-9 pr-3 text-xs outline-none transition-colors placeholder:text-[#999] focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
             />
-            {showEmptyStages ? <Eye size={14} /> : <EyeOff size={14} />}
-            {showEmptyStages ? 'Ocultar vazias' : `Exibir vazias${hiddenStageCount > 0 ? ` (${hiddenStageCount})` : ''}`}
           </label>
-        ) : null}
 
-        {(query || managerId !== 'ALL' || attentionFilter !== 'ALL') ? (
           <button
             type="button"
-            onClick={clearFilters}
-            className="flex h-9 items-center gap-1.5 px-2 text-xs font-semibold text-[#666] hover:text-[#FF6B00]"
+            onClick={() => setFiltersOpen((current) => !current)}
+            aria-expanded={filtersOpen}
+            className={cn(
+              'flex h-10 items-center gap-2 rounded-md border px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]',
+              filtersOpen || managerId !== 'ALL'
+                ? 'border-[#FF6B00] bg-orange-50 text-[#B84D00]'
+                : 'border-[#D9D9D9] bg-white text-[#555] hover:bg-[#F7F7F7]',
+            )}
           >
-            <X size={14} /> Limpar
+            <SlidersHorizontal size={15} /> Filtros
+            {managerId !== 'ALL' ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[9px] text-white">1</span> : null}
           </button>
+
+          <div className="flex h-10 rounded-md border border-[#D9D9D9] bg-[#F7F7F7] p-0.5" role="group" aria-label="Modo de visualização">
+            <ViewButton icon={LayoutGrid} label="Quadro" active={viewMode === 'BOARD'} onClick={() => setViewMode('BOARD')} />
+            <ViewButton icon={AlertTriangle} label="Atenção" active={viewMode === 'ATTENTION'} onClick={() => setViewMode('ATTENTION')} />
+            <ViewButton icon={List} label="Lista" active={viewMode === 'LIST'} onClick={() => setViewMode('LIST')} />
+          </div>
+
+          {viewMode === 'BOARD' ? (
+            <label
+              aria-label={showEmptyStages ? 'Ocultar etapas vazias' : 'Exibir etapas vazias'}
+              title={showEmptyStages ? 'Ocultar etapas vazias' : 'Exibir etapas vazias'}
+              className="flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md border border-[#D9D9D9] bg-white px-3 text-xs font-semibold text-[#555] hover:bg-[#F7F7F7] focus-within:ring-2 focus-within:ring-[#FF6B00]"
+            >
+              <input
+                type="checkbox"
+                checked={showEmptyStages}
+                onChange={(event) => setShowEmptyStages(event.target.checked)}
+                aria-label={showEmptyStages ? 'Ocultar etapas vazias' : 'Exibir etapas vazias'}
+                className="sr-only"
+              />
+              {showEmptyStages ? <Eye size={15} /> : <EyeOff size={15} />}
+              <span className="hidden xl:inline">{showEmptyStages ? 'Ocultar vazias' : `Exibir vazias${hiddenStageCount > 0 ? ` (${hiddenStageCount})` : ''}`}</span>
+            </label>
+          ) : null}
+
+          {(query || managerId !== 'ALL' || attentionFilter !== 'ALL') ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              title="Limpar filtros"
+              className="flex h-10 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[#666] hover:bg-[#F7F7F7] hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
+            >
+              <X size={15} /> <span className="hidden xl:inline">Limpar</span>
+            </button>
+          ) : null}
+        </div>
+
+        {filtersOpen ? (
+          <div className="flex flex-wrap items-center gap-3 border-t border-[#EFEFEF] px-3 py-2">
+            <span className="text-[11px] font-semibold text-[#555]">Responsável</span>
+            {managers.length > 1 ? (
+              <select
+                value={managerId}
+                onChange={(event) => setManagerId(event.target.value)}
+                aria-label="Filtrar por responsável"
+                className="h-9 min-w-[190px] rounded-md border border-[#D9D9D9] bg-white px-3 text-xs outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="ALL">Todos os responsáveis</option>
+                {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
+              </select>
+            ) : (
+              <span className="text-xs text-[#777]">Todos os responsáveis disponíveis já estão incluídos.</span>
+            )}
+          </div>
         ) : null}
       </div>
 
-      <ProductionCapacity weeks={capacityWeeks} />
-
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
         <MetricButton
           label="Atrasados"
           value={stats.overdue}
@@ -649,14 +680,16 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
         />
       </div>
 
+      <ProductionCapacity weeks={capacityWeeks} />
+
       {notice ? (
         <div
           role={notice.type === 'error' ? 'alert' : 'status'}
           className={cn(
             'flex items-center justify-between border px-3 py-2 text-xs font-semibold',
             notice.type === 'error'
-              ? 'border-red-200 bg-red-50 text-red-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+              ? 'rounded-md border-red-200 bg-red-50 text-red-700'
+              : 'rounded-md border-emerald-200 bg-emerald-50 text-emerald-700',
           )}
         >
           <span>{notice.text}</span>
@@ -666,7 +699,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
 
       <div className="flex min-h-0 flex-1 flex-col">
         {visibleProjects.length === 0 ? (
-          <div className="flex min-h-[260px] flex-1 flex-col items-center justify-center border border-dashed border-[#D9D9D9] bg-[#FAFAFA] text-center">
+          <div className="flex min-h-[260px] flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-[#D9D9D9] bg-white text-center">
             <Search size={22} className="mb-3 text-[#AAA]" />
             <p className="text-sm font-semibold text-[#333]">Nenhum projeto encontrado</p>
             <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-[#FF6B00]">
@@ -696,7 +729,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
             aria-modal="true"
             aria-labelledby="production-dialog-title"
             onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-md border border-[#E0E0E0] bg-white shadow-2xl"
+            className="w-full max-w-md rounded-lg border border-[#E0E0E0] bg-white shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-[#E8E8E8] px-5 py-4">
               <h2 id="production-dialog-title" className="text-base font-semibold text-[#121212]">
@@ -786,10 +819,16 @@ function MetricButton({
   onClick: () => void
 }) {
   const tones = {
-    red: 'border-red-200 border-l-red-500 text-red-700',
-    amber: 'border-amber-200 border-l-amber-500 text-amber-800',
-    blue: 'border-blue-200 border-l-blue-500 text-blue-700',
-    gray: 'border-[#DEDEDE] border-l-[#999] text-[#555]',
+    red: 'border-red-200 bg-red-50/60 text-red-700',
+    amber: 'border-amber-200 bg-amber-50/60 text-amber-800',
+    blue: 'border-[#D9D9D9] bg-white text-[#555]',
+    gray: 'border-[#D9D9D9] bg-white text-[#555]',
+  }
+  const iconTones = {
+    red: 'bg-red-100 text-red-700',
+    amber: 'bg-amber-100 text-amber-800',
+    blue: 'bg-[#F1F1F1] text-[#666]',
+    gray: 'bg-[#F1F1F1] text-[#666]',
   }
 
   return (
@@ -798,13 +837,18 @@ function MetricButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'flex min-h-[44px] items-center justify-between border border-l-2 bg-white px-3 py-2 text-left transition-colors hover:bg-[#FAFAFA]',
-        value === 0 ? 'border-[#E2E2E2] border-l-[#C8C8C8] text-[#777]' : tones[tone],
-        active && 'border-[#FF6B00] border-l-[#FF6B00] bg-orange-50/40',
+        'flex min-h-14 items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors hover:border-[#CFCFCF] hover:bg-[#FAFAFA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]',
+        value === 0 ? 'border-[#E7E7E7] bg-white text-[#777]' : tones[tone],
+        active && 'border-[#FF6B00] bg-orange-50/50 ring-1 ring-inset ring-[#FF6B00]',
       )}
     >
-      <span className="flex items-center gap-2 text-xs font-semibold"><Icon size={15} /> {label}</span>
-      <span className="text-base font-bold">{value}</span>
+      <span className="flex items-center gap-2.5 text-xs font-semibold">
+        <span className={cn('flex h-8 w-8 items-center justify-center rounded-md', value === 0 ? 'bg-[#F3F3F3] text-[#777]' : iconTones[tone])}>
+          <Icon size={15} />
+        </span>
+        {label}
+      </span>
+      <span className="text-xl font-bold leading-none">{value}</span>
     </button>
   )
 }
@@ -827,12 +871,12 @@ function ViewButton({
       aria-pressed={active}
       title={label}
       className={cn(
-        'flex h-full items-center gap-1.5 px-2.5 text-xs font-semibold',
-        active ? 'bg-[#121212] text-white' : 'text-[#666] hover:bg-[#F5F5F5]',
+        'flex h-full items-center gap-1.5 rounded-[4px] px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]',
+        active ? 'bg-[#121212] text-white' : 'text-[#666] hover:bg-white',
       )}
     >
       <Icon size={14} />
-      <span className="hidden xl:inline">{label}</span>
+      <span className="hidden lg:inline">{label}</span>
     </button>
   )
 }
