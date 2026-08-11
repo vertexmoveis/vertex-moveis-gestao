@@ -2,13 +2,41 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Providers } from '@/components/layout/providers'
 
+const appOrigin = process.env.NEXTAUTH_URL?.trim() || 'https://vertex-moveis-gestao.vercel.app'
+const sharingTitle = 'Vertex Móveis | Móveis planejados sob medida'
+const sharingDescription = 'Projetos de móveis planejados com atendimento, produção e instalação acompanhados pela Vertex Móveis.'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appOrigin),
   title: 'Vertex Móveis — Gestão',
-  description: 'Sistema de gestão de clientes e produção para Vertex Móveis',
+  description: sharingDescription,
+  applicationName: 'Vertex Móveis',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
+    icon: [{ url: '/icon.png', type: 'image/png', sizes: '64x64' }],
+    shortcut: '/icon.png',
+    apple: [{ url: '/icon.png', type: 'image/png', sizes: '64x64' }],
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'Vertex Móveis',
+    title: sharingTitle,
+    description: sharingDescription,
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Vertex Móveis - Móveis planejados',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: sharingTitle,
+    description: sharingDescription,
+    images: ['/opengraph-image'],
   },
   appleWebApp: {
     capable: true,
