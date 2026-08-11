@@ -7,7 +7,7 @@ import { isValidPublicToken } from '@/lib/public-access'
 
 export async function GET(req: Request, { params }: { params: Promise<{ token: string; imageId: string }> }) {
   const { token, imageId } = await params
-  if (!isValidPublicToken(token)) return NextResponse.json({ error: 'Imagem não encontrada.' }, { status: 404 })
+  if (!isValidPublicToken(token)) return NextResponse.json({ error: 'Vídeo não encontrado.' }, { status: 404 })
 
   const [request, image] = await Promise.all([
     prisma.quoteApprovalRequest.findUnique({
@@ -18,6 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
       where: {
         id: imageId,
         companyId: COMPANY_PROFILE_ID,
+        mediaKind: 'VIDEO',
         active: true,
         securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] },
       },
@@ -28,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     || request.invalidatedAt
     || request.rejectedAt
     || (isDateOnlyExpired(request.expiresAt) && !request.approvedAt)
-  if (unavailable || !image) return NextResponse.json({ error: 'Imagem não encontrada.' }, { status: 404 })
+  if (unavailable || !image) return NextResponse.json({ error: 'Vídeo não encontrado.' }, { status: 404 })
 
   const range = req.headers.get('range')
   const blob = await get(image.url, {
@@ -36,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     useCache: true,
     headers: range ? { Range: range } : undefined,
   })
-  if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Imagem indisponível.' }, { status: 404 })
+  if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Vídeo indisponível.' }, { status: 404 })
   const contentRange = blob.headers.get('content-range')
   return new NextResponse(blob.stream, {
     status: contentRange ? 206 : 200,

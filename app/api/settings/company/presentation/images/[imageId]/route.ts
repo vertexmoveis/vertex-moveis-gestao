@@ -2,7 +2,7 @@ import { del, get } from '@vercel/blob'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID } from '@/lib/company-profile'
-import { isCompanyPresentationImageBlobUrl } from '@/lib/company-presentation-images'
+import { isCompanyPresentationBlobUrl } from '@/lib/company-presentation-images'
 import { requireRole, serverError } from '@/lib/security'
 
 export async function GET(req: Request, { params }: { params: Promise<{ imageId: string }> }) {
@@ -10,10 +10,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ imageId:
   if (!auth.ok) return auth.response
   const { imageId } = await params
   const image = await prisma.companyPresentationImage.findFirst({
-    where: { id: imageId, companyId: COMPANY_PROFILE_ID },
+    where: { id: imageId, companyId: COMPANY_PROFILE_ID, mediaKind: 'VIDEO' },
   })
   if (!image || !['TYPE_CHECKED', 'CLEAN'].includes(image.securityStatus)) {
-    return NextResponse.json({ error: 'Imagem não encontrada.' }, { status: 404 })
+    return NextResponse.json({ error: 'Vídeo não encontrado.' }, { status: 404 })
   }
   const range = req.headers.get('range')
   const blob = await get(image.url, {
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ imageId:
     useCache: true,
     headers: range ? { Range: range } : undefined,
   })
-  if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Imagem indisponível.' }, { status: 404 })
+  if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'Vídeo indisponível.' }, { status: 404 })
   const contentRange = blob.headers.get('content-range')
   return new NextResponse(blob.stream, {
     status: contentRange ? 206 : 200,
@@ -47,12 +47,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ imageI
   }
 
   const image = await prisma.companyPresentationImage.findFirst({
-    where: { id: imageId, companyId: COMPANY_PROFILE_ID },
+    where: { id: imageId, companyId: COMPANY_PROFILE_ID, mediaKind: 'VIDEO' },
   })
   if (!image) return NextResponse.json({ error: 'Conteúdo não encontrado.' }, { status: 404 })
 
   const ordered = await prisma.companyPresentationImage.findMany({
-    where: { companyId: COMPANY_PROFILE_ID, mediaKind: image.mediaKind },
+    where: { companyId: COMPANY_PROFILE_ID, mediaKind: 'VIDEO' },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     select: { id: true },
   })
@@ -84,13 +84,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ imag
   if (!auth.ok) return auth.response
   const { imageId } = await params
   const image = await prisma.companyPresentationImage.findFirst({
-    where: { id: imageId, companyId: COMPANY_PROFILE_ID },
+    where: { id: imageId, companyId: COMPANY_PROFILE_ID, mediaKind: 'VIDEO' },
   })
-  if (!image) return NextResponse.json({ error: 'Imagem não encontrada.' }, { status: 404 })
+  if (!image) return NextResponse.json({ error: 'Vídeo não encontrado.' }, { status: 404 })
 
   try {
     await prisma.companyPresentationImage.delete({ where: { id: image.id } })
-    if (isCompanyPresentationImageBlobUrl(image.url)) await del(image.url).catch(() => undefined)
+    if (isCompanyPresentationBlobUrl(image.url)) await del(image.url).catch(() => undefined)
     return NextResponse.json({ success: true })
   } catch {
     return serverError()

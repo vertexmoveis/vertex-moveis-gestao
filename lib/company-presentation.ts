@@ -1,5 +1,4 @@
 import type { CompanyPresentationImage } from '@prisma/client'
-import type { CompanyPresentationMediaKind } from '@/lib/company-presentation-images'
 
 export const COMPANY_PRESENTATION_ENVIRONMENTS = [
   'Todos os ambientes',
@@ -40,60 +39,31 @@ function matchesEnvironment(imageEnvironment: string, quoteEnvironment: string) 
   return imageValue === quoteValue || imageValue.includes(quoteValue) || quoteValue.includes(imageValue)
 }
 
-export function selectCompanyPresentationImages<T extends { environmentName: string; position: number; createdAt: Date | string }>(
-  images: T[],
+function selectPresentationVideosByEnvironment<T extends { environmentName: string; position: number; createdAt: Date | string }>(
+  videos: T[],
   quoteEnvironments: string[],
   limit = 4,
 ) {
-  const eligible = images.filter((image) => quoteEnvironments.some((environment) => matchesEnvironment(image.environmentName, environment)))
-  const general = images.filter((image) => isGeneralEnvironment(image.environmentName))
-  const remaining = images.filter((image) => !eligible.includes(image) && !general.includes(image))
+  const eligible = videos.filter((video) => quoteEnvironments.some((environment) => matchesEnvironment(video.environmentName, environment)))
+  const general = videos.filter((video) => isGeneralEnvironment(video.environmentName))
+  const remaining = videos.filter((video) => !eligible.includes(video) && !general.includes(video))
   const byPosition = (left: T, right: T) => left.position - right.position
     || new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
 
   return [...eligible.sort(byPosition), ...general.sort(byPosition), ...remaining.sort(byPosition)].slice(0, limit)
 }
 
-export function selectCompanyPresentationMedia<T extends {
+export function selectCompanyPresentationVideos<T extends {
   environmentName: string
   mediaKind: string
   position: number
   createdAt: Date | string
-}>(images: T[], quoteEnvironments: string[], mediaKind: CompanyPresentationMediaKind, limit = 4) {
-  return selectCompanyPresentationImages(
-    images.filter((image) => image.mediaKind === mediaKind),
+}>(videos: T[], quoteEnvironments: string[], limit = 4) {
+  return selectPresentationVideosByEnvironment(
+    videos.filter((video) => video.mediaKind === 'VIDEO'),
     quoteEnvironments,
     limit,
   )
-}
-
-export function buildBeforeAfterPairs<T extends {
-  environmentName: string
-  mediaKind: string
-  pairKey: string | null
-  position: number
-  createdAt: Date | string
-}>(images: T[], quoteEnvironments: string[], limit = 3) {
-  const relevant = [
-    ...selectCompanyPresentationImages(
-      images.filter((image) => image.mediaKind === 'BEFORE' || image.mediaKind === 'AFTER'),
-      quoteEnvironments,
-      images.length,
-    ),
-  ]
-  const pairs = new Map<string, { before?: T; after?: T }>()
-  for (const image of relevant) {
-    const key = image.pairKey?.trim()
-    if (!key) continue
-    const pair = pairs.get(key) || {}
-    if (image.mediaKind === 'BEFORE' && !pair.before) pair.before = image
-    if (image.mediaKind === 'AFTER' && !pair.after) pair.after = image
-    pairs.set(key, pair)
-  }
-  return [...pairs.entries()]
-    .filter((entry): entry is [string, { before: T; after: T }] => Boolean(entry[1].before && entry[1].after))
-    .slice(0, limit)
-    .map(([title, pair]) => ({ title, before: pair.before, after: pair.after }))
 }
 
 export function serializeCompanyPresentationImage(image: CompanyPresentationImage): CompanyPresentationImageData {

@@ -4,10 +4,9 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 import {
-  COMPANY_PRESENTATION_IMAGE_PREFIX,
-  COMPANY_PRESENTATION_MEDIA_KINDS,
-  COMPANY_PRESENTATION_MEDIA_TYPES,
+  COMPANY_PRESENTATION_MEDIA_PREFIX,
   COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
+  COMPANY_PRESENTATION_VIDEO_TYPES_LIST,
 } from '@/lib/company-presentation-images'
 import { requireRole } from '@/lib/security'
 
@@ -15,21 +14,19 @@ const payloadSchema = z.object({
   environmentName: z.string().trim().min(1).max(120),
   name: z.string().trim().min(1).max(180),
   caption: z.string().trim().max(240).optional().default(''),
-  mediaKind: z.enum(COMPANY_PRESENTATION_MEDIA_KINDS).default('PORTFOLIO'),
-  pairKey: z.string().trim().max(120).nullable().optional(),
 }).strict()
 
 function parsePayload(value?: string | null) {
   let payload: unknown
-  try { payload = JSON.parse(value || '{}') } catch { throw new Error('Dados da imagem inválidos.') }
+  try { payload = JSON.parse(value || '{}') } catch { throw new Error('Dados do vídeo inválidos.') }
   const parsed = payloadSchema.safeParse(payload)
-  if (!parsed.success) throw new Error('Dados da imagem inválidos.')
+  if (!parsed.success) throw new Error('Dados do vídeo inválidos.')
   return parsed.data
 }
 
 export async function POST(req: NextRequest) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return NextResponse.json({ error: 'O armazenamento de imagens não está disponível.' }, { status: 503 })
+    return NextResponse.json({ error: 'O armazenamento de vídeos não está disponível.' }, { status: 503 })
   }
 
   let body: HandleUploadBody
@@ -43,11 +40,11 @@ export async function POST(req: NextRequest) {
       request: req,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         const auth = await requireRole(['ADMIN'])
-        if (!auth.ok) throw new Error('Apenas administradores podem alterar o portfólio.')
+        if (!auth.ok) throw new Error('Apenas administradores podem alterar os vídeos da apresentação.')
         const payload = parsePayload(clientPayload)
-        if (!pathname.startsWith(COMPANY_PRESENTATION_IMAGE_PREFIX)) throw new Error('Destino de imagem inválido.')
+        if (!pathname.startsWith(COMPANY_PRESENTATION_MEDIA_PREFIX)) throw new Error('Destino de vídeo inválido.')
         return {
-          allowedContentTypes: [...COMPANY_PRESENTATION_MEDIA_TYPES],
+          allowedContentTypes: COMPANY_PRESENTATION_VIDEO_TYPES_LIST,
           maximumSizeInBytes: COMPANY_PRESENTATION_VIDEO_MAX_SIZE,
           addRandomSuffix: true,
           tokenPayload: JSON.stringify(payload),
@@ -69,8 +66,8 @@ export async function POST(req: NextRequest) {
               environmentName: payload.environmentName,
               name: payload.name,
               caption: payload.caption || null,
-              mediaKind: payload.mediaKind,
-              pairKey: payload.pairKey || null,
+              mediaKind: 'VIDEO',
+              pairKey: null,
               type: blob.contentType || 'application/octet-stream',
               url: blob.url,
               securityStatus: 'PENDING',
@@ -81,6 +78,6 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(response)
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível enviar a imagem.' }, { status: 400 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível enviar o vídeo.' }, { status: 400 })
   }
 }

@@ -64,7 +64,7 @@ export default async function SettingsPage() {
     ? await Promise.all([
         prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
         prisma.companyPresentationImage.findMany({
-          where: { companyId: COMPANY_PROFILE_ID },
+          where: { companyId: COMPANY_PROFILE_ID, mediaKind: 'VIDEO' },
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         }),
       ])

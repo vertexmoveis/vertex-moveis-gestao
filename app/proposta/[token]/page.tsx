@@ -11,12 +11,9 @@ import { PublicProposalScrollReset } from '@/components/quotes/public-proposal-s
 import { PublicQuoteViewTracker } from '@/components/quotes/public-quote-view-tracker'
 import {
   COMPANY_PROFILE_ID,
-  withCompanyProfileDefaults,
+  DEFAULT_COMPANY_PROFILE,
 } from '@/lib/company-profile'
-import {
-  buildBeforeAfterPairs,
-  selectCompanyPresentationMedia,
-} from '@/lib/company-presentation'
+import { selectCompanyPresentationVideos } from '@/lib/company-presentation'
 import { prisma } from '@/lib/db'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import {
@@ -177,6 +174,7 @@ export default async function PublicQuoteApprovalPage({
     prisma.companyPresentationImage.findMany({
       where: {
         companyId: COMPANY_PROFILE_ID,
+        mediaKind: 'VIDEO',
         active: true,
         securityStatus: { in: ['TYPE_CHECKED', 'CLEAN'] },
       },
@@ -215,14 +213,10 @@ export default async function PublicQuoteApprovalPage({
     selectedQuote ? quoteVariationDisplayName(selectedQuote) : undefined,
   )
   const clientName = quotes[0].client.name
-  const company = withCompanyProfileDefaults(storedCompanyProfile)
   const quoteEnvironments = [...new Set(quotes.flatMap((quote) => quote.items.map((item) => item.environmentName || item.environment)).filter(Boolean))]
-  const selectedPresentationImages = selectCompanyPresentationMedia(presentationImages, quoteEnvironments, 'PORTFOLIO', 4)
-  const selectedBeforeAfterPairs = buildBeforeAfterPairs(presentationImages, quoteEnvironments, 3)
-  const selectedPresentationVideos = selectCompanyPresentationMedia(
+  const selectedPresentationVideos = selectCompanyPresentationVideos(
     presentationImages,
     quoteEnvironments,
-    'VIDEO',
     presentationImages.length,
   )
   const lowestTotal = Math.min(...quotes.map((quote) => quote.total))
@@ -242,33 +236,11 @@ export default async function PublicQuoteApprovalPage({
       <PublicProposalScrollReset />
       <PublicQuoteViewTracker token={token} />
       <article className="mx-auto max-w-5xl overflow-hidden bg-white sm:rounded-lg sm:border sm:border-[#E5E2DD] sm:shadow-[0_20px_60px_rgba(18,18,18,0.10)]">
-        {company.presentationEnabled ? (
+        {(storedCompanyProfile?.presentationEnabled ?? DEFAULT_COMPANY_PROFILE.presentationEnabled) ? (
           <PublicProposalIntro
-            images={selectedPresentationImages.map((image) => ({
-              id: image.id,
-              src: `/api/public/quote-approvals/${token}/presentation-images/${image.id}`,
-              alt: image.caption || `${image.environmentName} produzido pela Vertex Móveis`,
-              caption: image.caption || image.environmentName,
-            }))}
-            beforeAfterPairs={selectedBeforeAfterPairs.map((pair) => ({
-              title: pair.title,
-              before: {
-                id: pair.before.id,
-                src: `/api/public/quote-approvals/${token}/presentation-images/${pair.before.id}`,
-                alt: pair.before.caption || `Antes de ${pair.title}`,
-                caption: pair.before.caption || '',
-              },
-              after: {
-                id: pair.after.id,
-                src: `/api/public/quote-approvals/${token}/presentation-images/${pair.after.id}`,
-                alt: pair.after.caption || `Depois de ${pair.title}`,
-                caption: pair.after.caption || '',
-              },
-            }))}
             videos={selectedPresentationVideos.map((video) => ({
               id: video.id,
               src: `/api/public/quote-approvals/${token}/presentation-images/${video.id}`,
-              alt: video.caption || video.name,
               caption: video.caption || video.environmentName,
             }))}
           />
