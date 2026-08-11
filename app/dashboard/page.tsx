@@ -21,7 +21,6 @@ import {
   Wallet,
   Calculator,
   ShoppingCart,
-  TrendingUp,
   UserRoundSearch,
   FileSignature,
 } from 'lucide-react'
@@ -86,15 +85,17 @@ async function getDashboardData(user: DashboardUser) {
           stage: { not: 'COMPLETED' },
         },
       }),
-      prisma.activityLog.findMany({
-        where: { project: { archivedAt: null, ...(isAdmin ? {} : { managerId: user.id }) } },
-        take: 7,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          user: { select: { name: true } },
-          project: { select: { name: true, client: { select: { name: true } } } },
-        },
-      }),
+      isAdmin
+        ? prisma.activityLog.findMany({
+            where: { project: { archivedAt: null } },
+            take: 7,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              user: { select: { name: true } },
+              project: { select: { name: true, client: { select: { name: true } } } },
+            },
+          })
+        : Promise.resolve([]),
       prisma.project.findMany({
         where: {
           ...projectScope,
@@ -189,19 +190,6 @@ export default async function DashboardPage() {
   const isAdmin = user?.role === 'ADMIN'
   const data = await getDashboardData(user || {})
   const nowTime = new Date().getTime()
-  const quickAccessItems = [
-    { href: '/dashboard/clients', icon: Users, label: 'Clientes', sub: `${data.totalClients} convertidos`, color: 'bg-blue-50 text-blue-600' },
-    { href: '/dashboard/clients?segment=negotiating', icon: TrendingUp, label: 'Vendas', sub: `${data.negotiatingClients} negociações`, color: 'bg-emerald-50 text-emerald-600' },
-    { href: '/dashboard/projects', icon: FolderOpen, label: 'Projetos', sub: `${data.activeProjects} ativos`, color: 'bg-orange-50 text-orange-600' },
-    { href: '/dashboard/production', icon: Package, label: 'Produção', sub: 'Kanban board', color: 'bg-purple-50 text-purple-600' },
-    { href: '/dashboard/calendar', icon: Calendar, label: 'Calendário', sub: 'Agenda e prazos', color: 'bg-green-50 text-green-600' },
-    ...(isAdmin
-      ? [
-          { href: '/dashboard/financeiro', icon: Wallet, label: 'Financeiro', sub: 'Recebimentos', color: 'bg-emerald-50 text-emerald-600' },
-          { href: '/dashboard/purchases', icon: ShoppingCart, label: 'Compras', sub: 'Materiais pendentes', color: 'bg-amber-50 text-amber-700' },
-        ]
-      : []),
-  ]
 
   const currentDate = new Date()
   const greeting = getDashboardGreeting(currentDate)
@@ -460,9 +448,7 @@ export default async function DashboardPage() {
           </CardBody>
         </Card>
 
-        {/* Bottom Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Activity Feed */}
+        {isAdmin ? (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -473,33 +459,7 @@ export default async function DashboardPage() {
               <ActivityFeed activities={data.recentActivities} />
             </CardBody>
           </Card>
-
-          {/* Quick Access */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-sm font-semibold text-[#121212]">Acesso Rápido</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="grid grid-cols-2 gap-3">
-                {quickAccessItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="group flex flex-col gap-3 p-4 rounded-xl border border-[#E8E8E8] hover:border-[#FF6B00]/30 hover:bg-orange-50/30 transition-all duration-150"
-                  >
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${item.color}`}>
-                      <item.icon size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[#121212] group-hover:text-[#FF6B00] transition-colors">{item.label}</p>
-                      <p className="text-xs text-[#9E9E9E]">{item.sub}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        </div>
+        ) : null}
       </div>
     </div>
   )
