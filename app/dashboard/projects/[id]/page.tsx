@@ -30,7 +30,6 @@ import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@
 import {
   PROJECT_MACRO_PHASE_TARGET_STAGE,
   getProjectMacroPhase,
-  getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
   type ProjectMacroPhase,
@@ -544,9 +543,6 @@ export default function ProjectDetailPage() {
   }
   const phaseTasks = getProjectPhaseTasks(phaseInput, selectedPhase)
   const phaseBlockers = selectedPhase === currentPhase ? getProjectPhaseBlockers(phaseTasks) : []
-  const nextAction = selectedPhase === currentPhase
-    ? project.workflow.nextAction
-    : getProjectNextAction(phaseTasks, selectedPhase)
   const handleNextAction = (action: ProjectWorkflowAction) => {
     if (action === 'EDIT_PROJECT') {
       void openEdit()
@@ -624,7 +620,6 @@ export default function ProjectDetailPage() {
           environmentProgress={environmentsProgress}
           financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
           workflowStatuses={workflowStatuses}
-          nextAction={nextAction}
           canOverridePhase={project.canOverridePhase}
           advancing={phaseAdvancing}
           advanceError={phaseAdvanceError}

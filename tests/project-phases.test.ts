@@ -165,6 +165,18 @@ test('produção exige todos os ambientes prontos e respeita bloqueios', () => {
   ])
 })
 
+test('projeto em produção pede a pendência atual sem repetir a medição', () => {
+  const tasks = getProjectPhaseTasks(input({
+    stage: 'PRODUCTION',
+    environments: [{ status: 'IN_PROGRESS' }],
+  }), 'PRODUCTION')
+
+  const nextAction = getProjectNextAction(tasks, 'PRODUCTION')
+
+  assert.equal(nextAction.key, 'ready')
+  assert.equal(nextAction.label, 'Todos os ambientes prontos para instalar')
+})
+
 test('entrega aceita ambientes instalados ou finalizados', () => {
   const tasks = getProjectPhaseTasks(input({
     stage: 'INSTALLATION',

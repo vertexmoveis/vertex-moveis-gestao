@@ -8,9 +8,10 @@ import {
   PROJECT_MACRO_PHASE_LABELS,
   PROJECT_MACRO_PHASES,
   getProjectMacroPhaseIndex,
+  getProjectNextAction,
   type ProjectMacroPhase,
-  type ProjectNextAction,
   type ProjectPhaseTask,
+  type ProjectWorkflowAction,
 } from '@/lib/project-phases'
 
 const PHASE_ICONS = {
@@ -42,13 +43,12 @@ type ProjectPhaseWorkspaceProps = {
     completed: boolean
     warning?: boolean
   }[]
-  nextAction: ProjectNextAction
   canOverridePhase: boolean
   advancing: boolean
   advanceError: string
   onSelect: (phase: ProjectMacroPhase) => void
   onAdvance: (overrideReason?: string) => Promise<void>
-  onNextAction: (action: ProjectNextAction['action']) => void
+  onNextAction: (action: ProjectWorkflowAction) => void
   onEdit: () => void
 }
 
@@ -62,7 +62,6 @@ export function ProjectPhaseWorkspace({
   environmentProgress,
   financialLabel,
   workflowStatuses,
-  nextAction,
   canOverridePhase,
   advancing,
   advanceError,
@@ -79,6 +78,7 @@ export function ProjectPhaseWorkspace({
   const isCompleted = selectedPhase === 'COMPLETED'
   const completedTasks = tasks.filter((task) => task.completed).length
   const nextTask = tasks.find((task) => task.required && !task.completed)
+  const nextAction = getProjectNextAction(tasks, selectedPhase)
   const taskGroups = [
     { key: 'COMMERCIAL', label: 'Comercial' },
     { key: 'TECHNICAL', label: 'Técnico' },
