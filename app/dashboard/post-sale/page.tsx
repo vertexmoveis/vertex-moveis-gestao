@@ -36,7 +36,7 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
     }),
   }
   const now = new Date()
-  const [projects, projectTotal, openTickets, overdueTickets, pendingFollowUps, answeredChanges, storedCompany] = await Promise.all([
+  const [projects, projectTotal, openTickets, overdueTickets, pendingFollowUps, storedCompany] = await Promise.all([
     prisma.project.findMany({
       where: projectWhere,
       select: {
@@ -62,7 +62,6 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
     prisma.warrantyTicket.count({ where: { status: { notIn: ['RESOLVED', 'CANCELED'] }, project: { ...projectScope, archivedAt: null } } }),
     prisma.warrantyTicket.count({ where: { status: { notIn: ['RESOLVED', 'CANCELED'] }, dueAt: { lt: now }, project: { ...projectScope, archivedAt: null } } }),
     prisma.project.count({ where: { ...projectScope, archivedAt: null, stage: 'COMPLETED', postSaleFollowUpAt: { lte: new Date() }, postSaleContactedAt: null } }),
-    prisma.projectChangeOrder.count({ where: { status: { in: ['CLIENT_APPROVED', 'CLIENT_REJECTED'] }, project: { ...projectScope, archivedAt: null } } }),
     prisma.companyProfile.findUnique({ where: { id: COMPANY_PROFILE_ID } }),
   ])
   const company = serializeCompanyProfile(storedCompany)
@@ -76,11 +75,10 @@ export default async function PostSalePage({ searchParams }: { searchParams: Pro
     <>
       <Header title="Pós-venda" subtitle="Acompanhamento, satisfação e assistência depois da instalação" />
       <main className="space-y-5 p-4 sm:p-6">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Metric icon={Headphones} label="Assistências abertas" value={openTickets} tone="orange" />
           <Metric icon={MessageSquareText} label="Retornos pendentes" value={pendingFollowUps} tone="blue" />
           <Metric icon={AlertTriangle} label="Garantias vencidas" value={overdueTickets} tone="red" />
-          <Metric icon={AlertTriangle} label="Alterações respondidas" value={answeredChanges} tone="red" />
           <Metric icon={Star} label="Média de satisfação" value={rated.length ? average.toFixed(1).replace('.', ',') : '-'} tone="green" />
         </section>
 

@@ -23,9 +23,6 @@ export const DEFAULT_COMPANY_PROFILE = {
   leadNoResponseDays: 30,
   leadCloseSuggestionDays: 90,
   weeklyProductionCapacity: 4,
-  standardSheetWidthMm: 2750,
-  standardSheetHeightMm: 1850,
-  sheetWastePercent: 15,
   presentationEnabled: true,
 } as const
 
@@ -35,6 +32,9 @@ type LegacyPresentationField =
   | 'presentationHighlight1'
   | 'presentationHighlight2'
   | 'presentationHighlight3'
+  | 'standardSheetWidthMm'
+  | 'standardSheetHeightMm'
+  | 'sheetWastePercent'
 
 export type CompanyProfileData = Omit<CompanyProfile, 'createdAt' | 'updatedAt' | LegacyPresentationField> & {
   createdAt?: string
@@ -63,9 +63,6 @@ export function withCompanyProfileDefaults(profile?: Partial<CompanyProfile> | n
     leadNoResponseDays: profile?.leadNoResponseDays || DEFAULT_COMPANY_PROFILE.leadNoResponseDays,
     leadCloseSuggestionDays: profile?.leadCloseSuggestionDays || DEFAULT_COMPANY_PROFILE.leadCloseSuggestionDays,
     weeklyProductionCapacity: profile?.weeklyProductionCapacity || DEFAULT_COMPANY_PROFILE.weeklyProductionCapacity,
-    standardSheetWidthMm: profile?.standardSheetWidthMm || DEFAULT_COMPANY_PROFILE.standardSheetWidthMm,
-    standardSheetHeightMm: profile?.standardSheetHeightMm || DEFAULT_COMPANY_PROFILE.standardSheetHeightMm,
-    sheetWastePercent: profile?.sheetWastePercent ?? DEFAULT_COMPANY_PROFILE.sheetWastePercent,
     presentationEnabled: profile?.presentationEnabled ?? DEFAULT_COMPANY_PROFILE.presentationEnabled,
   }
 }

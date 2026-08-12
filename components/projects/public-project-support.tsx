@@ -2,10 +2,9 @@
 
 import { upload } from '@vercel/blob/client'
 import { useRef, useState } from 'react'
-import { Camera, CheckCircle2, Loader2, MessageSquareText, ShieldCheck, Star, Wrench } from 'lucide-react'
+import { Camera, Loader2, ShieldCheck, Star, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select, Textarea, Input } from '@/components/ui/input'
-import { formatCurrency } from '@/lib/utils'
+import { Select, Textarea } from '@/components/ui/input'
 import {
   PUBLIC_WARRANTY_CATEGORIES,
   PUBLIC_WARRANTY_CATEGORY_LABELS,
@@ -22,21 +21,11 @@ type PublicTicket = {
   resolution: string | null
 }
 
-type PublicChange = {
-  id: string
-  title: string
-  description: string
-  amountDelta: number
-  daysDelta: number
-  status: string
-}
-
 export function PublicProjectSupport({
   token,
   canOpenWarranty,
   warrantyLabel,
   tickets,
-  changes,
   canRate,
   satisfactionRating,
 }: {
@@ -44,7 +33,6 @@ export function PublicProjectSupport({
   canOpenWarranty: boolean
   warrantyLabel: string | null
   tickets: PublicTicket[]
-  changes: PublicChange[]
   canRate: boolean
   satisfactionRating: number | null
 }) {
@@ -53,9 +41,6 @@ export function PublicProjectSupport({
   const [description, setDescription] = useState('')
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
-  const [respondentName, setRespondentName] = useState('')
-  const [notes, setNotes] = useState<Record<string, string>>({})
-  const [accepted, setAccepted] = useState<Record<string, boolean>>({})
   const [photos, setPhotos] = useState<File[]>([])
   const [rating, setRating] = useState(satisfactionRating || 0)
   const [ratingComment, setRatingComment] = useState('')
@@ -117,82 +102,8 @@ export function PublicProjectSupport({
     if (response.ok) window.setTimeout(() => window.location.reload(), 900)
   }
 
-  const decideChange = async (changeId: string, decision: 'APPROVE' | 'REJECT') => {
-    setBusy(changeId)
-    setMessage('')
-    const response = await fetch(`/api/public/project-portals/${token}/changes/${changeId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        decision,
-        respondentName,
-        note: notes[changeId] || undefined,
-        acceptedTerms: accepted[changeId] || false,
-      }),
-    })
-    const payload = await response.json().catch(() => ({}))
-    setBusy('')
-    setMessage(payload.message || payload.error || 'Não foi possível registrar a resposta.')
-    if (response.ok) window.setTimeout(() => window.location.reload(), 900)
-  }
-
-  const pendingChanges = changes.filter((change) => change.status === 'SENT')
-  const answeredChanges = changes.filter((change) => change.status !== 'SENT')
-
   return (
     <div className="space-y-5">
-      {changes.length > 0 ? (
-        <section className="bg-white p-5 sm:p-7">
-          <div className="flex items-start gap-3">
-            <MessageSquareText size={20} className="mt-0.5 text-[#FF6B00]" />
-            <div>
-              <h2 className="text-base font-extrabold">Alterações do projeto</h2>
-              <p className="mt-1 text-xs text-[#777]">Confira valor e prazo antes de responder.</p>
-            </div>
-          </div>
-
-          {pendingChanges.length > 0 ? (
-            <div className="mt-5 space-y-4">
-              <Input label="Seu nome" value={respondentName} onChange={(event) => setRespondentName(event.target.value)} />
-              {pendingChanges.map((change) => (
-                <div key={change.id} className="border border-[#E5E5E5] p-4">
-                  <h3 className="text-sm font-extrabold">{change.title}</h3>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#555]">{change.description}</p>
-                  <div className="mt-3 grid gap-2 bg-[#F7F7F7] p-3 text-sm sm:grid-cols-2">
-                    <span>Ajuste de valor: <strong>{formatCurrency(change.amountDelta)}</strong></span>
-                    <span>Prazo adicional: <strong>{change.daysDelta} dia(s) útil(eis)</strong></span>
-                  </div>
-                  <Textarea label="Observação (obrigatória ao recusar)" rows={3} value={notes[change.id] || ''} onChange={(event) => setNotes((current) => ({ ...current, [change.id]: event.target.value }))} className="mt-3" />
-                  <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-[#555]">
-                    <input type="checkbox" className="mt-1" checked={accepted[change.id] || false} onChange={(event) => setAccepted((current) => ({ ...current, [change.id]: event.target.checked }))} />
-                    Li e concordo com a descrição, o ajuste de valor e o prazo informado.
-                  </label>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <Button type="button" variant="outline" onClick={() => void decideChange(change.id, 'REJECT')} disabled={busy === change.id}>Solicitar revisão</Button>
-                    <Button type="button" onClick={() => void decideChange(change.id, 'APPROVE')} disabled={busy === change.id || !accepted[change.id]}>
-                      {busy === change.id ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Aceitar alteração
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {answeredChanges.length > 0 ? (
-            <div className="mt-4 divide-y divide-[#ECECEC] border border-[#E8E8E8]">
-              {answeredChanges.map((change) => (
-                <div key={change.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span className="font-semibold">{change.title}</span>
-                  <span className="text-xs font-semibold text-[#666]">
-                    {change.status === 'CLIENT_APPROVED' ? 'Aceita, aguardando Vertex' : change.status === 'CLIENT_REJECTED' ? 'Revisão solicitada' : change.status === 'APPROVED' ? 'Aplicada' : 'Finalizada'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
       {(canOpenWarranty || tickets.length > 0) ? (
         <section className="bg-white p-5 sm:p-7">
           <div className="flex items-start gap-3">

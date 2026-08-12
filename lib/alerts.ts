@@ -84,7 +84,6 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
     postSaleDue,
     openWarrantyTickets,
     overdueWarrantyTickets,
-    answeredChanges,
     lowSatisfaction,
   ] = await Promise.all([
     isAdmin
@@ -182,9 +181,6 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
         dueAt: { lt: todayStart },
         project: projectScope,
       },
-    }),
-    prisma.projectChangeOrder.count({
-      where: { status: { in: ['CLIENT_APPROVED', 'CLIENT_REJECTED'] }, project: projectScope },
     }),
     prisma.project.count({
       where: { ...projectScope, satisfactionRating: { lte: 2 } },
@@ -295,14 +291,6 @@ async function getAppAlertsUncached(user: AlertUser): Promise<AppAlert[]> {
       href: '/dashboard/post-sale',
       count: overdueWarrantyTickets,
       tone: 'danger',
-    },
-    {
-      id: 'change-answers',
-      title: 'Alterações respondidas',
-      body: `${answeredChanges} ${plural(answeredChanges, 'resposta aguarda', 'respostas aguardam')} conferência da Vertex.`,
-      href: '/dashboard/projects?changes=answered',
-      count: answeredChanges,
-      tone: 'warning',
     },
     {
       id: 'low-satisfaction',

@@ -77,12 +77,6 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             take: 10,
             select: { id: true, title: true, status: true, openedAt: true, resolution: true },
           },
-          changeOrders: {
-            where: { status: { in: ['SENT', 'CLIENT_APPROVED', 'CLIENT_REJECTED', 'APPROVED', 'REJECTED'] } },
-            orderBy: { createdAt: 'desc' },
-            take: 20,
-            select: { id: true, title: true, description: true, amountDelta: true, daysDelta: true, status: true },
-          },
         },
       },
     },
@@ -229,10 +223,6 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             ...ticket,
             openedAt: ticket.openedAt.toISOString(),
           })) as Parameters<typeof PublicProjectSupport>[0]['tickets']}
-          changes={project.changeOrders.map((change) => ({
-            ...change,
-            amountDelta: Number(change.amountDelta),
-          }))}
           canRate={Boolean(project.actualEndDate && !project.satisfactionRating)}
           satisfactionRating={project.satisfactionRating}
         />

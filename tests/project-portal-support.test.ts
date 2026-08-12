@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   canOpenPublicWarranty,
-  publicChangeCanReceiveDecision,
   warrantyDeadline,
 } from '../lib/project-portal-support'
 
@@ -24,11 +23,4 @@ test('calcula um ano de garantia quando o prazo ainda não foi gravado', () => {
   assert.equal(deadline?.getUTCFullYear(), 2027)
   assert.equal(deadline?.getUTCMonth(), 3)
   assert.equal(deadline?.getUTCDate(), 15)
-})
-
-test('alteração pública recebe resposta apenas quando foi enviada', () => {
-  assert.equal(publicChangeCanReceiveDecision('SENT'), true)
-  assert.equal(publicChangeCanReceiveDecision('DRAFT'), false)
-  assert.equal(publicChangeCanReceiveDecision('CLIENT_APPROVED'), false)
-  assert.equal(publicChangeCanReceiveDecision('APPROVED'), false)
 })

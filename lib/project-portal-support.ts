@@ -34,7 +34,3 @@ export function canOpenPublicWarranty(input: {
   const deadline = warrantyDeadline(input)
   return Boolean(input.actualEndDate && deadline && deadline.getTime() >= now.getTime())
 }
-
-export function publicChangeCanReceiveDecision(status: string) {
-  return status === 'SENT'
-}

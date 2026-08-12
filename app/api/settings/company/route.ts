@@ -67,9 +67,6 @@ const companyProfileSchema = z.object({
   leadNoResponseDays: z.coerce.number().int().min(1).max(365),
   leadCloseSuggestionDays: z.coerce.number().int().min(1).max(730),
   weeklyProductionCapacity: z.coerce.number().int().min(1).max(50),
-  standardSheetWidthMm: z.coerce.number().int().min(300).max(10000),
-  standardSheetHeightMm: z.coerce.number().int().min(300).max(10000),
-  sheetWastePercent: z.coerce.number().min(0).max(100),
 }).strict().superRefine((value, ctx) => {
   if (value.leadCloseSuggestionDays <= value.leadNoResponseDays) {
     ctx.addIssue({

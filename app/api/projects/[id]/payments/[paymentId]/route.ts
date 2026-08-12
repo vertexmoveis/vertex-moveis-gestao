@@ -78,12 +78,6 @@ export async function PATCH(
       })
 
       const receivedCount = await tx.projectPayment.count({ where: { projectId: id, paidAt: { not: null } } })
-      await tx.salesCommission.updateMany({
-        where: { projectId: id, paidAt: null },
-        data: receivedCount > 0
-          ? { status: 'AVAILABLE', availableAt: new Date() }
-          : { status: 'PENDING', availableAt: null },
-      })
       if (!paid && payment.type === 'DOWN_PAYMENT' && receivedCount === 0) {
         await tx.project.update({ where: { id }, data: { paymentConfirmedAt: null } })
       }
