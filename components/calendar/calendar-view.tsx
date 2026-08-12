@@ -357,7 +357,7 @@ export function CalendarView({ events, initialMonth, limited = false }: Calendar
   const visibleDetailEvents = mode === 'today' ? eventsByDay.get(dateKey(todayOnly)) || [] : selectedEvents
 
   return (
-    <div className="grid h-full grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-4">
         {limited ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -523,9 +523,9 @@ export function CalendarView({ events, initialMonth, limited = false }: Calendar
             </div>
 
             {visibleDetailEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-[#9E9E9E]">
-                <Calendar size={28} className="mb-2 opacity-20" />
-                <p className="text-sm">Nenhum evento neste dia</p>
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-[#FAFAFA] px-4 py-4 text-[#9E9E9E]">
+                <Calendar size={18} className="opacity-30" />
+                <p className="text-xs">Nenhum evento neste dia</p>
               </div>
             ) : (
               <div className="space-y-2">
