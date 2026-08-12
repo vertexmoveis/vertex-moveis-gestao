@@ -15,7 +15,6 @@ import {
   GripVertical,
   Loader2,
   LockKeyhole,
-  SlidersHorizontal,
   UnlockKeyhole,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
@@ -220,16 +219,6 @@ export function KanbanCard({
 
           {!isDragging ? (
             <div className="flex shrink-0 items-center gap-1.5">
-              <Link
-                href={`/dashboard/projects/${project.id}#operacao`}
-                aria-label="Abrir centro operacional"
-                title="Abrir centro operacional"
-                onClick={(event) => event.stopPropagation()}
-                onPointerDown={stopPointer}
-                className="relative flex h-8 w-8 items-center justify-center rounded-md text-[#666] transition-colors hover:bg-[#F1F1F1] hover:text-[#222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
-              >
-                <SlidersHorizontal size={14} />
-              </Link>
               <Link
                 href={`/dashboard/projects/${project.id}#materiais`}
                 aria-label="Abrir materiais e compras"

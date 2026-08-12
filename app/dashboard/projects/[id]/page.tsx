@@ -19,7 +19,6 @@ import { ProjectWarrantyCard } from '@/components/projects/project-warranty-card
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
 import { ProjectClientCard } from '@/components/projects/project-client-card'
 import { ProjectPhaseWorkspace } from '@/components/projects/project-phase-workspace'
-import { ProjectOperationsCenter } from '@/components/projects/project-operations-center'
 import { buildDeliverySchedulingWhatsAppMessage } from '@/lib/project-whatsapp'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
@@ -635,7 +634,6 @@ export default function ProjectDetailPage() {
           {selectedPhase !== 'PRODUCTION' ? <a href="#prazos" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Prazos</a> : null}
           {selectedPhase !== 'PRODUCTION' ? <a href="#financeiro" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Financeiro</a> : null}
           {selectedPhase === 'PRODUCTION' ? <a href="#materiais" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Materiais</a> : null}
-          {selectedPhase === 'PRODUCTION' ? <a href="#operacao" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Operação</a> : null}
           <a href="#arquivos" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Arquivos</a>
           {selectedPhase === 'COMPLETED' ? <a href="#historico" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Histórico</a> : null}
           <a href="#comentarios" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Comentários</a>
@@ -1154,14 +1152,6 @@ export default function ProjectDetailPage() {
 
             {selectedPhase === 'PRODUCTION' && project.value !== null ? (
               <ProjectExpensesCard projectId={project.id} onExpensesChange={setActualExpensesTotal} />
-            ) : null}
-
-            {selectedPhase !== 'PREPARATION' ? (
-              <ProjectOperationsCenter
-                projectId={project.id}
-                manager={project.manager}
-                canManageFinancial={project.canOverridePhase}
-              />
             ) : null}
 
             <ProjectFilesCard
