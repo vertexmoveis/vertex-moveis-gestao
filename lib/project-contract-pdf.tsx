@@ -187,6 +187,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   quoteNotes: { marginTop: 4, borderWidth: 1, borderColor: colors.line, padding: 4, lineHeight: 1.2 },
+  coverParties: { marginTop: 4, fontSize: 7, lineHeight: 1.12 },
+  coverStatus: { marginTop: 3, paddingVertical: 3, paddingHorizontal: 6 },
+  coverSection: { marginTop: 4 },
+  coverSectionTitle: { paddingVertical: 2.5, paddingHorizontal: 5, fontSize: 7.4 },
+  coverParty: { minHeight: 48, padding: 5 },
+  coverDetails: { marginTop: 2, fontSize: 6.8, lineHeight: 1.16 },
+  coverIntro: { paddingVertical: 4, paddingHorizontal: 5, fontSize: 6.8, lineHeight: 1.15 },
   quoteContinuation: {
     position: 'absolute',
     right: 28,
@@ -413,6 +420,57 @@ function Terms({ terms, startIndex = 0 }: { terms: ProjectContractSnapshot['term
   )
 }
 
+function ContractParties({
+  input,
+  signed,
+  authenticityCode,
+  compact = false,
+}: {
+  input: ProjectContractPdfInput
+  signed: boolean
+  authenticityCode: string
+  compact?: boolean
+}) {
+  const { snapshot } = input
+  return (
+    <View style={compact ? styles.coverParties : {}} wrap={false}>
+      <View style={[styles.statusBand, compact ? styles.coverStatus : {}, signed ? styles.statusSigned : styles.statusPending]}>
+        <Text style={signed ? styles.statusSignedText : styles.statusPendingText}>
+          {signed ? 'ACEITO ELETRONICAMENTE' : 'AGUARDANDO ASSINATURA DO CLIENTE'}
+        </Text>
+        <Text>Versão {input.version} · Código {authenticityCode}</Text>
+      </View>
+
+      <View style={[styles.section, compact ? styles.coverSection : {}]}>
+        <Text style={[styles.sectionTitle, compact ? styles.coverSectionTitle : {}]}>Qualificação das partes</Text>
+        <View style={styles.partyGrid}>
+          <View style={[styles.party, compact ? styles.coverParty : {}]}>
+            <Text style={styles.label}>Contratada</Text>
+            <Text style={styles.value}>{snapshot.company.legalName || snapshot.company.tradeName}</Text>
+            <View style={[styles.details, compact ? styles.coverDetails : {}]}>
+              <Text>{snapshot.company.document ? `CNPJ: ${snapshot.company.document}` : 'CNPJ não informado'}</Text>
+              <Text>{snapshot.company.address || 'Endereço não informado'}</Text>
+              <Text>{snapshot.company.phone || snapshot.company.email || ''}</Text>
+            </View>
+          </View>
+          <View style={[styles.party, styles.partySecond, compact ? styles.coverParty : {}]}>
+            <Text style={styles.label}>Contratante</Text>
+            <Text style={styles.value}>{snapshot.client.name}</Text>
+            <View style={[styles.details, compact ? styles.coverDetails : {}]}>
+              <Text>{snapshot.client.document || input.signatoryDocument || 'CPF/CNPJ não informado'}</Text>
+              <Text>{snapshot.client.address || 'Endereço não informado'}</Text>
+              <Text>{snapshot.client.phone || snapshot.client.email || ''}</Text>
+            </View>
+          </View>
+        </View>
+        <Text style={[styles.intro, compact ? styles.coverIntro : {}]}>
+          Pelo presente instrumento particular, as partes acima qualificadas celebram este contrato, integrado pelo orçamento desta página, pelo projeto aprovado e pelas cláusulas seguintes.
+        </Text>
+      </View>
+    </View>
+  )
+}
+
 function SignatureBlock({ input, signed }: { input: ProjectContractPdfInput; signed: boolean }) {
   const { snapshot } = input
   if (signed) {
@@ -505,8 +563,10 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
       items: items.map((item) => ({ ...item, itemNumber: ++itemNumber })),
     }
   })
-  const primaryTerms = snapshot.terms.slice(0, 7)
-  const additionalTerms = snapshot.terms.slice(7)
+  const showPartiesOnCover = quoteGroups.reduce((sum, group) => sum + group.items.length, 0) + paymentRows.length <= 12
+  const primaryTermCount = showPartiesOnCover ? 9 : 7
+  const primaryTerms = snapshot.terms.slice(0, primaryTermCount)
+  const additionalTerms = snapshot.terms.slice(primaryTermCount)
   const signatureOnAdditionalPage = additionalTerms.length > 0
 
   return (
@@ -684,6 +744,10 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
           Este orçamento, o projeto técnico aprovado e seus anexos integram o contrato. As cláusulas e o aceite das partes estão nas páginas seguintes.
         </Text>
 
+        {showPartiesOnCover ? (
+          <ContractParties input={input} signed={signed} authenticityCode={authenticityCode} compact />
+        ) : null}
+
         <ContractFooter companyName={snapshot.company.tradeName} authenticityCode={authenticityCode} />
       </Page>
 
@@ -697,39 +761,9 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
           <Text style={styles.pageCode}>{snapshot.project.name}{'\n'}Código {authenticityCode}</Text>
         </View>
 
-        <View style={[styles.statusBand, signed ? styles.statusSigned : styles.statusPending]}>
-          <Text style={signed ? styles.statusSignedText : styles.statusPendingText}>
-            {signed ? 'ACEITO ELETRONICAMENTE' : 'AGUARDANDO ASSINATURA DO CLIENTE'}
-          </Text>
-          <Text>Versão {input.version} · Código {authenticityCode}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Qualificação das partes</Text>
-          <View style={styles.partyGrid}>
-            <View style={styles.party}>
-              <Text style={styles.label}>Contratada</Text>
-              <Text style={styles.value}>{snapshot.company.legalName || snapshot.company.tradeName}</Text>
-              <View style={styles.details}>
-                <Text>{snapshot.company.document ? `CNPJ: ${snapshot.company.document}` : 'CNPJ não informado'}</Text>
-                <Text>{snapshot.company.address || 'Endereço não informado'}</Text>
-                <Text>{snapshot.company.phone || snapshot.company.email || ''}</Text>
-              </View>
-            </View>
-            <View style={[styles.party, styles.partySecond]}>
-              <Text style={styles.label}>Contratante</Text>
-              <Text style={styles.value}>{snapshot.client.name}</Text>
-              <View style={styles.details}>
-                <Text>{snapshot.client.document || input.signatoryDocument || 'CPF/CNPJ não informado'}</Text>
-                <Text>{snapshot.client.address || 'Endereço não informado'}</Text>
-                <Text>{snapshot.client.phone || snapshot.client.email || ''}</Text>
-              </View>
-            </View>
-          </View>
-          <Text style={styles.intro}>
-            Pelo presente instrumento particular, as partes acima qualificadas celebram este contrato, integrado pelo orçamento da primeira página, pelo projeto aprovado e pelas cláusulas abaixo.
-          </Text>
-        </View>
+        {!showPartiesOnCover ? (
+          <ContractParties input={input} signed={signed} authenticityCode={authenticityCode} />
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Cláusulas e condições</Text>
