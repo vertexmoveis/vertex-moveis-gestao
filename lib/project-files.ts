@@ -61,6 +61,18 @@ export function projectFileDisplayName(value: string) {
   return extension ? value.slice(0, -extension.length) : value
 }
 
+export function projectFileContentDisposition(name: string, download = false) {
+  const fallbackName = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/["\\\r\n]/g, '_')
+    .slice(0, 180) || 'arquivo'
+  const encodedName = encodeURIComponent(name.replace(/[\r\n]/g, '') || 'arquivo')
+
+  return `${download ? 'attachment' : 'inline'}; filename="${fallbackName}"; filename*=UTF-8''${encodedName}`
+}
+
 export function normalizeProjectFileDisplayName(value: string, originalName: string) {
   const extension = projectFileExtension(originalName)
   const cleaned = value

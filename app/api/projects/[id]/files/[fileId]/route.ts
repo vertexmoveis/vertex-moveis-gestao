@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import {
   isProjectBlobUrl,
   normalizeProjectFileDisplayName,
+  projectFileContentDisposition,
   PROJECT_FILE_CATEGORIES,
   PROJECT_FILE_CATEGORY_LABELS,
   type ProjectFileCategory,
@@ -54,14 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (result.statusCode === 304) return new NextResponse(null, { status: 304, headers })
 
     const contentType = result.blob.contentType || file.type || 'application/octet-stream'
-    const safeName = file.name.replace(/["\\\r\n]/g, '_')
+    const download = req.nextUrl.searchParams.get('download') === '1'
     headers.set('Content-Type', contentType)
-    headers.set(
-      'Content-Disposition',
-      contentType === 'application/pdf'
-        ? `attachment; filename="${safeName}"`
-        : result.blob.contentDisposition || `inline; filename="${safeName}"`,
-    )
+    headers.set('Content-Disposition', projectFileContentDisposition(file.name, download))
+    headers.set('X-Frame-Options', 'SAMEORIGIN')
     return new NextResponse(result.stream, { status: 200, headers })
   } catch {
     return serverError()

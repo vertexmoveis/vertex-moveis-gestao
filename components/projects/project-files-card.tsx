@@ -2,7 +2,8 @@
 
 import { upload } from '@vercel/blob/client'
 import Image from 'next/image'
-import { Check, ExternalLink, FileImage, FileText, FolderOpen, Loader2, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
+import Link from 'next/link'
+import { Check, Eye, FileImage, FileText, FolderOpen, Loader2, Pencil, RefreshCw, Search, ShieldAlert, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -352,18 +353,19 @@ export function ProjectFilesCard({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {group.files.map((file) => {
                     const fileUrl = `/api/projects/${projectId}/files/${file.id}`
+                    const viewerUrl = `/dashboard/projects/${projectId}/files/${file.id}`
                     const released = file.securityStatus === 'CLEAN' || file.securityStatus === 'TYPE_CHECKED'
                     const image = released && supportsPreview(file.type)
                     return (
                       <div key={file.id} className="overflow-hidden rounded-lg border border-[#E8E8E8] bg-white">
                         {image ? (
-                          <a href={fileUrl} target="_blank" rel="noreferrer" className="relative block aspect-[4/3] bg-[#F5F5F5]">
+                          <Link href={viewerUrl} className="relative block aspect-[4/3] bg-[#F5F5F5]" aria-label={`Visualizar ${file.name}`}>
                             <Image src={fileUrl} alt={file.name} fill sizes="(min-width: 1280px) 260px, (min-width: 640px) 45vw, 90vw" unoptimized className="object-cover" />
-                          </a>
+                          </Link>
                         ) : released ? (
-                          <a href={fileUrl} target="_blank" rel="noreferrer" className="flex aspect-[4/3] items-center justify-center bg-[#FAFAFA] text-[#FF6B00]">
+                          <Link href={viewerUrl} className="flex aspect-[4/3] items-center justify-center bg-[#FAFAFA] text-[#FF6B00]" aria-label={`Visualizar ${file.name}`}>
                             {file.type === 'application/pdf' ? <FileText size={36} /> : <FileImage size={36} />}
-                          </a>
+                          </Link>
                         ) : (
                           <div className="flex aspect-[4/3] items-center justify-center bg-[#FAFAFA] text-amber-600">
                             <ShieldAlert size={36} />
@@ -477,9 +479,9 @@ export function ProjectFilesCard({
                             <span>{formatDate(file.createdAt)}</span>
                           </div>
                           {released ? (
-                            <a href={fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF6B00] hover:underline">
-                              Abrir <ExternalLink size={12} />
-                            </a>
+                            <Link href={viewerUrl} className="inline-flex items-center gap-1 text-xs font-semibold text-[#FF6B00] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]">
+                              Abrir <Eye size={13} />
+                            </Link>
                           ) : null}
                         </div>
                       </div>
