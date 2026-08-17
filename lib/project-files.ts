@@ -52,6 +52,32 @@ export function sanitizeProjectFileName(value: string) {
   return normalized || 'arquivo'
 }
 
+export function projectFileExtension(value: string) {
+  return value.match(/\.[a-zA-Z0-9]{1,10}$/)?.[0] || ''
+}
+
+export function projectFileDisplayName(value: string) {
+  const extension = projectFileExtension(value)
+  return extension ? value.slice(0, -extension.length) : value
+}
+
+export function normalizeProjectFileDisplayName(value: string, originalName: string) {
+  const extension = projectFileExtension(originalName)
+  const cleaned = value
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[\\/]+/g, '-')
+    .replace(/\s+/g, ' ')
+
+  const typedExtension = projectFileExtension(cleaned)
+  const baseName = (typedExtension ? cleaned.slice(0, -typedExtension.length) : cleaned)
+    .replace(/^[.\s]+|[.\s]+$/g, '')
+    .trim()
+
+  if (!baseName) return ''
+  return `${baseName.slice(0, Math.max(1, 180 - extension.length)).trim()}${extension}`
+}
+
 export function isProjectBlobUrl(url: string, projectId: string) {
   try {
     const parsed = new URL(url)
