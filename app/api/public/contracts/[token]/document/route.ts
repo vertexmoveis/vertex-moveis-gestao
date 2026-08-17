@@ -3,7 +3,7 @@ import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { hashProjectContractToken, parseProjectContractSnapshot } from '@/lib/project-contracts'
-import { renderSignedProjectContractPdf } from '@/lib/project-contract-pdf'
+import { renderProjectContractPdf } from '@/lib/project-contract-pdf'
 import { isValidPublicToken, publicRateLimitKey } from '@/lib/public-access'
 import { getClientIp, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
@@ -24,15 +24,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
   const contract = await prisma.projectContract.findUnique({ where: { tokenHash: hashProjectContractToken(token) } })
   if (!contract) return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
-  if (!contract.signedAt || contract.status !== 'SIGNED' || !contract.signatoryName || contract.voidedAt) {
-    return NextResponse.json({ error: 'O PDF final fica disponível após o aceite.' }, { status: 409 })
+  if (contract.voidedAt || contract.status === 'VOID') {
+    return NextResponse.json({ error: 'Este contrato foi cancelado. Solicite um novo link.' }, { status: 410 })
+  }
+  if (contract.expiresAt && contract.expiresAt < new Date() && !contract.signedAt) {
+    return NextResponse.json({ error: 'Este contrato expirou. Solicite um novo link.' }, { status: 410 })
   }
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
   if (!snapshot) return NextResponse.json({ error: 'Contrato armazenado inválido.' }, { status: 500 })
 
   try {
     const logo = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
-    const buffer = await renderSignedProjectContractPdf({
+    const buffer = await renderProjectContractPdf({
       id: contract.id,
       version: contract.version,
       snapshot,

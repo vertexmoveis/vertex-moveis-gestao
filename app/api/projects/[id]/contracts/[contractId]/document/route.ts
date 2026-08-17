@@ -3,7 +3,7 @@ import path from 'node:path'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { parseProjectContractSnapshot } from '@/lib/project-contracts'
-import { renderSignedProjectContractPdf } from '@/lib/project-contract-pdf'
+import { renderProjectContractPdf } from '@/lib/project-contract-pdf'
 import { canAccessProject, requireAuth, serverError } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
@@ -24,15 +24,12 @@ export async function GET(
   if (!contract || !canAccessProject(auth.user, contract.project.managerId)) {
     return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
   }
-  if (!contract.signedAt || contract.status !== 'SIGNED' || !contract.signatoryName) {
-    return NextResponse.json({ error: 'O PDF final fica disponível após o aceite do cliente.' }, { status: 409 })
-  }
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
   if (!snapshot) return NextResponse.json({ error: 'Contrato armazenado inválido.' }, { status: 500 })
 
   try {
     const logo = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
-    const buffer = await renderSignedProjectContractPdf({
+    const buffer = await renderProjectContractPdf({
       id: contract.id,
       version: contract.version,
       snapshot,
@@ -52,7 +49,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Erro ao gerar PDF do contrato assinado.', error)
+    console.error('Erro ao gerar PDF do contrato.', error)
     return serverError()
   }
 }

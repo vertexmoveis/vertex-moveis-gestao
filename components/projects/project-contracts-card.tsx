@@ -384,7 +384,7 @@ export function ProjectContractsCard({
                     {current.reminderCount > 0 ? 'Cobrar aceite' : 'Enviar no WhatsApp'}
                   </a>
                 ) : null}
-                {current.status === 'SIGNED' ? (
+                {current.status === 'SIGNED' || current.status === 'SENT' ? (
                   <a
                     href={`/api/projects/${projectId}/contracts/${current.id}/document`}
                     target="_blank"
@@ -392,7 +392,7 @@ export function ProjectContractsCard({
                     className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#D9D9D9] px-3 text-xs font-semibold hover:bg-[#F5F5F5]"
                   >
                     <FileSignature size={14} />
-                    Contrato assinado em PDF
+                    {current.status === 'SIGNED' ? 'Contrato assinado em PDF' : 'Visualizar contrato em PDF'}
                   </a>
                 ) : null}
                 {current.status === 'SENT' ? (

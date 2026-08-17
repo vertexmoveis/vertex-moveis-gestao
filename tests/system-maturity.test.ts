@@ -9,7 +9,7 @@ import {
 } from '../lib/project-contracts'
 import { isLowStock, stockShortage } from '../lib/inventory'
 import { summarizeOperationalHealth } from '../lib/health-monitor'
-import { renderSignedProjectContractPdf } from '../lib/project-contract-pdf'
+import { renderProjectContractPdf, renderSignedProjectContractPdf } from '../lib/project-contract-pdf'
 
 test('token do contrato é criptografado e validado sem armazenar o valor aberto', () => {
   const previous = process.env.NEXTAUTH_SECRET
@@ -93,6 +93,18 @@ test('gera o contrato assinado como PDF de duas páginas', async () => {
 
   assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
   assert.ok(pdf.length > 5000)
+
+  const unsignedPdf = await renderProjectContractPdf({
+    id: 'contract-test',
+    version: 2,
+    snapshot,
+  })
+  const pages = Buffer.from(unsignedPdf)
+    .toString('latin1')
+    .match(/\/Type\s*\/Page\b/g)
+
+  assert.equal(unsignedPdf.subarray(0, 4).toString(), '%PDF')
+  assert.equal(pages?.length, 2)
 })
 
 test('estoque só alerta quando existe mínimo configurado', () => {

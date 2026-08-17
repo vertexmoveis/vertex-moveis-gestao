@@ -282,14 +282,14 @@ const styles = StyleSheet.create({
     lineHeight: 1.25,
   },
   signature: {
-    marginTop: 8,
-    minHeight: 48,
+    marginTop: 12,
+    minHeight: 88,
     justifyContent: 'flex-end',
     borderWidth: 1,
     borderColor: colors.ink,
-    paddingRight: 95,
-    paddingBottom: 8,
-    paddingLeft: 95,
+    paddingRight: 82,
+    paddingBottom: 12,
+    paddingLeft: 82,
   },
   signatureLine: {
     borderTopWidth: 1,
@@ -299,9 +299,9 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
   },
   signatureDense: {
-    marginTop: 4,
-    minHeight: 30,
-    paddingBottom: 4,
+    marginTop: 6,
+    minHeight: 42,
+    paddingBottom: 6,
   },
   continuationHeader: {
     position: 'absolute',

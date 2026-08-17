@@ -1,20 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, FileDown, Loader2, Printer, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, FileDown, Loader2, ShieldCheck } from 'lucide-react'
 
 export function ContractAcceptanceActions({
   token,
   initialSignedAt,
   initialSignatoryName,
+  defaultSignatoryName,
   disabledMessage,
 }: {
   token: string
   initialSignedAt: string | null
   initialSignatoryName: string | null
+  defaultSignatoryName?: string
   disabledMessage?: string | null
 }) {
-  const [name, setName] = useState('')
+  const [name, setName] = useState(defaultSignatoryName || '')
   const [document, setDocument] = useState('')
   const [accepted, setAccepted] = useState(false)
   const [signedAt, setSignedAt] = useState(initialSignedAt)
@@ -48,12 +50,13 @@ export function ContractAcceptanceActions({
     setSignedAt(payload.signedAt)
     setSignatoryName(name)
     setMessage('Aceite registrado com sucesso.')
+    window.setTimeout(() => window.location.reload(), 700)
   }
 
   if (signedAt) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+      <div className="space-y-5">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 sm:p-6">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
             <div>
@@ -68,24 +71,16 @@ export function ContractAcceptanceActions({
             </div>
           </div>
         </div>
-        <div className="print:hidden flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <a
             href={`/api/public/contracts/${token}/document`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#FF6B00] px-4 text-sm font-semibold text-white hover:bg-[#E05A00]"
+            className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-6 text-base font-bold text-white hover:bg-[#E05A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2"
           >
             <FileDown size={16} />
-            Baixar contrato assinado
+            Abrir contrato assinado em PDF
           </a>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] hover:bg-[#F5F5F5]"
-          >
-            <Printer size={16} />
-            Imprimir
-          </button>
         </div>
       </div>
     )
@@ -97,26 +92,20 @@ export function ContractAcceptanceActions({
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           {disabledMessage}
         </p>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="print:hidden inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] hover:bg-[#F5F5F5]"
-        >
-          <Printer size={16} />
-          Imprimir
-        </button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-start gap-3">
-        <ShieldCheck className="mt-0.5 shrink-0 text-[#FF6B00]" size={20} />
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#FFF1E8] text-[#FF6B00]">
+          <ShieldCheck size={22} />
+        </div>
         <div>
-          <h2 className="font-bold text-[#121212]">Aceite do cliente</h2>
+          <h2 className="text-xl font-extrabold text-[#121212]">Assinatura do cliente</h2>
           <p className="mt-1 text-sm leading-6 text-[#666]">
-            Este registro confirma que você leu e concordou com as condições apresentadas.
+            Depois de ler o PDF acima, confirme seu nome e aceite as condições para assinar o contrato.
           </p>
         </div>
       </div>
@@ -127,7 +116,7 @@ export function ContractAcceptanceActions({
             value={name}
             onChange={(event) => setName(event.target.value)}
             autoComplete="name"
-            className="mt-1.5 min-h-11 w-full rounded-lg border border-[#D9D9D9] px-3 font-normal outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/20"
+            className="mt-2 min-h-14 w-full rounded-lg border border-[#CFCFCF] px-4 text-base font-normal outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/20"
           />
         </label>
         <label className="text-sm font-semibold text-[#121212]">
@@ -137,16 +126,16 @@ export function ContractAcceptanceActions({
             onChange={(event) => setDocument(event.target.value)}
             inputMode="numeric"
             autoComplete="off"
-            className="mt-1.5 min-h-11 w-full rounded-lg border border-[#D9D9D9] px-3 font-normal outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/20"
+            className="mt-2 min-h-14 w-full rounded-lg border border-[#CFCFCF] px-4 text-base font-normal outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/20"
           />
         </label>
       </div>
-      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-3 text-sm leading-6 text-[#444]">
+      <label className="flex cursor-pointer items-start gap-4 rounded-lg border border-[#DCDCDC] bg-[#FAFAFA] p-4 text-sm leading-6 text-[#333] sm:p-5">
         <input
           type="checkbox"
           checked={accepted}
           onChange={(event) => setAccepted(event.target.checked)}
-          className="mt-1 h-4 w-4 accent-[#FF6B00]"
+          className="mt-0.5 h-5 w-5 shrink-0 accent-[#FF6B00]"
         />
         Li este documento e concordo com o projeto, os valores, o prazo e as condições descritas.
       </label>
@@ -155,23 +144,15 @@ export function ContractAcceptanceActions({
           {message}
         </p>
       ) : null}
-      <div className="print:hidden flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void submit()}
           disabled={loading || !accepted || name.trim().length < 3}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#FF6B00] px-5 text-sm font-bold text-white hover:bg-[#E05A00] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-6 text-base font-bold text-white hover:bg-[#E05A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-64"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-          Aceitar contrato
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D9D9D9] bg-white px-4 text-sm font-semibold text-[#121212] hover:bg-[#F5F5F5]"
-        >
-          <Printer size={16} />
-          Imprimir
+          Assinar e aceitar contrato
         </button>
       </div>
     </div>
