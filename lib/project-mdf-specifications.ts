@@ -14,7 +14,7 @@ export const PROJECT_MDF_APPLICATIONS = [
   'Nicho',
   'Prateleiras',
   'Tamponamento',
-  'Rodape',
+  'Rodapé',
 ]
 
 export const PROJECT_MDF_SUGGESTIONS = [

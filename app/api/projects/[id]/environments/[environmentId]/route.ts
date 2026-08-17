@@ -75,7 +75,7 @@ export async function PATCH(
         projectId: id,
         action: parsed.data.mdfSpecifications !== undefined ? 'MDF do ambiente atualizado' : 'Ambiente atualizado',
         details: parsed.data.mdfSpecifications !== undefined
-          ? `${updated.name}: ${parsed.data.mdfSpecifications.length} especificação(ões) de MDF`
+          ? `${updated.name}: ${parsed.data.mdfSpecifications.length} ${parsed.data.mdfSpecifications.length === 1 ? 'especificação' : 'especificações'} de MDF`
           : `${updated.name}: ${PROJECT_ENVIRONMENT_STATUS_LABELS[nextStatus]}`,
       },
     })
