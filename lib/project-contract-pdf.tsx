@@ -473,6 +473,9 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
       items: items.map((item) => ({ ...item, itemNumber: ++itemNumber })),
     }
   })
+  const quotePageSize = itemNumber <= 4 && paymentRows.length <= 5
+    ? { width: 595.28, height: 680 }
+    : 'A4'
   const primaryTermCount = 12
   const primaryTerms = snapshot.terms.slice(0, primaryTermCount)
   const additionalTerms = snapshot.terms.slice(primaryTermCount)
@@ -480,7 +483,7 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
 
   return (
     <Document title={`Contrato ${snapshot.project.name}`} author={snapshot.company.tradeName}>
-      <Page size="A4" style={[styles.page, styles.quotePage]}>
+      <Page size={quotePageSize} style={[styles.page, styles.quotePage]}>
         <Text style={styles.quoteContinuation} fixed>
           ORÇAMENTO {quoteCode} | {snapshot.client.name}
         </Text>
