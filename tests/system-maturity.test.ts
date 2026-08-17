@@ -40,6 +40,8 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
     client: { name: 'Cliente', street: 'Rua A', number: '10', city: 'Cotia', state: 'SP' },
     environments: [{ name: 'Cozinha' }],
     sourceQuote: {
+      number: 12,
+      variationName: 'Branco TX externo',
       items: [{
         environment: 'Cozinha',
         environmentName: 'Cozinha',
@@ -49,6 +51,11 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
         material: 'MDF',
         finish: 'Branco TX externo',
         quantity: 2,
+        width: 150,
+        height: 70,
+        unitPrice: '1000',
+        total: '2000',
+        notes: 'Com fechamento suave',
       }],
     },
     payments: [
@@ -69,10 +76,24 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
   assert.match(snapshot.payment.summary || '', /Entrada de .*2\.000,00 \+ 2x de .*4\.000,00 no cartão/)
   assert.equal(snapshot.payment.cardFeeAmount, 240)
   assert.equal(snapshot.client.address, 'Rua A, 10, Cotia - SP')
+  assert.equal(snapshot.client.city, 'Cotia')
+  assert.equal(snapshot.project.quoteNumber, 12)
+  assert.equal(snapshot.project.variationName, 'Branco TX externo')
   assert.deepEqual(snapshot.project.scope, [{
     environment: 'Cozinha',
     furniture: ['2x Armário aéreo - Parede da pia'],
     specifications: ['MDF - Branco TX externo'],
+    items: [{
+      description: 'Armário aéreo',
+      placement: 'Parede da pia',
+      dimensions: '1500 x 700 mm',
+      material: 'MDF',
+      finish: 'Branco TX externo',
+      notes: 'Com fechamento suave',
+      quantity: 2,
+      unitPrice: 1000,
+      total: 2000,
+    }],
   }])
   assert.equal(snapshot.terms.length, 16)
   assert.equal(parseProjectContractSnapshot(snapshot)?.project.name, 'Cozinha')

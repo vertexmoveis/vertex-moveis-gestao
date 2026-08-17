@@ -57,6 +57,145 @@ const styles = StyleSheet.create({
     marginLeft: -32,
     marginBottom: 14,
   },
+  quotePage: {
+    paddingTop: 16,
+    paddingRight: 28,
+    paddingBottom: 36,
+    paddingLeft: 28,
+    fontSize: 9.2,
+    lineHeight: 1.18,
+  },
+  quoteCompany: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 18,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 7,
+  },
+  quoteBrand: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, width: '66%' },
+  quoteLogo: { width: 40, height: 29, objectFit: 'contain' },
+  quoteCompanyName: { fontFamily: 'Helvetica-Bold', fontSize: 15, textTransform: 'uppercase' },
+  quoteCompanyLegal: { marginTop: 2, color: colors.muted, fontSize: 9 },
+  quoteCompanyLine: { marginTop: 1, color: '#333333', fontSize: 9 },
+  quoteCompanyContact: { width: '31%', textAlign: 'right', fontSize: 9, lineHeight: 1.3 },
+  quoteBold: { fontFamily: 'Helvetica-Bold' },
+  quoteTitleBar: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.soft,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+  },
+  quoteTitleMain: { width: '60%', fontFamily: 'Helvetica-Bold', fontSize: 12, textAlign: 'center' },
+  quoteTitleSpacer: { width: '20%' },
+  quoteTitleDate: { width: '20%', textAlign: 'right' },
+  quoteDeliveryRow: { flexDirection: 'row', gap: 5 },
+  quoteDelivery: {
+    marginTop: 3,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.lighter,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    fontFamily: 'Helvetica-Bold',
+  },
+  quoteOption: { width: '30%' },
+  quoteForecast: { width: '70%' },
+  quoteSectionTitle: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: colors.line,
+    backgroundColor: colors.soft,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 9.2,
+    textTransform: 'uppercase',
+  },
+  quoteRow: { flexDirection: 'row' },
+  quoteCell: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    paddingVertical: 2.6,
+    paddingHorizontal: 5,
+  },
+  quoteClientLabel: { width: '16%', backgroundColor: '#FAFAFA', fontFamily: 'Helvetica-Bold' },
+  quoteClientValue: { width: '34%' },
+  quoteItemHeader: { flexDirection: 'row', backgroundColor: colors.lighter },
+  quoteHeaderCell: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    paddingVertical: 2.6,
+    paddingHorizontal: 5,
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 8.2,
+    textTransform: 'uppercase',
+  },
+  quoteItemNumber: { width: '7%', textAlign: 'center' },
+  quoteItemDescription: { width: '53%' },
+  quoteItemQuantity: { width: '10%', textAlign: 'right' },
+  quoteItemMoney: { width: '15%', textAlign: 'right' },
+  quoteEnvironmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    backgroundColor: colors.soft,
+    paddingVertical: 2.6,
+    paddingHorizontal: 5,
+    fontFamily: 'Helvetica-Bold',
+  },
+  quoteServiceName: { fontFamily: 'Helvetica-Bold' },
+  quoteServiceDetail: { color: colors.muted, fontSize: 7.7 },
+  quoteTotalRow: { flexDirection: 'row', backgroundColor: '#F4F4F4', fontFamily: 'Helvetica-Bold' },
+  quoteTotalLabel: { width: '60%' },
+  quoteTotalQuantity: { width: '10%', textAlign: 'right' },
+  quoteTotalBlank: { width: '15%' },
+  quoteTotalValue: { width: '15%', textAlign: 'right' },
+  quoteSummaryLine: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    paddingVertical: 2.6,
+    paddingHorizontal: 5,
+    fontFamily: 'Helvetica-Bold',
+  },
+  quoteSummaryLabel: { width: '75%', textAlign: 'right' },
+  quoteSummaryValue: { width: '25%', textAlign: 'right' },
+  quotePaymentDue: { width: '22%' },
+  quotePaymentAmount: { width: '22%', textAlign: 'right' },
+  quotePaymentMethod: { width: '31%' },
+  quotePaymentObservation: { width: '25%' },
+  quotePaymentPairDue: { width: '24%' },
+  quotePaymentPairAmount: { width: '26%', textAlign: 'right' },
+  quotePaymentSummary: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    backgroundColor: colors.lighter,
+    paddingVertical: 2.6,
+    paddingHorizontal: 5,
+  },
+  quoteNotes: { marginTop: 4, borderWidth: 1, borderColor: colors.line, padding: 4, lineHeight: 1.2 },
+  quoteContinuation: {
+    position: 'absolute',
+    right: 28,
+    top: 7,
+    left: 28,
+    color: colors.muted,
+    fontSize: 7,
+    textAlign: 'right',
+  },
   companyHeader: {
     minHeight: 84,
     borderWidth: 1,
@@ -244,6 +383,14 @@ function compactText(values: string[], fallback: string, maxLength: number) {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3).trim()}...`
 }
 
+function valueOrFallback(value?: string | null) {
+  return value?.trim() || 'Não informado'
+}
+
+function optionalCurrency(value: number) {
+  return value > 0 ? currency(value) : '—'
+}
+
 function ContractFooter({ companyName, authenticityCode }: { companyName: string; authenticityCode: string }) {
   return (
     <View style={styles.footer} fixed>
@@ -310,10 +457,6 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
   const { snapshot } = input
   const signed = Boolean(input.signedAt && input.signatoryName)
   const authenticityCode = `${input.id.toUpperCase()}-V${input.version}`
-  const pairedPayments = Array.from(
-    { length: Math.ceil(snapshot.payment.schedule.length / 2) },
-    (_, index) => [snapshot.payment.schedule[index * 2], snapshot.payment.schedule[(index * 2) + 1]],
-  )
   const fallbackEnvironments = snapshot.project.environments.length > 0
     ? snapshot.project.environments
     : [snapshot.project.room || 'Projeto completo']
@@ -321,43 +464,244 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
     environment,
     furniture: [],
     specifications: [],
+    items: [],
   }))
+  const quoteCode = snapshot.project.quoteNumber
+    ? String(snapshot.project.quoteNumber).padStart(4, '0')
+    : authenticityCode
+  const streetAddress = [
+    snapshot.client.street,
+    snapshot.client.number,
+    snapshot.client.neighborhood,
+  ].filter(Boolean).join(', ')
+  const frozenItems = scope.flatMap((entry) => entry.items || [])
+  const itemSubtotal = frozenItems.reduce((sum, item) => sum + item.total, 0)
+  const totalQuantity = frozenItems.reduce((sum, item) => sum + item.quantity, 0)
+  const paymentRows = snapshot.payment.schedule.map((payment) => ({
+    ...payment,
+    label: paymentName(payment.type, payment.number),
+  }))
+  const pairedPayments = Array.from(
+    { length: Math.ceil(paymentRows.length / 2) },
+    (_, index) => [paymentRows[index * 2], paymentRows[(index * 2) + 1]],
+  )
+  let itemNumber = 0
+  const quoteGroups = scope.map((entry) => {
+    const items = entry.items?.length
+      ? entry.items
+      : (entry.furniture.length > 0 ? entry.furniture : ['Conforme projeto técnico aprovado']).map((description) => ({
+          description,
+          placement: null,
+          dimensions: null,
+          material: null,
+          finish: compactText(entry.specifications, '', 120) || null,
+          notes: null,
+          quantity: 1,
+          unitPrice: 0,
+          total: 0,
+        }))
+    return {
+      environment: entry.environment,
+      items: items.map((item) => ({ ...item, itemNumber: ++itemNumber })),
+    }
+  })
   const primaryTerms = snapshot.terms.slice(0, 7)
   const additionalTerms = snapshot.terms.slice(7)
   const signatureOnAdditionalPage = additionalTerms.length > 0
 
   return (
     <Document title={`Contrato ${snapshot.project.name}`} author={snapshot.company.tradeName}>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.topLine} />
-        <View style={styles.companyHeader}>
-          <View style={styles.brand}>
-            {input.logoDataUrl ? <PdfImage src={input.logoDataUrl} style={styles.logo} /> : null}
+      <Page size="A4" style={[styles.page, styles.quotePage]}>
+        <Text style={styles.quoteContinuation} fixed>
+          ORÇAMENTO {quoteCode} | {snapshot.client.name}
+        </Text>
+        <View style={styles.quoteCompany} wrap={false}>
+          <View style={styles.quoteBrand}>
+            {input.logoDataUrl ? <PdfImage src={input.logoDataUrl} style={styles.quoteLogo} /> : null}
             <View>
-              <Text style={styles.brandName}>{snapshot.company.tradeName.toUpperCase()}</Text>
-              <Text style={styles.brandSub}>{snapshot.company.legalName || 'Móveis planejados'}</Text>
-              <View style={styles.companyDetails}>
-                <Text>{snapshot.company.document ? `CNPJ: ${snapshot.company.document}` : 'CNPJ não informado'}</Text>
-                <Text>{snapshot.company.address || 'Endereço não informado'}</Text>
-              </View>
+              <Text style={styles.quoteCompanyName}>{snapshot.company.tradeName}</Text>
+              {snapshot.company.legalName ? <Text style={styles.quoteCompanyLegal}>{snapshot.company.legalName}</Text> : null}
+              <Text style={styles.quoteCompanyLine}>
+                {[snapshot.company.document ? `CNPJ: ${snapshot.company.document}` : '', snapshot.company.address].filter(Boolean).join(' | ')}
+              </Text>
             </View>
           </View>
-          <View style={styles.contact}>
-            <Text style={styles.contactStrong}>{snapshot.company.phone || 'Telefone não informado'}</Text>
-            <Text style={styles.contactStrong}>{snapshot.company.email || 'E-mail não informado'}</Text>
-            <Text>Responsável: {snapshot.company.tradeName}</Text>
+          <View style={styles.quoteCompanyContact}>
+            {snapshot.company.phone ? <Text style={styles.quoteBold}>{snapshot.company.phone}</Text> : null}
+            {snapshot.company.email ? <Text>{snapshot.company.email}</Text> : null}
+            <Text style={styles.quoteCompanyLine}>Responsável: {snapshot.company.tradeName}</Text>
           </View>
         </View>
 
-        <View style={styles.titleBand}>
-          <Text style={styles.documentTitle}>CONTRATO DE PRESTAÇÃO DE SERVIÇOS E FORNECIMENTO DE MÓVEIS PLANEJADOS</Text>
-          <Text>Versão {input.version} · {dateOnly(snapshot.generatedAt)}</Text>
+        <View style={styles.quoteTitleBar} wrap={false}>
+          <Text style={styles.quoteTitleSpacer}></Text>
+          <Text style={styles.quoteTitleMain}>ORÇAMENTO Nº {quoteCode}</Text>
+          <Text style={styles.quoteTitleDate}>{dateOnly(snapshot.generatedAt)}</Text>
         </View>
+        <View style={styles.quoteDeliveryRow} wrap={false}>
+          <Text style={[styles.quoteDelivery, styles.quoteOption]}>OPÇÃO: {snapshot.project.variationName || 'Projeto contratado'}</Text>
+          <Text style={[styles.quoteDelivery, styles.quoteForecast]}>
+            ENTREGA: {dateOnly(snapshot.project.deliveryDeadlineDate)} ({snapshot.project.deliveryBusinessDays} dias úteis após aprovação e pagamento)
+          </Text>
+        </View>
+
+        <Text style={styles.quoteSectionTitle}>Dados do cliente</Text>
+        <View style={styles.quoteRow} wrap={false}>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>Cliente</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{snapshot.client.name}</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>CPF/CNPJ</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.document || input.signatoryDocument)}</Text>
+        </View>
+        <View style={styles.quoteRow} wrap={false}>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>Endereço</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(streetAddress || snapshot.client.address)}</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>CEP</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.zipCode)}</Text>
+        </View>
+        <View style={styles.quoteRow} wrap={false}>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>Cidade</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.city)}</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>Estado</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.state)}</Text>
+        </View>
+        <View style={styles.quoteRow} wrap={false}>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>Telefone</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.phone)}</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientLabel]}>E-mail</Text>
+          <Text style={[styles.quoteCell, styles.quoteClientValue]}>{valueOrFallback(snapshot.client.email)}</Text>
+        </View>
+
+        <Text style={styles.quoteSectionTitle}>Serviços</Text>
+        <View style={styles.quoteItemHeader}>
+          <Text style={[styles.quoteHeaderCell, styles.quoteItemNumber]}>Item</Text>
+          <Text style={[styles.quoteHeaderCell, styles.quoteItemDescription]}>Descrição</Text>
+          <Text style={[styles.quoteHeaderCell, styles.quoteItemQuantity]}>Qtd.</Text>
+          <Text style={[styles.quoteHeaderCell, styles.quoteItemMoney]}>Valor unit.</Text>
+          <Text style={[styles.quoteHeaderCell, styles.quoteItemMoney]}>Subtotal</Text>
+        </View>
+        {quoteGroups.map((group) => (
+          <View key={group.environment}>
+            <View style={styles.quoteEnvironmentRow} wrap={false}>
+              <Text>{group.environment}</Text>
+              <Text>{optionalCurrency(group.items.reduce((sum, item) => sum + item.total, 0))}</Text>
+            </View>
+            {group.items.map((item) => {
+              const displayUnitPrice = item.quantity > 0 ? item.total / item.quantity : item.total
+              const details = [
+                item.placement,
+                item.dimensions,
+                item.material,
+                item.finish,
+                item.notes,
+              ].filter(Boolean).join(' · ')
+
+              return (
+                <View key={`${group.environment}-${item.itemNumber}`} style={styles.quoteRow} wrap={false}>
+                  <Text style={[styles.quoteCell, styles.quoteItemNumber]}>{item.itemNumber}</Text>
+                  <View style={[styles.quoteCell, styles.quoteItemDescription]}>
+                    <Text>
+                      <Text style={styles.quoteServiceName}>{item.description}</Text>
+                      <Text style={styles.quoteServiceDetail}>{details ? ` (${details})` : ''}</Text>
+                    </Text>
+                  </View>
+                  <Text style={[styles.quoteCell, styles.quoteItemQuantity]}>{item.quantity}</Text>
+                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{optionalCurrency(displayUnitPrice)}</Text>
+                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{optionalCurrency(item.total)}</Text>
+                </View>
+              )
+            })}
+          </View>
+        ))}
+        <View style={styles.quoteTotalRow} wrap={false}>
+          <Text style={[styles.quoteCell, styles.quoteTotalLabel]}>TOTAL</Text>
+          <Text style={[styles.quoteCell, styles.quoteTotalQuantity]}>{totalQuantity || quoteGroups.reduce((sum, group) => sum + group.items.length, 0)}</Text>
+          <Text style={[styles.quoteCell, styles.quoteTotalBlank]}></Text>
+          <Text style={[styles.quoteCell, styles.quoteTotalValue]}>{currency(itemSubtotal || snapshot.project.value)}</Text>
+        </View>
+        <View style={styles.quoteSummaryLine} wrap={false}>
+          <Text style={styles.quoteSummaryLabel}>SERVIÇOS:</Text>
+          <Text style={styles.quoteSummaryValue}>{currency(itemSubtotal || snapshot.project.value)}</Text>
+        </View>
+        {snapshot.payment.paymentDiscount ? (
+          <View style={styles.quoteSummaryLine} wrap={false}>
+            <Text style={styles.quoteSummaryLabel}>DESCONTO:</Text>
+            <Text style={styles.quoteSummaryValue}>-{currency(snapshot.payment.paymentDiscount)}</Text>
+          </View>
+        ) : null}
+        {snapshot.payment.cardFeeAmount ? (
+          <View style={styles.quoteSummaryLine} wrap={false}>
+            <Text style={styles.quoteSummaryLabel}>ACRÉSCIMO DO CARTÃO:</Text>
+            <Text style={styles.quoteSummaryValue}>{currency(snapshot.payment.cardFeeAmount)}</Text>
+          </View>
+        ) : null}
+        <View style={styles.quoteSummaryLine} wrap={false}>
+          <Text style={styles.quoteSummaryLabel}>TOTAL:</Text>
+          <Text style={styles.quoteSummaryValue}>{currency(snapshot.project.value)}</Text>
+        </View>
+
+        <View wrap={false}>
+          <Text style={styles.quoteSectionTitle}>Dados do pagamento</Text>
+          {paymentRows.length > 5 ? (
+            <>
+              <Text style={styles.quotePaymentSummary}>Forma de pagamento: {snapshot.payment.methodLabel || 'Conforme combinado'}</Text>
+              <View style={styles.quoteItemHeader}>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentPairDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentPairAmount]}>Valor</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentPairDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentPairAmount]}>Valor</Text>
+              </View>
+              {pairedPayments.map(([left, right]) => (
+                <View key={`${left.label}-${left.dueDate}`} style={styles.quoteRow} wrap={false}>
+                  <Text style={[styles.quoteCell, styles.quotePaymentPairDue]}>{left.label}: {dateOnly(left.dueDate)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentPairAmount]}>{currency(left.amount)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentPairDue]}>{right ? `${right.label}: ${dateOnly(right.dueDate)}` : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentPairAmount]}>{right ? currency(right.amount) : ''}</Text>
+                </View>
+              ))}
+            </>
+          ) : (
+            <>
+              <View style={styles.quoteItemHeader}>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentAmount]}>Valor</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentMethod]}>Forma de pagamento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentObservation]}>Observação</Text>
+              </View>
+              {paymentRows.map((payment) => (
+                <View key={`${payment.type}-${payment.number}`} style={styles.quoteRow} wrap={false}>
+                  <Text style={[styles.quoteCell, styles.quotePaymentDue]}>{dateOnly(payment.dueDate)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentAmount]}>{currency(payment.amount)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentMethod]}>{snapshot.payment.methodLabel || 'Conforme combinado'}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentObservation]}>{payment.label}</Text>
+                </View>
+              ))}
+            </>
+          )}
+        </View>
+
+        <Text style={styles.quoteNotes} wrap={false}>
+          <Text style={styles.quoteBold}>OBSERVAÇÕES: </Text>
+          Este orçamento, o projeto técnico aprovado e seus anexos integram o contrato. As cláusulas e o aceite das partes estão nas páginas seguintes.
+        </Text>
+
+        <ContractFooter companyName={snapshot.company.tradeName} authenticityCode={authenticityCode} />
+      </Page>
+
+      <Page size="A4" style={styles.page}>
+        <View style={styles.topLine} />
+        <View style={styles.pageHeader}>
+          <View>
+            <Text style={styles.label}>Contrato de móveis planejados</Text>
+            <Text style={styles.pageTitle}>Condições comerciais e contratuais</Text>
+          </View>
+          <Text style={styles.pageCode}>{snapshot.project.name}{'\n'}Código {authenticityCode}</Text>
+        </View>
+
         <View style={[styles.statusBand, signed ? styles.statusSigned : styles.statusPending]}>
           <Text style={signed ? styles.statusSignedText : styles.statusPendingText}>
             {signed ? 'ACEITO ELETRONICAMENTE' : 'AGUARDANDO ASSINATURA DO CLIENTE'}
           </Text>
-          <Text>Código {authenticityCode}</Text>
+          <Text>Versão {input.version} · Código {authenticityCode}</Text>
         </View>
 
         <View style={styles.section}>
@@ -383,89 +727,8 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
             </View>
           </View>
           <Text style={styles.intro}>
-            Pelo presente instrumento particular, as partes acima qualificadas celebram este contrato, que será regido pelo projeto aprovado, pelo quadro financeiro e pelas cláusulas descritas nas páginas seguintes.
+            Pelo presente instrumento particular, as partes acima qualificadas celebram este contrato, integrado pelo orçamento da primeira página, pelo projeto aprovado e pelas cláusulas abaixo.
           </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Resumo do projeto</Text>
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryCell}>
-              <Text style={styles.label}>Projeto</Text>
-              <Text style={styles.summaryValue}>{snapshot.project.name}</Text>
-              <Text style={styles.details}>{snapshot.project.environments.join(', ') || snapshot.project.room || 'Ambientes não informados'}</Text>
-            </View>
-            <View style={[styles.summaryCell, styles.summaryCellBorder]}>
-              <Text style={styles.label}>Prazo combinado</Text>
-              <Text style={styles.summaryValue}>{snapshot.project.deliveryBusinessDays} dias úteis</Text>
-              <Text style={styles.details}>Previsão: {dateOnly(snapshot.project.deliveryDeadlineDate)}</Text>
-            </View>
-            <View style={styles.totalCell}>
-              <Text style={styles.totalLabel}>Investimento total</Text>
-              <Text style={styles.total}>{currency(snapshot.project.value)}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ambientes e escopo contratado</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <View style={[styles.tableCell, styles.scopeEnvironment]}><Text style={styles.tableHeadText}>Ambiente</Text></View>
-              <View style={[styles.tableCell, styles.tableCellBorder, styles.scopeFurniture]}><Text style={styles.tableHeadText}>Móveis previstos</Text></View>
-              <View style={[styles.tableCell, styles.tableCellBorder, styles.scopeSpecification]}><Text style={styles.tableHeadText}>Materiais e acabamentos</Text></View>
-            </View>
-            {scope.map((entry, index) => (
-              <View key={`${entry.environment}-${index}`} style={index === 0 ? styles.tableRowFirst : styles.tableRow} wrap={false}>
-                <View style={[styles.tableCell, styles.scopeEnvironment]}><Text style={styles.scopePrimary}>{entry.environment}</Text></View>
-                <View style={[styles.tableCell, styles.tableCellBorder, styles.scopeFurniture]}>
-                  <Text>{compactText(entry.furniture, 'Conforme projeto técnico aprovado', 230)}</Text>
-                </View>
-                <View style={[styles.tableCell, styles.tableCellBorder, styles.scopeSpecification]}>
-                  <Text>{compactText(entry.specifications, 'Conforme projeto aprovado', 130)}</Text>
-                </View>
-              </View>
-            ))}
-            <Text style={styles.scopeNote}>O projeto técnico aprovado e seus anexos complementam esta descrição e prevalecem quanto a medidas, divisões e posicionamento.</Text>
-          </View>
-        </View>
-
-        <ContractFooter companyName={snapshot.company.tradeName} authenticityCode={authenticityCode} />
-      </Page>
-
-      <Page size="A4" style={styles.page}>
-        <View style={styles.topLine} />
-        <View style={styles.pageHeader}>
-          <View>
-            <Text style={styles.label}>Contrato de móveis planejados</Text>
-            <Text style={styles.pageTitle}>Condições comerciais e contratuais</Text>
-          </View>
-          <Text style={styles.pageCode}>{snapshot.project.name}{'\n'}Código {authenticityCode}</Text>
-        </View>
-
-        <View>
-          <Text style={styles.sectionTitle}>Condições de pagamento</Text>
-          <View style={styles.paymentSummary}>
-            <Text style={styles.value}>{snapshot.payment.summary || snapshot.payment.methodLabel || 'Condição registrada no projeto'}</Text>
-            <Text style={styles.details}>Entrada: {currency(snapshot.payment.downPayment)} · {snapshot.payment.installmentCount} parcela{snapshot.payment.installmentCount !== 1 ? 's' : ''}</Text>
-          </View>
-          {pairedPayments.length > 0 ? (
-            <View style={styles.paymentGrid}>
-              {pairedPayments.map((payments, rowIndex) => (
-                <View key={`payment-row-${rowIndex}`} style={styles.paymentRow}>
-                  {payments.map((payment, columnIndex) => payment ? (
-                    <View key={`${payment.type}-${payment.number}-${columnIndex}`} style={[styles.paymentItem, columnIndex === 1 ? styles.paymentItemSecond : {}]}>
-                      <View style={styles.paymentLine}>
-                        <Text style={styles.paymentName}>{paymentName(payment.type, payment.number)}</Text>
-                        <Text style={styles.paymentAmount}>{currency(payment.amount)}</Text>
-                      </View>
-                      <Text style={styles.paymentDate}>Vencimento: {dateOnly(payment.dueDate)}</Text>
-                    </View>
-                  ) : <View key={`empty-${columnIndex}`} style={[styles.paymentItem, styles.paymentItemSecond]} />)}
-                </View>
-              ))}
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.section}>

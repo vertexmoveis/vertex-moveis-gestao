@@ -6,7 +6,12 @@ import {
   randomBytes,
 } from 'node:crypto'
 import { moneyValue, type NumericValue } from './money'
-import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from './quotes'
+import {
+  getQuotePaymentSummary,
+  QUOTE_PAYMENT_METHOD_LABELS,
+  quoteCentimetersToMillimeters,
+  safeQuotePaymentMethod,
+} from './quotes'
 
 const PROJECT_CONTRACT_SNAPSHOT_VERSION = 1
 
@@ -46,6 +51,8 @@ type ProjectContractSource = {
   }
   environments: Array<{ name: string }>
   sourceQuote?: {
+    number?: number | null
+    variationName?: string | null
     items: Array<{
       environment: string
       environmentName?: string | null
@@ -55,6 +62,11 @@ type ProjectContractSource = {
       material?: string | null
       finish?: string | null
       quantity: number
+      width?: number | null
+      height?: number | null
+      unitPrice?: NumericValue
+      total?: NumericValue
+      notes?: string | null
     }>
   } | null
   payments: Array<{
@@ -90,6 +102,12 @@ export type ProjectContractSnapshot = {
     phone: string | null
     email: string | null
     address: string | null
+    street?: string | null
+    number?: string | null
+    neighborhood?: string | null
+    city?: string | null
+    state?: string | null
+    zipCode?: string | null
   }
   project: {
     id: string
@@ -100,10 +118,23 @@ export type ProjectContractSnapshot = {
     approvalDate: string | null
     deliveryBusinessDays: number
     deliveryDeadlineDate: string | null
+    quoteNumber?: number | null
+    variationName?: string | null
     scope?: Array<{
       environment: string
       furniture: string[]
       specifications: string[]
+      items?: Array<{
+        description: string
+        placement: string | null
+        dimensions: string | null
+        material: string | null
+        finish: string | null
+        notes: string | null
+        quantity: number
+        unitPrice: number
+        total: number
+      }>
     }>
   }
   payment: {
@@ -222,13 +253,18 @@ export function buildProjectContractSnapshot(
   const environmentNames = Array.from(
     new Set(project.environments.map((environment) => environment.name.trim()).filter(Boolean)),
   )
-  const scopeByEnvironment = new Map<string, { furniture: Set<string>; specifications: Set<string> }>()
+  const scopeByEnvironment = new Map<string, {
+    furniture: Set<string>
+    specifications: Set<string>
+    items: NonNullable<NonNullable<ProjectContractSnapshot['project']['scope']>[number]['items']>
+  }>()
 
   for (const item of project.sourceQuote?.items || []) {
     const environment = item.environmentName?.trim() || item.environment.trim() || 'Ambiente não informado'
     const scope = scopeByEnvironment.get(environment) || {
       furniture: new Set<string>(),
       specifications: new Set<string>(),
+      items: [],
     }
     const furniture = item.furnitureModel?.trim() || item.description.trim()
     if (furniture) {
@@ -236,6 +272,19 @@ export function buildProjectContractSnapshot(
     }
     const specification = [item.material?.trim(), item.finish?.trim()].filter(Boolean).join(' - ')
     if (specification) scope.specifications.add(specification)
+    const widthMm = item.width ? quoteCentimetersToMillimeters(item.width) : null
+    const heightMm = item.height ? quoteCentimetersToMillimeters(item.height) : null
+    scope.items.push({
+      description: furniture || 'Móvel planejado',
+      placement: item.placement?.trim() || null,
+      dimensions: widthMm && heightMm ? `${widthMm} x ${heightMm} mm` : null,
+      material: item.material?.trim() || null,
+      finish: item.finish?.trim() || null,
+      notes: item.notes?.trim() || null,
+      quantity: Math.max(item.quantity || 1, 1),
+      unitPrice: moneyValue(item.unitPrice),
+      total: moneyValue(item.total),
+    })
     scopeByEnvironment.set(environment, scope)
   }
 
@@ -245,6 +294,7 @@ export function buildProjectContractSnapshot(
       environment,
       furniture: Array.from(details?.furniture || []),
       specifications: Array.from(details?.specifications || []),
+      items: details?.items || [],
     }
   })
 
@@ -254,6 +304,7 @@ export function buildProjectContractSnapshot(
       environment,
       furniture: Array.from(details.furniture),
       specifications: Array.from(details.specifications),
+      items: details.items,
     })
   }
 
@@ -274,6 +325,12 @@ export function buildProjectContractSnapshot(
       phone: project.client.whatsapp || project.client.phone || null,
       email: project.client.email || null,
       address: formatContractAddress(project.client),
+      street: project.client.street || project.client.address || null,
+      number: project.client.number || null,
+      neighborhood: project.client.neighborhood || null,
+      city: project.client.city || null,
+      state: project.client.state || null,
+      zipCode: project.client.zipCode || null,
     },
     project: {
       id: project.id,
@@ -284,6 +341,8 @@ export function buildProjectContractSnapshot(
       approvalDate: iso(project.approvalDate),
       deliveryBusinessDays: project.deliveryBusinessDays || 30,
       deliveryDeadlineDate: iso(project.deliveryDeadlineDate),
+      quoteNumber: project.sourceQuote?.number || null,
+      variationName: project.sourceQuote?.variationName || null,
       scope,
     },
     payment: {

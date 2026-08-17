@@ -43,6 +43,8 @@ async function projectWithAccess(projectId: string, user: Parameters<typeof canA
       },
       sourceQuote: {
         select: {
+          number: true,
+          variationName: true,
           items: {
             orderBy: { position: 'asc' },
             select: {
@@ -54,6 +56,11 @@ async function projectWithAccess(projectId: string, user: Parameters<typeof canA
               material: true,
               finish: true,
               quantity: true,
+              width: true,
+              height: true,
+              unitPrice: true,
+              total: true,
+              notes: true,
             },
           },
         },
