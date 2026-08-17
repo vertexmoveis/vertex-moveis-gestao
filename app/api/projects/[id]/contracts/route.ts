@@ -41,6 +41,23 @@ async function projectWithAccess(projectId: string, user: Parameters<typeof canA
         orderBy: { position: 'asc' },
         select: { name: true },
       },
+      sourceQuote: {
+        select: {
+          items: {
+            orderBy: { position: 'asc' },
+            select: {
+              environment: true,
+              environmentName: true,
+              description: true,
+              furnitureModel: true,
+              placement: true,
+              material: true,
+              finish: true,
+              quantity: true,
+            },
+          },
+        },
+      },
       payments: {
         orderBy: [{ type: 'asc' }, { installmentNumber: 'asc' }],
         select: {

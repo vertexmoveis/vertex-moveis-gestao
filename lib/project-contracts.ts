@@ -45,6 +45,18 @@ type ProjectContractSource = {
     email?: string | null
   }
   environments: Array<{ name: string }>
+  sourceQuote?: {
+    items: Array<{
+      environment: string
+      environmentName?: string | null
+      description: string
+      furnitureModel?: string | null
+      placement?: string | null
+      material?: string | null
+      finish?: string | null
+      quantity: number
+    }>
+  } | null
   payments: Array<{
     installmentNumber: number
     type: string
@@ -88,6 +100,11 @@ export type ProjectContractSnapshot = {
     approvalDate: string | null
     deliveryBusinessDays: number
     deliveryDeadlineDate: string | null
+    scope?: Array<{
+      environment: string
+      furniture: string[]
+      specifications: string[]
+    }>
   }
   payment: {
     method?: string
@@ -205,6 +222,40 @@ export function buildProjectContractSnapshot(
   const environmentNames = Array.from(
     new Set(project.environments.map((environment) => environment.name.trim()).filter(Boolean)),
   )
+  const scopeByEnvironment = new Map<string, { furniture: Set<string>; specifications: Set<string> }>()
+
+  for (const item of project.sourceQuote?.items || []) {
+    const environment = item.environmentName?.trim() || item.environment.trim() || 'Ambiente não informado'
+    const scope = scopeByEnvironment.get(environment) || {
+      furniture: new Set<string>(),
+      specifications: new Set<string>(),
+    }
+    const furniture = item.furnitureModel?.trim() || item.description.trim()
+    if (furniture) {
+      scope.furniture.add(`${Math.max(item.quantity || 1, 1)}x ${furniture}${item.placement?.trim() ? ` - ${item.placement.trim()}` : ''}`)
+    }
+    const specification = [item.material?.trim(), item.finish?.trim()].filter(Boolean).join(' - ')
+    if (specification) scope.specifications.add(specification)
+    scopeByEnvironment.set(environment, scope)
+  }
+
+  const scope = environmentNames.map((environment) => {
+    const details = scopeByEnvironment.get(environment)
+    return {
+      environment,
+      furniture: Array.from(details?.furniture || []),
+      specifications: Array.from(details?.specifications || []),
+    }
+  })
+
+  for (const [environment, details] of scopeByEnvironment.entries()) {
+    if (scope.some((entry) => entry.environment === environment)) continue
+    scope.push({
+      environment,
+      furniture: Array.from(details.furniture),
+      specifications: Array.from(details.specifications),
+    })
+  }
 
   return {
     version: PROJECT_CONTRACT_SNAPSHOT_VERSION,
@@ -233,6 +284,7 @@ export function buildProjectContractSnapshot(
       approvalDate: iso(project.approvalDate),
       deliveryBusinessDays: project.deliveryBusinessDays || 30,
       deliveryDeadlineDate: iso(project.deliveryDeadlineDate),
+      scope,
     },
     payment: {
       method: paymentMethod,
@@ -255,27 +307,67 @@ export function buildProjectContractSnapshot(
     terms: [
       {
         title: 'Objeto',
-        text: `Produção, entrega e instalação dos móveis planejados do projeto "${project.name}", nos ambientes descritos neste documento.`,
+        text: `A CONTRATADA fornecerá, produzirá, entregará e instalará os móveis planejados do projeto "${project.name}", nos ambientes e condições descritos neste contrato e no projeto técnico aprovado pelo CONTRATANTE. Imagens decorativas, eletrodomésticos e objetos que não estejam expressamente discriminados não integram o objeto.`,
       },
       {
-        title: 'Medidas e definições',
-        text: 'As medidas finais, ferragens, cores e acabamentos serão conferidos antes do início da fabricação. Mudanças posteriores podem alterar prazo e valor.',
+        title: 'Projeto, medidas e especificações',
+        text: 'As medidas finais, divisões, ferragens, cores, materiais e acabamentos serão conferidos antes do início da fabricação. O CONTRATANTE declara que analisará e aprovará o projeto técnico. Alterações solicitadas depois da aprovação dependerão de viabilidade e poderão modificar o preço e o prazo.',
+      },
+      {
+        title: 'Preço e condição de pagamento',
+        text: `O investimento total é de ${contractCurrency(value)}. Condição combinada: ${paymentSummary}. A entrada e as parcelas obedecem ao quadro financeiro deste documento, que integra o contrato para todos os fins.`,
       },
       {
         title: 'Prazo',
-        text: `O prazo previsto é de ${project.deliveryBusinessDays || 30} dias úteis, contado após a aprovação final do projeto e a confirmação do pagamento combinado.`,
+        text: `O prazo previsto é de ${project.deliveryBusinessDays || 30} dias úteis, contado após a aprovação final do projeto, a conferência das medidas e a confirmação do pagamento combinado. A previsão poderá ser revista quando houver alteração solicitada pelo cliente, impedimento no imóvel, atraso de fornecedor ou evento de força maior, sempre com comunicação ao CONTRATANTE.`,
       },
       {
-        title: 'Pagamento',
-        text: `O investimento total registrado é de ${contractCurrency(value)}. Condição combinada: ${paymentSummary}. Entrada e parcelas seguem o quadro financeiro deste documento.`,
+        title: 'Obrigações do CONTRATANTE',
+        text: 'O CONTRATANTE deverá fornecer informações corretas, aprovar o projeto, cumprir os pagamentos e disponibilizar o local livre, acessível e em condições para medição, entrega e instalação. Também deverá informar a posição de redes elétrica, hidráulica, de gás, aquecimento ou refrigeração e as medidas dos eletrodomésticos incorporados ao projeto.',
+      },
+      {
+        title: 'Obrigações da CONTRATADA',
+        text: 'A CONTRATADA executará os móveis com técnica e cuidado, observará o projeto aprovado, comunicará ocorrências relevantes e realizará a entrega e a instalação nas condições combinadas. Defeitos de fabricação ou de instalação atribuíveis à CONTRATADA serão analisados e corrigidos conforme a garantia aplicável.',
+      },
+      {
+        title: 'Condições do imóvel',
+        text: 'Paredes fora de esquadro, frágeis ou desniveladas, umidade, infiltração, exposição excessiva ao sol, instalações ocultas, pragas ou obras realizadas por terceiros podem impedir ou comprometer a instalação. Serviços de alvenaria, elétrica, hidráulica, gás, pintura, marmoraria e adequação do imóvel não estão incluídos, salvo quando descritos por escrito.',
       },
       {
         title: 'Entrega e instalação',
-        text: 'A instalação será agendada com o cliente. O local deve estar acessível e em condições adequadas para o serviço na data combinada.',
+        text: 'A entrega e a instalação serão agendadas. O CONTRATANTE ou pessoa indicada deverá permitir o acesso e acompanhar a conferência. Se o local não estiver disponível ou adequado na data combinada, um novo agendamento poderá alterar o prazo e gerar custos adicionais previamente informados.',
       },
       {
-        title: 'Garantia e atendimento',
-        text: 'Ocorrências após a instalação serão registradas no atendimento de garantia da Vertex Móveis para análise e acompanhamento.',
+        title: 'Alterações e serviços adicionais',
+        text: 'Qualquer alteração de medida, material, acabamento, quantidade ou configuração deverá ser registrada por escrito. Quando a mudança gerar diferença de custo ou prazo, a execução dependerá da aprovação de orçamento complementar pelo CONTRATANTE.',
+      },
+      {
+        title: 'Peças, ajustes e tolerâncias',
+        text: 'Por se tratar de produto sob medida, poderão ocorrer ajustes técnicos durante a fabricação e a instalação. Pequenas variações próprias dos materiais, veios, tonalidades e emendas não caracterizam defeito quando estiverem dentro das especificações do fabricante e do projeto aprovado.',
+      },
+      {
+        title: 'Garantia e assistência',
+        text: 'A garantia cobre defeitos de fabricação e de instalação atribuíveis à CONTRATADA. Não cobre mau uso, excesso de peso, umidade, infiltração, calor, exposição solar, pragas, limpeza inadequada, intervenção de terceiros ou desgaste natural. Solicitações deverão ser registradas pelos canais de atendimento da Vertex Móveis.',
+      },
+      {
+        title: 'Desistência e rescisão',
+        text: 'Como os móveis são personalizados e fabricados para o CONTRATANTE, eventual desistência após a aprovação será apurada conforme a etapa executada, os materiais adquiridos, os serviços realizados e a legislação aplicável. As partes poderão formalizar por escrito a rescisão e os valores efetivamente devidos.',
+      },
+      {
+        title: 'Inadimplemento',
+        text: 'O atraso de pagamento poderá suspender a fabricação, a entrega, a instalação e a garantia de prazo enquanto permanecer a pendência. Encargos e medidas de cobrança somente serão aplicados nos limites previstos em lei e mediante comunicação ao CONTRATANTE.',
+      },
+      {
+        title: 'Comunicações e validade dos ajustes',
+        text: 'Acordos, aprovações e mudanças deverão constar no sistema, no projeto aprovado, em mensagem escrita ou em documento assinado. Conversas verbais que não forem confirmadas por escrito não alteram este contrato.',
+      },
+      {
+        title: 'Aceite eletrônico e proteção de dados',
+        text: 'O aceite eletrônico identifica a versão apresentada ao CONTRATANTE e registra data e evidências técnicas de integridade. Os dados pessoais serão utilizados para execução do contrato, atendimento, cobrança e cumprimento de obrigações legais, com acesso restrito às finalidades do serviço.',
+      },
+      {
+        title: 'Legislação e foro',
+        text: 'Este contrato será interpretado conforme a legislação brasileira, especialmente as normas de proteção ao consumidor quando aplicáveis. Fica preservado ao CONTRATANTE o direito de utilizar o foro legalmente competente para resolver eventual controvérsia.',
       },
     ],
   }

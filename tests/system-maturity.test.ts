@@ -39,6 +39,18 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
     installmentValue: '4000',
     client: { name: 'Cliente', street: 'Rua A', number: '10', city: 'Cotia', state: 'SP' },
     environments: [{ name: 'Cozinha' }],
+    sourceQuote: {
+      items: [{
+        environment: 'Cozinha',
+        environmentName: 'Cozinha',
+        description: 'Armário aéreo',
+        furnitureModel: 'Armário aéreo',
+        placement: 'Parede da pia',
+        material: 'MDF',
+        finish: 'Branco TX externo',
+        quantity: 2,
+      }],
+    },
     payments: [
       { installmentNumber: 1, type: 'INSTALLMENT', amount: '4000', dueDate: new Date('2026-08-10T12:00:00Z') },
       { installmentNumber: 2, type: 'INSTALLMENT', amount: '4000', dueDate: new Date('2026-09-10T12:00:00Z') },
@@ -57,10 +69,16 @@ test('snapshot do contrato congela valores, parcelas e partes', () => {
   assert.match(snapshot.payment.summary || '', /Entrada de .*2\.000,00 \+ 2x de .*4\.000,00 no cartão/)
   assert.equal(snapshot.payment.cardFeeAmount, 240)
   assert.equal(snapshot.client.address, 'Rua A, 10, Cotia - SP')
+  assert.deepEqual(snapshot.project.scope, [{
+    environment: 'Cozinha',
+    furniture: ['2x Armário aéreo - Parede da pia'],
+    specifications: ['MDF - Branco TX externo'],
+  }])
+  assert.equal(snapshot.terms.length, 16)
   assert.equal(parseProjectContractSnapshot(snapshot)?.project.name, 'Cozinha')
 })
 
-test('gera o contrato assinado como PDF de duas páginas', async () => {
+test('gera o novo contrato assinado como PDF de três páginas', async () => {
   const snapshot = buildProjectContractSnapshot({
     id: 'project-pdf',
     name: 'Cozinha e dormitório',
@@ -104,7 +122,7 @@ test('gera o contrato assinado como PDF de duas páginas', async () => {
     .match(/\/Type\s*\/Page\b/g)
 
   assert.equal(unsignedPdf.subarray(0, 4).toString(), '%PDF')
-  assert.equal(pages?.length, 2)
+  assert.equal(pages?.length, 3)
 })
 
 test('estoque só alerta quando existe mínimo configurado', () => {
