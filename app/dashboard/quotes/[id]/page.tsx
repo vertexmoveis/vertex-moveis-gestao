@@ -20,6 +20,7 @@ import {
   getQuotePaymentSummary,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
+  quoteDocumentLabel,
   safeQuoteCalculationMode,
   safeQuoteDifficulty,
   safeQuotePriceProfile,
@@ -448,6 +449,8 @@ export default function QuoteDetailPage() {
 
   const paymentSummary = getQuotePaymentSummary(quote)
   const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
+  const documentLabel = quoteDocumentLabel(quote)
+  const documentLabelLower = documentLabel.toLocaleLowerCase('pt-BR')
   const selectedComparisons = (quote.comparisonCandidates || []).filter((candidate) => comparisonQuoteIds.includes(candidate.id))
   const approvalQuoteCount = 1 + selectedComparisons.length
   const approvalActionLabel = quote.status === 'WAITING_APPROVAL'
@@ -468,7 +471,7 @@ export default function QuoteDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title={quote.title} subtitle={`${quote.client?.name || 'Cliente em orçamento'} • Código ${quoteDisplayCode(quote)}`} />
+      <Header title={quote.title} subtitle={`${quote.client?.name || `Cliente em ${documentLabelLower}`} • ${documentLabel} ${quoteDisplayCode(quote)}`} />
 
       <div className="flex-1 space-y-5 p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -477,17 +480,17 @@ export default function QuoteDetailPage() {
             Voltar para Orçamentos
           </Link>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void openEdit()} disabled={quoteLocked} title={quoteLocked ? 'Orçamento já transformado em projeto' : 'Editar orçamento'}>
+            <Button variant="outline" onClick={() => void openEdit()} disabled={quoteLocked} title={quoteLocked ? 'Pedido já vinculado ao projeto' : 'Editar orçamento'}>
               <Edit3 size={16} />
               Editar
             </Button>
-            <Button variant="danger" loading={saving} disabled={quoteLocked} onClick={deleteQuote} title={quoteLocked ? 'O orçamento vendido faz parte do histórico' : 'Excluir orçamento'}>
+            <Button variant="danger" loading={saving} disabled={quoteLocked} onClick={deleteQuote} title={quoteLocked ? 'O pedido faz parte do histórico da venda' : 'Excluir orçamento'}>
               <Trash2 size={16} />
               Excluir
             </Button>
             <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal?modelo=simples`, '_blank')}>
               <Printer size={16} />
-              Orçamento do cliente
+              {documentLabel} do cliente
             </Button>
             <Button variant="outline" onClick={() => window.open(`/api/quotes/${quote.id}/proposal`, '_blank')}>
               <FileText size={16} />
@@ -545,7 +548,7 @@ export default function QuoteDetailPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#121212]">
                   <GitBranch size={16} className="text-[#FF6B00]" />
-                  Opções deste orçamento
+                  Opções deste {documentLabelLower}
                 </div>
                 <p className="mt-1 text-xs text-[#777]">
                   As medidas e os ambientes são compartilhados; acabamento e preço ficam separados em cada opção.
@@ -556,7 +559,7 @@ export default function QuoteDetailPage() {
                 size="sm"
                 variant="outline"
                 disabled={!canCreateVariant}
-                title={sortedGroupVariants.length >= MAX_QUOTE_OPTIONS ? `Este orçamento já possui o limite de ${MAX_QUOTE_OPTIONS} opções` : quoteLocked ? 'Orçamento já transformado em projeto' : 'Criar outra opção com as mesmas medidas'}
+                title={sortedGroupVariants.length >= MAX_QUOTE_OPTIONS ? `Este ${documentLabelLower} já possui o limite de ${MAX_QUOTE_OPTIONS} opções` : quoteLocked ? 'Pedido já vinculado ao projeto' : 'Criar outra opção com as mesmas medidas'}
                 onClick={openVariantModal}
               >
                 <Plus size={15} />
@@ -605,7 +608,7 @@ export default function QuoteDetailPage() {
                 </span>
                 <div>
                   <p className="text-xs text-[#9E9E9E]">Cliente</p>
-                  <p className="font-semibold text-[#121212]">{quote.client?.name || 'Cliente em orçamento'}</p>
+                  <p className="font-semibold text-[#121212]">{quote.client?.name || `Cliente em ${documentLabelLower}`}</p>
                   {quote.client?.phone && <p className="text-sm text-[#777]">{quote.client.phone}</p>}
                 </div>
                 <div>
@@ -847,7 +850,7 @@ export default function QuoteDetailPage() {
             <div className="rounded-xl border border-[#E8E8E8] bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-[#F0F0F0] px-5 py-4">
                 <div>
-                  <h2 className="font-semibold text-[#121212]">Móveis do orçamento</h2>
+                  <h2 className="font-semibold text-[#121212]">Móveis do {documentLabelLower}</h2>
                   <p className="text-xs text-[#9E9E9E]">{quote.items.length} {quote.items.length === 1 ? 'item cadastrado' : 'itens cadastrados'}</p>
                 </div>
               </div>

@@ -29,6 +29,7 @@ import {
   parseQuoteAccessories,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
+  quoteDocumentLabel,
   safeQuoteCalculationMode,
   safeQuoteDifficulty,
   safeQuotePriceProfile,
@@ -82,6 +83,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!quote) return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
   if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) return forbidden()
 
+  const documentLabel = quoteDocumentLabel(quote)
+  const documentLabelLower = documentLabel.toLocaleLowerCase('pt-BR')
+
   const grouped = quote.items.reduce<Record<string, typeof quote.items>>((acc, item) => {
     const environmentName = item.environmentName || item.environment
     acc[environmentName] = acc[environmentName] || []
@@ -118,12 +122,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       quote: snapshot.quote,
       company,
       logoUrl,
+      documentLabel,
     })
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'Cache-Control': 'private, no-store',
-        'Content-Disposition': `inline; filename="${simpleQuotePdfFileName(snapshot.quote)}"`,
+        'Content-Disposition': `inline; filename="${simpleQuotePdfFileName(snapshot.quote, documentLabel)}"`,
         'Content-Length': String(pdf.byteLength),
         'Content-Type': 'application/pdf',
         'X-Content-Type-Options': 'nosniff',
@@ -136,7 +141,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Proposta ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)} - ${escapeHtml(quote.variationName)}</title>
+  <title>${escapeHtml(documentLabel)} ${escapeHtml(quoteDisplayCode(quote))} - ${escapeHtml(quote.title)} - ${escapeHtml(quote.variationName)}</title>
   <style nonce="${escapeHtml(nonce)}">
     :root { --ink: #151515; --muted: #6b6b6b; --line: #e7e7e7; --soft: #f7f7f5; --orange: #ff6500; --orange-soft: #fff3e9; }
     * { box-sizing: border-box; }
@@ -303,7 +308,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         </div>
       </div>
       <div class="proposal-meta">
-        <strong>Orçamento nº ${escapeHtml(quoteDisplayCode(quote))}</strong>
+        <strong>${escapeHtml(documentLabel)} nº ${escapeHtml(quoteDisplayCode(quote))}</strong>
         <h1>${escapeHtml(quote.title)}</h1>
         <div class="proposal-code"><strong>Opção: ${escapeHtml(quote.variationName)}</strong><br>Emitido em ${formatDate(quote.createdAt)}<br>Previsão estimada: ${formatDate(deliveryForecast)}<br>Válido até ${formatDate(quote.validUntil)}</div>
       </div>
@@ -332,7 +337,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     </section>
 
     <section class="section">
-      <div class="section-heading"><h2>Composição do orçamento</h2><span>Medidas em largura × altura</span></div>
+      <div class="section-heading"><h2>Composição do ${escapeHtml(documentLabelLower)}</h2><span>Medidas em largura × altura</span></div>
       ${environments.map(([environment, items]) => `
         <article class="environment">
           <div class="environment-header">
@@ -397,7 +402,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 <div class="installment"><span>Parcela ${installment.number}${installment.dueDate ? ` · ${formatDateOnly(installment.dueDate)}` : ''}</span><strong>${formatCurrency(installment.amount)}</strong></div>
               `).join('')}
             </div>
-            <p class="payment-note">${quote.firstInstallmentDate ? 'Os vencimentos seguem a data informada no orçamento.' : 'As datas de vencimento serão combinadas na contratação.'} A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
+            <p class="payment-note">${quote.firstInstallmentDate ? `Os vencimentos seguem a data informada no ${escapeHtml(documentLabelLower)}.` : 'As datas de vencimento serão combinadas na contratação.'} A última parcela pode ter ajuste de centavos para fechar o valor total.</p>
           </div>
         ` : ''}
       </div>
@@ -427,17 +432,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     <section class="signature" aria-label="Assinaturas">
       <div class="signature-line">Assinatura do cliente</div>
-      <div class="signature-line">${escapeHtml(seller)} · Responsável pelo orçamento</div>
+      <div class="signature-line">${escapeHtml(seller)} · Responsável pelo ${escapeHtml(documentLabelLower)}</div>
     </section>
 
     <footer class="footer">
       <div><strong>${escapeHtml(company.tradeName)}</strong><br>${companyAddress.map(escapeHtml).join('<br>')}</div>
-      <div>Orçamento ${escapeHtml(quoteDisplayCode(quote))}<br>Vendedor: ${escapeHtml(seller)}<br>Documento gerado pelo sistema Vertex</div>
+      <div>${escapeHtml(documentLabel)} ${escapeHtml(quoteDisplayCode(quote))}<br>Vendedor: ${escapeHtml(seller)}<br>Documento gerado pelo sistema Vertex</div>
     </footer>
   </main>
 
   <nav class="actions" aria-label="Ações da proposta">
-    <a href="${escapeHtml(simpleHref)}">Orçamento simples</a>
+    <a href="${escapeHtml(simpleHref)}">${escapeHtml(documentLabel)} simples</a>
     ${whatsAppHref ? `<a href="${whatsAppHref}" target="_blank" rel="noopener noreferrer">Enviar no WhatsApp</a>` : ''}
     <button id="print-commercial-proposal" class="primary" type="button">Salvar em PDF</button>
   </nav>

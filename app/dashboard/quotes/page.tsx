@@ -8,7 +8,7 @@ import { Header } from '@/components/layout/header'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import type { QuotePayload } from '@/components/quotes/quote-form'
-import { QUOTE_STATUS_BG, QUOTE_STATUS_LABELS, QUOTE_STATUSES, quoteDisplayCode, type QuoteStatus } from '@/lib/quotes'
+import { QUOTE_STATUS_BG, QUOTE_STATUS_LABELS, QUOTE_STATUSES, quoteDisplayCode, quoteDocumentLabel, type QuoteStatus } from '@/lib/quotes'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { QuoteData } from '@/types/quotes'
 
@@ -160,7 +160,7 @@ export default function QuotesPage() {
     <div className="flex h-full flex-col">
       <Header
         title="Orçamentos"
-        subtitle={`${pagination.total} orçamento${pagination.total !== 1 ? 's' : ''} na visão atual`}
+        subtitle={`${pagination.total} registro${pagination.total !== 1 ? 's' : ''} na visão atual`}
         action={{ label: 'Novo Orçamento', onClick: openCreateModal }}
       />
 
@@ -275,7 +275,7 @@ export default function QuotesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#F0F0F0] bg-[#FAFAFA]">
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Orçamento</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Orçamento / Pedido</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Cliente</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#9E9E9E]">Opções</th>
@@ -300,15 +300,17 @@ export default function QuotesPage() {
                     const maxTotal = Math.max(...variants.map((variant) => variant.total))
                     const minProfit = Math.min(...variants.map((variant) => variant.profit))
                     const maxProfit = Math.max(...variants.map((variant) => variant.profit))
+                    const documentLabel = quoteDocumentLabel(quote)
+                    const documentLabelLower = documentLabel.toLocaleLowerCase('pt-BR')
 
                     return (
                     <tr key={quote.groupId || quote.id} className="cursor-pointer transition-colors hover:bg-[#FAFAFA]" onClick={() => router.push(`/dashboard/quotes/${quote.id}`)}>
                       <td className="px-5 py-4">
                         <p className="font-semibold text-[#121212]">{quote.title}</p>
-                        <p className="text-xs text-[#9E9E9E]">Código {quoteDisplayCode(quote)} • Atualizado em {formatDate(quote.updatedAt)}</p>
+                        <p className="text-xs text-[#9E9E9E]">{documentLabel} {quoteDisplayCode(quote)} • Atualizado em {formatDate(quote.updatedAt)}</p>
                       </td>
                       <td className="px-4 py-4">
-                        <p className="font-medium text-[#121212]">{quote.client?.name || 'Cliente em orçamento'}</p>
+                        <p className="font-medium text-[#121212]">{quote.client?.name || `Cliente em ${documentLabelLower}`}</p>
                         {quote.client?.phone && <p className="text-xs text-[#9E9E9E]">{quote.client.phone}</p>}
                       </td>
                       <td className="px-4 py-4">
@@ -342,7 +344,7 @@ export default function QuotesPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            title="Abrir orçamento em PDF"
+                            title={`Abrir ${documentLabelLower} em PDF`}
                             onClick={(event) => {
                               event.stopPropagation()
                               window.open(`/api/quotes/${quote.id}/proposal?modelo=simples`, '_blank')
@@ -370,7 +372,7 @@ export default function QuotesPage() {
                 </table>
               </div>
               <div className="flex flex-col gap-3 border-t border-[#F0F0F0] px-5 py-3 text-xs text-[#777] sm:flex-row sm:items-center sm:justify-between">
-                <span>Mostrando {firstItem}-{lastItem} de {pagination.total} orçamentos</span>
+                <span>Mostrando {firstItem}-{lastItem} de {pagination.total} registros</span>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"

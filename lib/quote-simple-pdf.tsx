@@ -20,6 +20,7 @@ import {
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
   quoteVariationDisplayName,
+  type QuoteDocumentLabel,
 } from '@/lib/quotes'
 
 const colors = {
@@ -366,11 +367,14 @@ function SimpleQuotePdf({
   quote,
   company,
   logoUrl,
+  documentLabel = 'Orçamento',
 }: {
   quote: QuoteApprovalData
   company: CompanyProfileData
   logoUrl?: string
+  documentLabel?: QuoteDocumentLabel
 }) {
+  const documentLabelUpper = documentLabel.toLocaleUpperCase('pt-BR')
   const payment = getQuotePaymentDetails(quote)
   const companyAddress = formatCompanyAddress(company)
   const clientAddress = formatClientAddress(quote.client)
@@ -422,18 +426,18 @@ function SimpleQuotePdf({
   const denseDocument = quote.items.length + paymentRows.length > 15
   return (
     <Document
-      title={`Orçamento ${quoteDisplayCode(quote)} - ${quote.title}`}
+      title={`${documentLabel} ${quoteDisplayCode(quote)} - ${quote.title}`}
       author={company.tradeName}
-      subject="Orçamento de móveis planejados"
+      subject={`${documentLabel} de móveis planejados`}
       creator="Sistema Vertex"
     >
       <Page size="A4" style={[styles.page, denseDocument ? styles.pageDense : {}]}>
         <Text style={styles.continuationHeader} fixed>
-          ORÇAMENTO {quoteDisplayCode(quote)} | {quote.client.name}
+          {documentLabelUpper} {quoteDisplayCode(quote)} | {quote.client.name}
         </Text>
         <View style={styles.footerRule} fixed />
         <Text style={styles.footerLeft} fixed>
-          {company.tradeName} | Orçamento {quoteDisplayCode(quote)}
+          {company.tradeName} | {documentLabel} {quoteDisplayCode(quote)}
         </Text>
         <Text style={styles.footerRight} fixed>
           Documento gerado pelo sistema Vertex
@@ -460,7 +464,7 @@ function SimpleQuotePdf({
 
         <View style={styles.titleBar} wrap={false}>
           <Text style={styles.titleBarSpacer}></Text>
-          <Text style={styles.titleBarMain}>ORÇAMENTO Nº {quoteDisplayCode(quote)}</Text>
+          <Text style={styles.titleBarMain}>{documentLabelUpper} Nº {quoteDisplayCode(quote)}</Text>
           <Text style={styles.titleBarDate}>{formatDateOnly(quote.createdAt)}</Text>
         </View>
         <View style={styles.deliveryRow} wrap={false}>
@@ -616,11 +620,12 @@ export async function renderSimpleQuotePdf(input: {
   quote: QuoteApprovalData
   company: CompanyProfileData
   logoUrl?: string
+  documentLabel?: QuoteDocumentLabel
 }) {
   return renderToBuffer(<SimpleQuotePdf {...input} />)
 }
 
-export function simpleQuotePdfFileName(quote: QuoteApprovalData) {
+export function simpleQuotePdfFileName(quote: QuoteApprovalData, documentLabel: QuoteDocumentLabel = 'Orçamento') {
   const title = `${quoteDisplayCode(quote)}-${quoteVariationDisplayName(quote)}`
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -628,5 +633,6 @@ export function simpleQuotePdfFileName(quote: QuoteApprovalData) {
     .replace(/^-|-$/g, '')
     .toLowerCase()
 
-  return `orcamento-${title || quote.id}.pdf`
+  const prefix = documentLabel === 'Pedido' ? 'pedido' : 'orcamento'
+  return `${prefix}-${title || quote.id}.pdf`
 }

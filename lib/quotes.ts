@@ -455,6 +455,18 @@ export function quoteDisplayCode(quote: { id: string; number?: number | null }) 
   return quote.number ? String(quote.number).padStart(4, '0') : quote.id.slice(-6).toUpperCase()
 }
 
+export type QuoteDocumentLabel = 'Orçamento' | 'Pedido'
+
+export function quoteDocumentLabel(quote: {
+  status?: string | null
+  convertedProjectId?: string | null
+  convertedProject?: unknown
+}): QuoteDocumentLabel {
+  return quote.status === 'SOLD' || Boolean(quote.convertedProjectId) || Boolean(quote.convertedProject)
+    ? 'Pedido'
+    : 'Orçamento'
+}
+
 export function quoteVariationDisplayName(quote: {
   variationType?: string | null
   variationName?: string | null
@@ -557,12 +569,13 @@ export function buildQuoteSnapshot(quote: Quote & { items: QuoteItem[]; client?:
   })
 }
 
-export function buildQuoteWhatsAppMessage(quote: { title: string; total: import('@/lib/money').NumericValue; validUntil: Date | string | null; paymentMethod?: string | null; cardInstallments?: number | null; cardDownPayment?: import('@/lib/money').NumericValue; client?: { name: string } }) {
+export function buildQuoteWhatsAppMessage(quote: { title: string; total: import('@/lib/money').NumericValue; validUntil: Date | string | null; paymentMethod?: string | null; cardInstallments?: number | null; cardDownPayment?: import('@/lib/money').NumericValue; status?: string | null; convertedProjectId?: string | null; convertedProject?: unknown; client?: { name: string } }) {
   const validUntil = quote.validUntil ? new Intl.DateTimeFormat('pt-BR').format(new Date(quote.validUntil)) : null
+  const documentLabel = quoteDocumentLabel(quote).toLocaleLowerCase('pt-BR')
   return [
     `Olá, ${quote.client?.name || 'tudo bem'}!`,
     '',
-    `Segue o orçamento "${quote.title}" da Vertex Móveis.`,
+    `Segue o ${documentLabel} "${quote.title}" da Vertex Móveis.`,
     `Valor total: ${formatQuoteCurrency(quote.total)}.`,
     `Pagamento: ${getQuotePaymentSummary(quote)}.`,
     validUntil ? `Validade: ${validUntil}.` : '',

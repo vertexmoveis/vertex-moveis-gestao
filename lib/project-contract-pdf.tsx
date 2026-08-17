@@ -485,7 +485,7 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
     <Document title={`Contrato ${snapshot.project.name}`} author={snapshot.company.tradeName}>
       <Page size={quotePageSize} style={[styles.page, styles.quotePage]}>
         <Text style={styles.quoteContinuation} fixed>
-          ORÇAMENTO {quoteCode} | {snapshot.client.name}
+          PEDIDO {quoteCode} | {snapshot.client.name}
         </Text>
         <View style={styles.quoteCompany} wrap={false}>
           <View style={styles.quoteBrand}>
@@ -507,7 +507,7 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
 
         <View style={styles.quoteTitleBar} wrap={false}>
           <Text style={styles.quoteTitleSpacer}></Text>
-          <Text style={styles.quoteTitleMain}>ORÇAMENTO Nº {quoteCode}</Text>
+          <Text style={styles.quoteTitleMain}>PEDIDO Nº {quoteCode}</Text>
           <Text style={styles.quoteTitleDate}>{dateOnly(snapshot.generatedAt)}</Text>
         </View>
         <View style={styles.quoteDeliveryRow} wrap={false}>
@@ -653,7 +653,7 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
 
         <Text style={styles.quoteNotes} wrap={false}>
           <Text style={styles.quoteBold}>OBSERVAÇÕES: </Text>
-          Este orçamento, o projeto técnico aprovado e seus anexos integram o contrato. As cláusulas e o aceite das partes estão nas páginas seguintes.
+          Este pedido, o projeto técnico aprovado e seus anexos integram o contrato. As cláusulas e o aceite das partes estão nas páginas seguintes.
         </Text>
 
         <ContractFooter companyName={snapshot.company.tradeName} authenticityCode={authenticityCode} />
