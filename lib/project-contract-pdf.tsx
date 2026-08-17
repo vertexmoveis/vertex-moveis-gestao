@@ -57,12 +57,20 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   quotePage: {
-    paddingTop: 16,
+    paddingTop: 18,
     paddingRight: 28,
-    paddingBottom: 36,
+    paddingBottom: 44,
     paddingLeft: 28,
     fontSize: 9.2,
     lineHeight: 1.18,
+  },
+  quoteTopLine: {
+    height: 5,
+    backgroundColor: colors.orange,
+    marginTop: -18,
+    marginRight: -28,
+    marginBottom: 14,
+    marginLeft: -28,
   },
   quoteCompany: {
     flexDirection: 'row',
@@ -473,9 +481,6 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
       items: items.map((item) => ({ ...item, itemNumber: ++itemNumber })),
     }
   })
-  const quotePageSize = itemNumber <= 4 && paymentRows.length <= 5
-    ? { width: 595.28, height: 680 }
-    : 'A4'
   const primaryTermCount = 12
   const primaryTerms = snapshot.terms.slice(0, primaryTermCount)
   const additionalTerms = snapshot.terms.slice(primaryTermCount)
@@ -483,7 +488,8 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
 
   return (
     <Document title={`Contrato ${snapshot.project.name}`} author={snapshot.company.tradeName}>
-      <Page size={quotePageSize} style={[styles.page, styles.quotePage]}>
+      <Page size="A4" style={[styles.page, styles.quotePage]}>
+        <View style={styles.quoteTopLine} />
         <Text style={styles.quoteContinuation} fixed>
           PEDIDO {quoteCode} | {snapshot.client.name}
         </Text>

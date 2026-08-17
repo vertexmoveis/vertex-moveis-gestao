@@ -141,9 +141,17 @@ test('gera o novo contrato assinado como PDF de três páginas', async () => {
   const pages = Buffer.from(unsignedPdf)
     .toString('latin1')
     .match(/\/Type\s*\/Page\b/g)
+  const pageSizes = [...Buffer.from(unsignedPdf)
+    .toString('latin1')
+    .matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g)]
 
   assert.equal(unsignedPdf.subarray(0, 4).toString(), '%PDF')
   assert.equal(pages?.length, 3)
+  assert.equal(pageSizes.length, 3)
+  assert.ok(pageSizes.every(([, width, height]) => (
+    Math.abs(Number(width) - 595.28) < 0.1
+    && Math.abs(Number(height) - 841.89) < 0.1
+  )))
 })
 
 test('estoque só alerta quando existe mínimo configurado', () => {
