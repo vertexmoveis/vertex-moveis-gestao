@@ -57,35 +57,35 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   quotePage: {
-    paddingTop: 18,
+    paddingTop: 14,
     paddingRight: 28,
-    paddingBottom: 44,
+    paddingBottom: 28,
     paddingLeft: 28,
     fontSize: 9.2,
-    lineHeight: 1.18,
+    lineHeight: 1.08,
   },
   quoteTopLine: {
     height: 5,
     backgroundColor: colors.orange,
-    marginTop: -18,
+    marginTop: -14,
     marginRight: -28,
-    marginBottom: 14,
+    marginBottom: 8,
     marginLeft: -28,
   },
   quoteCompany: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 18,
+    gap: 14,
     borderWidth: 1,
     borderColor: colors.line,
-    padding: 7,
+    padding: 5,
   },
   quoteBrand: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, width: '66%' },
-  quoteLogo: { width: 40, height: 29, objectFit: 'contain' },
-  quoteCompanyName: { fontFamily: 'Helvetica-Bold', fontSize: 15, textTransform: 'uppercase' },
-  quoteCompanyLegal: { marginTop: 2, color: colors.muted, fontSize: 9 },
-  quoteCompanyLine: { marginTop: 1, color: '#333333', fontSize: 9 },
-  quoteCompanyContact: { width: '31%', textAlign: 'right', fontSize: 9, lineHeight: 1.3 },
+  quoteLogo: { width: 36, height: 26, objectFit: 'contain' },
+  quoteCompanyName: { fontFamily: 'Helvetica-Bold', fontSize: 14, textTransform: 'uppercase' },
+  quoteCompanyLegal: { marginTop: 1, color: colors.muted, fontSize: 8.5 },
+  quoteCompanyLine: { marginTop: 0.5, color: '#333333', fontSize: 8.5 },
+  quoteCompanyContact: { width: '31%', textAlign: 'right', fontSize: 8.5, lineHeight: 1.18 },
   quoteBold: { fontFamily: 'Helvetica-Bold' },
   quoteTitleBar: {
     marginTop: 4,
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.soft,
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 7,
   },
   quoteTitleMain: { width: '60%', fontFamily: 'Helvetica-Bold', fontSize: 12, textAlign: 'center' },
@@ -106,19 +106,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.lighter,
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 6,
     fontFamily: 'Helvetica-Bold',
   },
   quoteOption: { width: '30%' },
   quoteForecast: { width: '70%' },
   quoteSectionTitle: {
-    marginTop: 4,
+    marginTop: 3,
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: colors.line,
     backgroundColor: colors.soft,
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 6,
     fontFamily: 'Helvetica-Bold',
     fontSize: 9.2,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: colors.line,
-    paddingVertical: 2.6,
+    paddingVertical: 1.6,
     paddingHorizontal: 5,
   },
   quoteClientLabel: { width: '16%', backgroundColor: '#FAFAFA', fontFamily: 'Helvetica-Bold' },
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: colors.line,
-    paddingVertical: 2.6,
+    paddingVertical: 1.6,
     paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
     fontSize: 8.2,
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     borderColor: colors.line,
     backgroundColor: colors.soft,
-    paddingVertical: 2.6,
+    paddingVertical: 1.6,
     paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
   },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: colors.line,
-    paddingVertical: 2.6,
+    paddingVertical: 1.6,
     paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
   },
@@ -185,15 +185,17 @@ const styles = StyleSheet.create({
   quotePaymentObservation: { width: '25%' },
   quotePaymentPairDue: { width: '24%' },
   quotePaymentPairAmount: { width: '26%', textAlign: 'right' },
+  quotePaymentTripleDue: { width: '20%' },
+  quotePaymentTripleAmount: { width: '13.333%', textAlign: 'right' },
   quotePaymentSummary: {
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: colors.line,
     backgroundColor: colors.lighter,
-    paddingVertical: 2.6,
+    paddingVertical: 1.6,
     paddingHorizontal: 5,
   },
-  quoteNotes: { marginTop: 4, borderWidth: 1, borderColor: colors.line, padding: 4, lineHeight: 1.2 },
+  quoteNotes: { marginTop: 3, borderWidth: 1, borderColor: colors.line, padding: 3, lineHeight: 1.1 },
   quoteContinuation: {
     position: 'absolute',
     right: 28,
@@ -461,6 +463,14 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
     { length: Math.ceil(paymentRows.length / 2) },
     (_, index) => [paymentRows[index * 2], paymentRows[(index * 2) + 1]],
   )
+  const tripledPayments = Array.from(
+    { length: Math.ceil(paymentRows.length / 3) },
+    (_, index) => [
+      paymentRows[index * 3],
+      paymentRows[(index * 3) + 1],
+      paymentRows[(index * 3) + 2],
+    ],
+  )
   let itemNumber = 0
   const quoteGroups = scope.map((entry) => {
     const items = entry.items?.length
@@ -619,7 +629,29 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
 
         <View wrap={false}>
           <Text style={styles.quoteSectionTitle}>Dados do pagamento</Text>
-          {paymentRows.length > 5 ? (
+          {paymentRows.length > 8 ? (
+            <>
+              <Text style={styles.quotePaymentSummary}>Forma de pagamento: {snapshot.payment.methodLabel || 'Conforme combinado'}</Text>
+              <View style={styles.quoteItemHeader}>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleAmount]}>Valor</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleAmount]}>Valor</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleDue]}>Vencimento</Text>
+                <Text style={[styles.quoteHeaderCell, styles.quotePaymentTripleAmount]}>Valor</Text>
+              </View>
+              {tripledPayments.map(([left, middle, right]) => (
+                <View key={`${left.label}-${left.dueDate}`} style={styles.quoteRow} wrap={false}>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleDue]}>{left.label}: {dateOnly(left.dueDate)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleAmount]}>{currency(left.amount)}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleDue]}>{middle ? `${middle.label}: ${dateOnly(middle.dueDate)}` : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleAmount]}>{middle ? currency(middle.amount) : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleDue]}>{right ? `${right.label}: ${dateOnly(right.dueDate)}` : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quotePaymentTripleAmount]}>{right ? currency(right.amount) : ''}</Text>
+                </View>
+              ))}
+            </>
+          ) : paymentRows.length > 5 ? (
             <>
               <Text style={styles.quotePaymentSummary}>Forma de pagamento: {snapshot.payment.methodLabel || 'Conforme combinado'}</Text>
               <View style={styles.quoteItemHeader}>

@@ -154,6 +154,61 @@ test('gera o novo contrato assinado como PDF de três páginas', async () => {
   )))
 })
 
+test('mantém pedido extenso com doze parcelas em três páginas', async () => {
+  const items = Array.from({ length: 14 }, (_, index) => ({
+    environment: index < 8 ? 'Cozinha' : 'Dormitório',
+    environmentName: index < 8 ? 'Cozinha' : 'Dormitório',
+    description: index < 8 ? `Armário planejado ${index + 1}` : `Módulo planejado ${index - 7}`,
+    furnitureModel: index < 8 ? `Armário planejado ${index + 1}` : `Módulo planejado ${index - 7}`,
+    placement: index % 2 === 0 ? 'Parede principal' : 'Parede lateral',
+    material: 'MDF',
+    finish: index % 2 === 0 ? 'Branco TX externo' : 'Madeirado externo - branco interno',
+    quantity: 1,
+    width: 80,
+    height: 70,
+    unitPrice: 1500,
+    total: 1500,
+  }))
+  const payments = Array.from({ length: 12 }, (_, index) => ({
+    installmentNumber: index + 1,
+    type: 'INSTALLMENT',
+    amount: 1750,
+    dueDate: new Date(Date.UTC(2026, 7 + index, 1, 12)),
+  }))
+  const snapshot = buildProjectContractSnapshot({
+    id: 'project-long-pdf',
+    name: 'Cozinha planejada',
+    room: 'Cozinha',
+    value: 21000,
+    deliveryBusinessDays: 30,
+    paymentMethod: 'CARD',
+    downPayment: 0,
+    installmentCount: 12,
+    installmentValue: 1750,
+    firstInstallmentDate: new Date('2026-08-01T12:00:00Z'),
+    client: { name: 'Cliente de teste', city: 'Cotia', state: 'SP' },
+    environments: [{ name: 'Cozinha' }, { name: 'Dormitório' }],
+    sourceQuote: {
+      number: 17,
+      variationName: 'Branco TX externo',
+      items,
+    },
+    payments,
+  }, { tradeName: 'Vertex Móveis', city: 'Cotia', state: 'SP' })
+
+  const pdf = await renderProjectContractPdf({
+    id: 'contract-long-test',
+    version: 2,
+    snapshot,
+  })
+  const pages = Buffer.from(pdf)
+    .toString('latin1')
+    .match(/\/Type\s*\/Page\b/g)
+
+  assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
+  assert.equal(pages?.length, 3)
+})
+
 test('estoque só alerta quando existe mínimo configurado', () => {
   assert.equal(isLowStock(2, 5), true)
   assert.equal(stockShortage(2, 5), 3)
