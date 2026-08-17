@@ -185,7 +185,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         orderBy: { position: 'asc' },
       },
       environments: {
-        select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true, createdAt: true, updatedAt: true },
+        select: { id: true, name: true, status: true, position: true, notes: true, mdfSpecifications: true, startedAt: true, completedAt: true, createdAt: true, updatedAt: true },
         orderBy: { position: 'asc' },
       },
       materials: auth.user.role === 'ADMIN'

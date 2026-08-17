@@ -17,6 +17,7 @@ import { ProjectPortalCard } from '@/components/projects/project-portal-card'
 import { ProjectContractsCard } from '@/components/projects/project-contracts-card'
 import { ProjectWarrantyCard } from '@/components/projects/project-warranty-card'
 import { ProjectProductionControl } from '@/components/projects/project-production-control'
+import { ProjectMdfSpecifications } from '@/components/projects/project-mdf-specifications'
 import { ProjectClientCard } from '@/components/projects/project-client-card'
 import { ProjectPhaseWorkspace } from '@/components/projects/project-phase-workspace'
 import { buildDeliverySchedulingWhatsAppMessage } from '@/lib/project-whatsapp'
@@ -39,6 +40,7 @@ import {
   PROJECT_ENVIRONMENT_STATUS_LABELS,
   PRODUCTION_STAGE_LABELS,
   type ProductionStage,
+  type ProjectEnvironmentData,
   type ProjectEnvironmentStatus,
   type ProjectStatus,
 } from '@/types'
@@ -94,15 +96,7 @@ interface ProjectDetail {
   contractWaivedBy: { id: string; name: string } | null
   contractRevisionRequiredAt: string | null
   contractRevisionChanges: string[] | null
-  environments: {
-    id: string
-    name: string
-    status: ProjectEnvironmentStatus
-    position: number
-    notes: string | null
-    startedAt: string | null
-    completedAt: string | null
-  }[]
+  environments: ProjectEnvironmentData[]
   environmentSummary: { total: number; completed: number }
   createdAt: string
   updatedAt: string
@@ -1140,6 +1134,19 @@ export default function ProjectDetailPage() {
                 )}
               </CardBody>
             </Card> : null}
+
+            {(selectedPhase === 'PREPARATION' || selectedPhase === 'PRODUCTION') ? (
+              <ProjectMdfSpecifications
+                projectId={project.id}
+                environments={environments}
+                onEnvironmentChange={(updatedEnvironment) => setProject((current) => current ? {
+                  ...current,
+                  environments: current.environments.map((environment) => (
+                    environment.id === updatedEnvironment.id ? updatedEnvironment : environment
+                  )),
+                } : current)}
+              />
+            ) : null}
 
             {selectedPhase === 'PRODUCTION' ? <ProjectMaterialsCard
               projectId={project.id}

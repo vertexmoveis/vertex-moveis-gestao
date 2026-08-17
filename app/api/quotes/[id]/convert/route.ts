@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { buildPaymentSchedule } from '@/lib/payments'
@@ -13,6 +14,7 @@ import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUn
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { automaticReservationQuantity } from '@/lib/inventory-reservations'
+import { buildProjectMdfSpecificationsFromQuoteItems } from '@/lib/project-mdf-specifications'
 
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
@@ -83,6 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           .filter((item) => (item.environmentName || item.environment) === environmentName)
           .map((item) => `${item.description}${item.placement ? ` — ${item.placement}` : ''}`)
           .join('\n'),
+      ]))
+      const environmentMdfSpecifications = new Map(environmentNames.map((environmentName) => [
+        environmentName,
+        buildProjectMdfSpecificationsFromQuoteItems(
+          quote.items.filter((item) => (item.environmentName || item.environment) === environmentName),
+        ),
       ]))
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
       const quoteTotal = numberValue(quote.total)
@@ -171,6 +179,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   position: index + 1,
                   status: 'PENDING',
                   notes: environmentNotes.get(name) || null,
+                  mdfSpecifications: (environmentMdfSpecifications.get(name) || []) as Prisma.InputJsonValue,
                 })),
               }
             : undefined,

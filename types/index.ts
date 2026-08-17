@@ -117,10 +117,21 @@ export interface ProjectEnvironmentData {
   status: ProjectEnvironmentStatus
   position: number
   notes: string | null
+  mdfSpecifications: ProjectMdfSpecification[]
   startedAt: string | null
   completedAt: string | null
   createdAt?: string
   updatedAt?: string
+}
+
+export type ProjectMdfSide = 'EXTERNAL' | 'INTERNAL'
+
+export interface ProjectMdfSpecification {
+  id: string
+  application: string
+  side: ProjectMdfSide
+  mdf: string
+  notes: string | null
 }
 
 export interface ClientData {

@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { ProjectEnvironmentData, ProjectEnvironmentStatus } from '@/types'
+import { normalizeProjectMdfSpecifications } from '@/lib/project-mdf-specifications'
 
 export const PROJECT_ENVIRONMENT_STATUSES: ProjectEnvironmentStatus[] = [
   'PENDING',
@@ -23,6 +24,7 @@ type RawEnvironment = {
   status: string
   position: number
   notes: string | null
+  mdfSpecifications?: Prisma.JsonValue
   startedAt: Date | null
   completedAt: Date | null
   createdAt?: Date
@@ -61,6 +63,7 @@ export function serializeEnvironment(environment: RawEnvironment): ProjectEnviro
     status: environment.status as ProjectEnvironmentStatus,
     position: environment.position,
     notes: environment.notes,
+    mdfSpecifications: normalizeProjectMdfSpecifications(environment.mdfSpecifications),
     startedAt: environment.startedAt?.toISOString() || null,
     completedAt: environment.completedAt?.toISOString() || null,
     createdAt: environment.createdAt?.toISOString(),
