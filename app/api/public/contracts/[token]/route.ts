@@ -89,13 +89,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         data: { viewedAt },
       })
       if (updated.count === 1) {
-        await tx.timelineEvent.create({
-          data: {
-            projectId: contract.projectId,
-            event: 'Contrato visualizado',
-            description: `O cliente abriu o contrato versão ${contract.version}.`,
-          },
-        })
+        if (contract.projectId) {
+          await tx.timelineEvent.create({
+            data: {
+              projectId: contract.projectId,
+              event: 'Contrato visualizado',
+              description: `O cliente abriu o contrato versão ${contract.version}.`,
+            },
+          })
+        } else if (contract.createdById) {
+          await tx.activityLog.create({
+            data: {
+              userId: contract.createdById,
+              action: 'Contrato avulso visualizado',
+              details: contract.standaloneTitle || `Contrato ${contract.id}`,
+            },
+          })
+        }
       }
     })
   }
@@ -162,17 +172,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return { status: 409, error: 'Este contrato já recebeu uma resposta.' }
     }
 
-    await tx.timelineEvent.create({
-      data: {
-        projectId: contract.projectId,
-        event: 'Contrato aceito',
-        description: `Contrato versão ${contract.version} aceito por ${parsed.data.signatoryName}.`,
-      },
-    })
-    await tx.project.update({
-      where: { id: contract.projectId },
-      data: { contractRevisionRequiredAt: null, contractRevisionChanges: Prisma.DbNull },
-    })
+    if (contract.projectId) {
+      await tx.timelineEvent.create({
+        data: {
+          projectId: contract.projectId,
+          event: 'Contrato aceito',
+          description: `Contrato versão ${contract.version} aceito por ${parsed.data.signatoryName}.`,
+        },
+      })
+      await tx.project.update({
+        where: { id: contract.projectId },
+        data: { contractRevisionRequiredAt: null, contractRevisionChanges: Prisma.DbNull },
+      })
+    } else if (contract.createdById) {
+      await tx.activityLog.create({
+        data: {
+          userId: contract.createdById,
+          action: 'Contrato avulso aceito',
+          details: `${contract.standaloneTitle || contract.id} · ${parsed.data.signatoryName}`,
+        },
+      })
+    }
     return { status: 200, signedAt: now.toISOString() }
   })
 

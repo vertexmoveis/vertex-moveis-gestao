@@ -9,11 +9,19 @@ import {
   CheckCircle2,
   ExternalLink,
   FileSignature,
+  FileText,
   MessageCircle,
+  Plus,
   Search,
+  Send,
+  Trash2,
 } from 'lucide-react'
+import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import { Header } from '@/components/layout/header'
+import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
+import { Input, Select, Textarea } from '@/components/ui/input'
+import { Modal } from '@/components/ui/modal'
 import {
   CONTRACT_CENTER_STATUS_LABELS,
   type ContractCenterStatus,
@@ -27,6 +35,7 @@ type ContractRow = {
   clientPhone: string | null
   managerName: string
   status: ContractCenterStatus
+  standalone?: boolean
   contract: null | {
     id: string
     version: number
@@ -41,6 +50,8 @@ type ContractRow = {
 
 type ContractsPayload = {
   items: ContractRow[]
+  standaloneItems: ContractRow[]
+  standaloneTotal: number
   total: number
   page: number
   totalPages: number
@@ -48,7 +59,7 @@ type ContractsPayload = {
 }
 
 const emptyPayload: ContractsPayload = {
-  items: [], total: 0, page: 1, totalPages: 1,
+  items: [], standaloneItems: [], standaloneTotal: 0, total: 0, page: 1, totalPages: 1,
   counts: { all: 0, attention: 0, waiting: 0, signed: 0, legacy: 0 },
 }
 
@@ -56,9 +67,28 @@ function whatsappUrl(row: ContractRow) {
   const digits = (row.clientPhone || '').replace(/\D/g, '')
   const phone = digits.startsWith('55') ? digits : `55${digits}`
   const url = row.contract?.publicUrl || ''
-  const message = `Olá, ${row.clientName}! O contrato do projeto ${row.name} está aguardando sua aprovação. Você conseguiu conferir? Se tiver alguma dúvida ou precisar de ajuste, me avise. ${url}`
+  const subject = row.standalone ? `contrato de ${row.name}` : `contrato do projeto ${row.name}`
+  const message = `Olá, ${row.clientName}! O ${subject} está aguardando sua aprovação. Você conseguiu conferir? Se tiver alguma dúvida ou precisar de ajuste, me avise. ${url}`
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
+
+function localDateValue(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
+const initialStandaloneForm = () => ({
+  clientId: '',
+  title: '',
+  description: '',
+  value: '',
+  paymentMethod: 'PIX',
+  downPayment: '0',
+  downPaymentDate: localDateValue(),
+  installmentCount: '1',
+  firstInstallmentDate: localDateValue(),
+  deliveryBusinessDays: '30',
+})
 
 function statusTone(status: ContractCenterStatus) {
   if (status === 'SIGNED') return 'bg-emerald-50 text-emerald-700'
@@ -81,6 +111,9 @@ export default function ContractsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState(initialStandaloneForm)
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
@@ -116,7 +149,7 @@ export default function ContractsPage() {
     setBusyId(row.id)
     const popup = window.open(whatsappUrl(row), '_blank', 'noopener,noreferrer')
     try {
-      const response = await fetch(`/api/projects/${row.id}/contracts`, {
+      const response = await fetch(row.standalone ? '/api/contracts' : `/api/projects/${row.id}/contracts`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contractId: row.contract.id }),
@@ -132,9 +165,51 @@ export default function ContractsPage() {
     }
   }
 
+  const createStandalone = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setCreating(true)
+    setError('')
+    try {
+      const response = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível criar o contrato avulso.')
+      setCreateOpen(false)
+      setForm(initialStandaloneForm())
+      await load()
+      if (result?.publicUrl) window.open(result.publicUrl, '_blank', 'noopener,noreferrer')
+    } catch (requestError) {
+      setError((requestError as Error).message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const cancelStandalone = async (row: ContractRow) => {
+    if (!window.confirm(`Cancelar o contrato avulso "${row.name}"?`)) return
+    setBusyId(row.id)
+    try {
+      const response = await fetch(`/api/contracts?contractId=${encodeURIComponent(row.id)}`, { method: 'DELETE' })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível cancelar o contrato.')
+      await load()
+    } catch (requestError) {
+      setError((requestError as Error).message)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <Header title="Contratos" subtitle="Acompanhe envios, visualizações, assinaturas e cobranças" />
+      <Header
+        title="Contratos"
+        subtitle="Acompanhe envios, visualizações, assinaturas e cobranças"
+        action={{ label: 'Novo contrato avulso', onClick: () => setCreateOpen(true) }}
+      />
       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="Precisam de atenção" value={payload.counts.attention} icon={AlertTriangle} tone="amber" />
@@ -143,8 +218,63 @@ export default function ContractsPage() {
           <Metric label="Projetos antigos" value={payload.counts.legacy} icon={FileSignature} tone="gray" />
         </div>
 
+        {payload.standaloneItems.length > 0 ? (
+          <Card>
+            <CardBody className="p-0">
+              <div className="flex items-center justify-between border-b border-[#ECECEC] px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#121212]">Contratos avulsos</h2>
+                  <p className="mt-0.5 text-xs text-[#888]">Criados sem orçamento e sem projeto</p>
+                </div>
+                <span className="rounded-full bg-[#F5F5F5] px-2.5 py-1 text-xs text-[#666]">{payload.standaloneTotal}</span>
+              </div>
+              <div className="divide-y divide-[#ECECEC]">
+                {payload.standaloneItems.map((row) => {
+                  const canRemind = reminderIsAvailable(row)
+                  return (
+                    <div key={row.id} className="grid gap-3 px-4 py-4 hover:bg-[#FAFAFA] md:grid-cols-[minmax(190px,1.4fr)_minmax(130px,1fr)_150px_auto] md:items-center">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#121212]">{row.name}</p>
+                        <p className="mt-1 truncate text-xs text-[#777]">{row.clientName} · {row.managerName}</p>
+                      </div>
+                      <div>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.status)}`}>{CONTRACT_CENTER_STATUS_LABELS[row.status]}</span>
+                        <p className="mt-1 text-[11px] text-[#999]">Contrato avulso</p>
+                      </div>
+                      <div className="text-xs text-[#777]">
+                        {row.contract?.signedAt
+                          ? `Assinado em ${formatDate(row.contract.signedAt)}`
+                          : row.contract?.viewedAt
+                            ? `Visto em ${formatDate(row.contract.viewedAt)}`
+                            : `Enviado em ${formatDate(row.contract?.sentAt || null)}`}
+                        {row.contract?.reminderCount ? <p className="mt-1">{row.contract.reminderCount} lembrete{row.contract.reminderCount !== 1 ? 's' : ''}</p> : null}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <a href={`/api/contracts/${row.id}/document`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#D9D9D9] px-3 text-xs font-semibold hover:bg-[#F5F5F5]"><FileText size={14} /> PDF</a>
+                        {canRemind ? (
+                          <button type="button" disabled={busyId === row.id} onClick={() => void remind(row)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#FF6B00] px-3 text-xs font-semibold text-[#FF6B00] hover:bg-orange-50 disabled:opacity-50"><Send size={14} /> Lembrar</button>
+                        ) : null}
+                        {row.contract?.publicUrl ? (
+                          <a href={row.contract.publicUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#121212] px-3 text-xs font-semibold text-white hover:bg-[#292929]">Abrir <ExternalLink size={13} /></a>
+                        ) : null}
+                        {row.status !== 'SIGNED' ? (
+                          <button type="button" title="Cancelar contrato" aria-label="Cancelar contrato" disabled={busyId === row.id} onClick={() => void cancelStandalone(row)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={14} /></button>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardBody>
+          </Card>
+        ) : null}
+
         <Card>
           <CardBody className="p-0">
+            <div className="border-b border-[#ECECEC] px-4 py-3">
+              <h2 className="text-sm font-semibold text-[#121212]">Contratos dos projetos</h2>
+              <p className="mt-0.5 text-xs text-[#888]">Gerados a partir dos projetos vendidos</p>
+            </div>
             <div className="flex flex-col gap-3 border-b border-[#ECECEC] p-4 sm:flex-row sm:items-center">
               <label className="relative min-w-0 flex-1">
                 <Search size={16} className="absolute left-3 top-3 text-[#999]" />
@@ -227,6 +357,123 @@ export default function ContractsPage() {
           </CardBody>
         </Card>
       </div>
+
+      <Modal open={createOpen} onClose={() => !creating && setCreateOpen(false)} title="Novo contrato avulso" size="lg">
+        <form onSubmit={createStandalone} className="space-y-5">
+          <div className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-xs leading-5 text-[#8A3A00]">
+            Este contrato será criado diretamente para o cliente, sem orçamento e sem projeto. Ele não aparecerá na Produção.
+          </div>
+
+          <ClientSearchSelect
+            value={form.clientId}
+            onChange={(clientId) => setForm((current) => ({ ...current, clientId }))}
+            label="Cliente *"
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Serviço contratado *"
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Ex.: Móveis planejados da cozinha"
+              required
+            />
+            <Input
+              label="Valor total (R$) *"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.value}
+              onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))}
+              required
+            />
+          </div>
+
+          <Textarea
+            label="Descrição do que está sendo contratado *"
+            value={form.description}
+            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+            placeholder="Descreva os móveis, ambientes, materiais, acabamentos e o que está incluído."
+            rows={4}
+            required
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              label="Forma de pagamento *"
+              value={form.paymentMethod}
+              onChange={(event) => setForm((current) => ({
+                ...current,
+                paymentMethod: event.target.value,
+                installmentCount: event.target.value === 'PIX' ? '1' : current.installmentCount,
+                downPayment: event.target.value === 'PIX' ? '0' : current.downPayment,
+              }))}
+              options={[
+                { value: 'PIX', label: 'Pix' },
+                { value: 'CARD', label: 'Cartão parcelado' },
+              ]}
+            />
+            <Input
+              label="Prazo de entrega (dias úteis) *"
+              type="number"
+              min="1"
+              max="365"
+              value={form.deliveryBusinessDays}
+              onChange={(event) => setForm((current) => ({ ...current, deliveryBusinessDays: event.target.value }))}
+              required
+            />
+          </div>
+
+          {form.paymentMethod === 'CARD' ? (
+            <div className="grid gap-4 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-4 sm:grid-cols-2">
+              <Input
+                label="Entrada (R$)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.downPayment}
+                onChange={(event) => setForm((current) => ({ ...current, downPayment: event.target.value }))}
+              />
+              <Input
+                label="Data da entrada"
+                type="date"
+                value={form.downPaymentDate}
+                onChange={(event) => setForm((current) => ({ ...current, downPaymentDate: event.target.value }))}
+                required
+              />
+              <Input
+                label="Quantidade de parcelas *"
+                type="number"
+                min="1"
+                max="24"
+                value={form.installmentCount}
+                onChange={(event) => setForm((current) => ({ ...current, installmentCount: event.target.value }))}
+                required
+              />
+              <Input
+                label="Vencimento da primeira parcela *"
+                type="date"
+                value={form.firstInstallmentDate}
+                onChange={(event) => setForm((current) => ({ ...current, firstInstallmentDate: event.target.value }))}
+                required
+              />
+            </div>
+          ) : (
+            <Input
+              label="Data do pagamento por Pix *"
+              type="date"
+              value={form.firstInstallmentDate}
+              onChange={(event) => setForm((current) => ({ ...current, firstInstallmentDate: event.target.value }))}
+              required
+            />
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</Button>
+            <Button type="submit" loading={creating}><Plus size={15} /> Criar contrato e abrir link</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

@@ -4,28 +4,33 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { parseProjectContractSnapshot } from '@/lib/project-contracts'
 import { renderProjectContractPdf } from '@/lib/project-contract-pdf'
-import { canAccessProject, requireAuth, serverError } from '@/lib/security'
+import { requireAuth, serverError } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string; contractId: string }> },
+  { params }: { params: Promise<{ contractId: string }> },
 ) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
-  const { id, contractId } = await params
+  const { contractId } = await params
 
   const contract = await prisma.projectContract.findFirst({
-    where: { id: contractId, projectId: id },
-    include: { project: { select: { managerId: true } } },
+    where: {
+      id: contractId,
+      projectId: null,
+      ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
+    },
   })
-  if (!contract || !contract.project || !canAccessProject(auth.user, contract.project.managerId)) {
+  if (!contract) {
     return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
   }
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
-  if (!snapshot) return NextResponse.json({ error: 'Contrato armazenado inválido.' }, { status: 500 })
+  if (!snapshot) {
+    return NextResponse.json({ error: 'Contrato armazenado inválido.' }, { status: 500 })
+  }
 
   try {
     const logo = await readFile(path.join(process.cwd(), 'public', 'vertex-symbol.png'))
@@ -43,13 +48,13 @@ export async function GET(
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="contrato-${contract.version}.pdf"`,
+        'Content-Disposition': 'inline; filename="contrato-avulso-vertex.pdf"',
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },
     })
   } catch (error) {
-    console.error('Erro ao gerar PDF do contrato.', error)
+    console.error('Erro ao gerar PDF do contrato avulso.', error)
     return serverError()
   }
 }

@@ -125,6 +125,7 @@ export async function runAutomatedWhatsAppReminders(input: {
     }),
     prisma.projectContract.findMany({
       where: {
+        projectId: { not: null },
         status: 'SENT',
         signedAt: null,
         voidedAt: null,
@@ -173,7 +174,7 @@ export async function runAutomatedWhatsAppReminders(input: {
   ])
 
   const contracts = contractRows.flatMap((contract) => {
-    if (!contract.sentAt || (contract.expiresAt && contract.expiresAt < input.today)) return []
+    if (!contract.project || !contract.sentAt || (contract.expiresAt && contract.expiresAt < input.today)) return []
     const sequence = getContractReminderSequence({
       sentAt: contract.sentAt,
       reminderCount: contract.reminderCount,
@@ -184,6 +185,7 @@ export async function runAutomatedWhatsAppReminders(input: {
     try {
       return [{
         ...contract,
+        project: contract.project,
         sequence,
         url: projectContractUrl(input.origin, decryptProjectContractToken(contract.tokenEncrypted)),
       }]
