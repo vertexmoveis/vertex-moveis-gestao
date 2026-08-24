@@ -16,6 +16,17 @@ test('a política de segurança permite o envio direto ao Vercel Blob', () => {
   assert.match(proxy.match(/`style-src ([^`]+)`/)?.[1] || '', /'nonce-\$\{nonce\}'/)
   assert.doesNotMatch(proxy.match(/`style-src ([^`]+)`/)?.[1] || '', /'unsafe-inline'/)
   assert.match(proxy, /style-src-attr 'unsafe-inline'/)
+  assert.match(proxy, /worker-src 'self' blob:/)
+})
+
+test('a prévia HEIC usa a variante compatível com CSP dentro de um worker', () => {
+  const viewer = readFileSync(
+    path.join(process.cwd(), 'components/projects/project-file-viewer.tsx'),
+    'utf8',
+  )
+
+  assert.match(viewer, /import\(['"]heic-to\/csp['"]\)/)
+  assert.doesNotMatch(viewer, /heic-to\/next/)
 })
 
 test('documentos HTML usam nonce em scripts e estilos', () => {

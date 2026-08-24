@@ -35,7 +35,7 @@ export function ProjectFileViewer({
         if (!response.ok) throw new Error('Não foi possível carregar o arquivo.')
 
         const original = await response.blob()
-        const { heicTo } = await import('heic-to/next')
+        const { heicTo } = await import('heic-to/csp')
         const jpeg = await heicTo({ blob: original, type: 'image/jpeg', quality: 0.88 })
         if (controller.signal.aborted) return
 

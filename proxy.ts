@@ -12,6 +12,7 @@ function contentSecurityPolicy(nonce: string, allowSameOriginFraming = false) {
     `frame-ancestors ${allowSameOriginFraming ? "'self'" : "'none'"}`,
     "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ''}`,
+    "worker-src 'self' blob:",
     `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
