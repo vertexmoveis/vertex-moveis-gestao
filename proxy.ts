@@ -29,7 +29,10 @@ function withContentSecurityPolicy(response: NextResponse, policy: string) {
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(randomUUID()).toString('base64')
   const { pathname } = request.nextUrl
-  const allowSameOriginFraming = /^\/api\/public\/quote-approvals\/[^/]+\/document$/.test(pathname)
+  const allowSameOriginFraming = (
+    /^\/api\/public\/quote-approvals\/[^/]+\/document$/.test(pathname)
+    || /^\/api\/projects\/[^/]+\/files\/[^/]+$/.test(pathname)
+  )
   const policy = contentSecurityPolicy(nonce, allowSameOriginFraming)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)

@@ -46,10 +46,12 @@ test('cabecalhos removem tecnologia, restringem CORS e evitam cache zero no mani
 
 test('arquivos autenticados podem abrir no visualizador do próprio sistema', () => {
   const nextConfig = readFileSync(path.join(process.cwd(), 'next.config.ts'), 'utf8')
+  const proxy = readFileSync(path.join(process.cwd(), 'proxy.ts'), 'utf8')
   const globalRule = nextConfig.indexOf("source: '/(.*)'")
   const fileRule = nextConfig.indexOf("source: '/api/projects/:id/files/:fileId'")
 
   assert.ok(globalRule >= 0)
   assert.ok(fileRule > globalRule)
   assert.match(nextConfig.slice(fileRule), /X-Frame-Options'\s*,\s*value:\s*'SAMEORIGIN'/)
+  assert.match(proxy, /api\\\/projects\\\/\[\^\/\]\+\\\/files\\\/\[\^\/\]\+/)
 })
