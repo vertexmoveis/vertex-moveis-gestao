@@ -40,6 +40,29 @@ test('orçamento completo fica pronto para envio', () => {
   assert.deepEqual(readiness.warnings, [])
 })
 
+test('boleto parcelado fica pronto quando possui parcelas e primeiro vencimento', () => {
+  const readiness = evaluateQuoteReadiness({
+    ...completeQuote,
+    paymentMethod: 'BOLETO',
+    cardInstallments: 6,
+    firstInstallmentDate: '2026-09-10',
+  }, new Date('2026-07-21T12:00:00-03:00'))
+
+  assert.equal(readiness.ready, true)
+  assert.deepEqual(readiness.issues, [])
+})
+
+test('boleto parcelado exige o primeiro vencimento', () => {
+  const readiness = evaluateQuoteReadiness({
+    ...completeQuote,
+    paymentMethod: 'BOLETO',
+    firstInstallmentDate: null,
+  }, new Date('2026-07-21T12:00:00-03:00'))
+
+  assert.equal(readiness.ready, false)
+  assert.deepEqual(readiness.issues.map((issue) => issue.key), ['quote.firstInstallmentDate'])
+})
+
 test('CPF ou CNPJ do cliente não é obrigatório para enviar a proposta', () => {
   const readiness = evaluateQuoteReadiness({
     ...completeQuote,

@@ -15,6 +15,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { automaticReservationQuantity } from '@/lib/inventory-reservations'
 import { buildProjectMdfSpecificationsFromQuoteItems } from '@/lib/project-mdf-specifications'
+import { isQuoteInstallmentPaymentMethod } from '@/lib/quotes'
 
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
@@ -95,11 +96,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const room = environmentNames.length > 0 ? environmentNames.join(', ') : quote.title
       const quoteTotal = numberValue(quote.total)
       const quoteCostTotal = numberValue(quote.costTotal)
+      const installmentPayment = isQuoteInstallmentPaymentMethod(quote.paymentMethod)
       const downPayment = quote.paymentMethod === 'PIX'
         ? quoteTotal
-        : Math.min(Math.max(numberValue(quote.cardDownPayment), 0), quoteTotal)
+        : installmentPayment
+          ? Math.min(Math.max(numberValue(quote.cardDownPayment), 0), quoteTotal)
+          : 0
       const remainingBalance = Math.max(quoteTotal - downPayment, 0)
-      const installmentCount = quote.paymentMethod === 'CARD' && remainingBalance > 0
+      const installmentCount = installmentPayment && remainingBalance > 0
         ? Math.max(Math.floor(Number(quote.cardInstallments)), 0)
         : 0
       if (remainingBalance > 0 && installmentCount < 1) throw new Error('INSTALLMENTS_REQUIRED')
@@ -107,7 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? quote.firstInstallmentDate
         : null
       if (installmentCount > 0 && !firstInstallmentDate) throw new Error('FIRST_INSTALLMENT_REQUIRED')
-      if (quote.paymentMethod === 'CARD' && downPayment > 0 && !parsed.data.entryPaymentMethod) {
+      if (installmentPayment && downPayment > 0 && !parsed.data.entryPaymentMethod) {
         throw new Error('ENTRY_PAYMENT_METHOD_REQUIRED')
       }
       const downPaymentDate = paymentConfirmedAt

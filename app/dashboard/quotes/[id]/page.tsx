@@ -18,6 +18,7 @@ import {
   QUOTE_STATUS_LABELS,
   getQuoteItemPricePerM2,
   getQuotePaymentSummary,
+  isQuoteInstallmentPaymentMethod,
   quoteCentimetersToMillimeters,
   quoteDisplayCode,
   quoteDocumentLabel,
@@ -226,7 +227,7 @@ export default function QuoteDetailPage() {
       return
     }
     setPaymentConfirmedAt(todayInputValue())
-    setEntryPaymentMethod('PIX')
+    setEntryPaymentMethod(quote.paymentMethod === 'BOLETO' ? 'BOLETO' : 'PIX')
     setConvertOpen(true)
   }
 
@@ -239,7 +240,7 @@ export default function QuoteDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         paymentConfirmedAt,
-        entryPaymentMethod: quote.paymentMethod === 'CARD' && Number(quote.cardDownPayment || 0) > 0
+        entryPaymentMethod: isQuoteInstallmentPaymentMethod(quote.paymentMethod) && Number(quote.cardDownPayment || 0) > 0
           ? entryPaymentMethod
           : undefined,
       }),
@@ -432,19 +433,20 @@ export default function QuoteDetailPage() {
     }
   }
 
-  const conversionEntry = quote.paymentMethod === 'CARD'
+  const conversionInstallmentPayment = isQuoteInstallmentPaymentMethod(quote.paymentMethod)
+  const conversionEntry = conversionInstallmentPayment
     ? Math.max(Number(quote.cardDownPayment) || 0, 0)
     : quote.total
   const conversionBalance = Math.max(quote.total - conversionEntry, 0)
-  const conversionInstallments = quote.paymentMethod === 'CARD'
+  const conversionInstallments = conversionInstallmentPayment
     ? Math.max(Math.floor(Number(quote.cardInstallments) || 0), 0)
     : 0
-  const invalidCardTerms = quote.paymentMethod === 'CARD' && (
+  const invalidInstallmentTerms = conversionInstallmentPayment && (
     conversionEntry > quote.total ||
     (conversionBalance > 0 && (conversionInstallments < 1 || !quote.firstInstallmentDate)) ||
     (conversionEntry > 0 && !entryPaymentMethod)
   )
-  const invalidPaymentTerms = quote.paymentMethod === 'TO_DEFINE' || invalidCardTerms
+  const invalidPaymentTerms = quote.paymentMethod === 'TO_DEFINE' || invalidInstallmentTerms
   const invalidPaymentDate = !paymentConfirmedAt || paymentConfirmedAt > todayInputValue()
 
   const paymentSummary = getQuotePaymentSummary(quote)
@@ -648,7 +650,7 @@ export default function QuoteDetailPage() {
                 <div className="border-t border-[#F0F0F0] pt-3">
                   <p className="text-xs text-[#9E9E9E]">Pagamento</p>
                   <p className="text-sm font-semibold text-[#121212]">{paymentSummary}</p>
-                  {quote.paymentMethod === 'CARD' && (quote.cardDownPayment || 0) > 0 && (
+                  {conversionInstallmentPayment && (quote.cardDownPayment || 0) > 0 && (
                     <p className="mt-1 text-xs text-blue-700">
                       Entrada prevista: {formatCurrency(quote.cardDownPayment || 0)}
                     </p>
@@ -1008,7 +1010,7 @@ export default function QuoteDetailPage() {
             value={paymentConfirmedAt}
             onChange={(event) => setPaymentConfirmedAt(event.target.value)}
           />
-          {quote.paymentMethod === 'CARD' ? (
+          {conversionInstallmentPayment ? (
             <div className="space-y-3">
               <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3 text-sm text-[#333]">
                 <p className="font-semibold">Condição aprovada pelo cliente</p>
@@ -1016,7 +1018,9 @@ export default function QuoteDetailPage() {
                 {quote.firstInstallmentDate && conversionBalance > 0 ? (
                   <p className="mt-1 text-xs text-[#666]">Primeiro vencimento: {formatDate(quote.firstInstallmentDate)}</p>
                 ) : null}
-                <p className="mt-2 text-[11px] text-[#888]">Entrada e parcelas serão copiadas sem alteração.</p>
+                <p className="mt-2 text-[11px] text-[#888]">
+                  Entrada e {quote.paymentMethod === 'BOLETO' ? 'boletos' : 'parcelas'} serão copiados sem alteração.
+                </p>
               </div>
               {conversionEntry > 0 ? (
                 <Select
@@ -1027,9 +1031,9 @@ export default function QuoteDetailPage() {
                 />
               ) : null}
             </div>
-          ) : (
+          ) : quote.paymentMethod === 'PIX' ? (
             <p className="rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#666]">O pagamento via Pix será registrado pelo valor total de {formatCurrency(quote.total)}.</p>
-          )}
+          ) : null}
           {quote.paymentMethod === 'TO_DEFINE' ? (
             <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Edite o orçamento e defina a forma de pagamento antes de criar o projeto.

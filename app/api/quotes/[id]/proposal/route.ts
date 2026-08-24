@@ -379,10 +379,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           <div class="payment-method"><span>Forma escolhida</span><strong>${escapeHtml(payment.methodLabel)}</strong></div>
         </div>
         <div class="payment-metrics">
-          ${payment.method === 'CARD' ? `
+          ${payment.method === 'CARD' || payment.method === 'BOLETO' ? `
             <div class="payment-metric"><span>Entrada</span><strong>${payment.downPayment > 0 ? formatCurrency(payment.downPayment) : 'Sem entrada'}</strong></div>
             <div class="payment-metric"><span>Saldo parcelado</span><strong>${formatCurrency(payment.financedAmount)}</strong></div>
-            <div class="payment-metric"><span>Parcelamento</span><strong>${payment.installments.length > 0 ? `${payment.installments.length}x no cartão` : 'Sem saldo restante'}</strong></div>
+            <div class="payment-metric"><span>Parcelamento</span><strong>${payment.installments.length > 0 ? `${payment.installments.length}x ${payment.method === 'CARD' ? 'no cartão' : 'por boleto'}` : 'Sem saldo restante'}</strong></div>
           ` : payment.method === 'PIX' ? `
             <div class="payment-metric"><span>Valor antes do Pix</span><strong>${formatCurrency(payment.totalBeforePaymentDiscount)}</strong></div>
             <div class="payment-metric"><span>Desconto Pix</span><strong>− ${formatCurrency(payment.paymentDiscount)}</strong></div>
@@ -394,7 +394,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           `}
           <div class="payment-metric total"><span>Total da proposta</span><strong>${formatCurrency(payment.total)}</strong></div>
         </div>
-        ${payment.method === 'CARD' && payment.installments.length > 0 ? `
+        ${(payment.method === 'CARD' || payment.method === 'BOLETO') && payment.installments.length > 0 ? `
           <div class="installments">
             <div class="installments-title"><strong>Detalhamento das parcelas</strong><span>${payment.installments.length} ${payment.installments.length === 1 ? 'parcela' : 'parcelas'}</span></div>
             <div class="installment-grid columns-${installmentGridColumns}">

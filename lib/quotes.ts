@@ -79,13 +79,14 @@ export const DEFAULT_QUOTE_PRICING = {
 }
 
 export type QuoteDifficulty = 'NORMAL' | 'DIFICIL' | 'MUITO_DIFICIL'
-export type QuotePaymentMethod = 'TO_DEFINE' | 'PIX' | 'CARD'
+export type QuotePaymentMethod = 'TO_DEFINE' | 'PIX' | 'CARD' | 'BOLETO'
 
-export const QUOTE_PAYMENT_METHODS: QuotePaymentMethod[] = ['TO_DEFINE', 'PIX', 'CARD']
+export const QUOTE_PAYMENT_METHODS: QuotePaymentMethod[] = ['TO_DEFINE', 'PIX', 'CARD', 'BOLETO']
 export const QUOTE_PAYMENT_METHOD_LABELS: Record<QuotePaymentMethod, string> = {
   TO_DEFINE: 'A combinar',
   PIX: 'Pix (3% de desconto)',
   CARD: 'Cartão parcelado',
+  BOLETO: 'Boleto parcelado',
 }
 const QUOTE_PIX_DISCOUNT_PERCENT = 3
 
@@ -183,6 +184,11 @@ export function safeQuotePaymentMethod(value?: string | null): QuotePaymentMetho
     : 'TO_DEFINE'
 }
 
+export function isQuoteInstallmentPaymentMethod(value?: string | null): value is 'CARD' | 'BOLETO' {
+  const method = safeQuotePaymentMethod(value)
+  return method === 'CARD' || method === 'BOLETO'
+}
+
 export function safeQuoteCardInstallments(value?: number | null) {
   return Math.min(Math.max(Math.floor(Number(value) || 1), 1), 24)
 }
@@ -216,7 +222,7 @@ export function getQuotePaymentSummary(quote: {
 }) {
   const paymentMethod = safeQuotePaymentMethod(quote.paymentMethod)
   if (paymentMethod === 'PIX') return 'Pix com 3% de desconto'
-  if (paymentMethod !== 'CARD') return 'Pagamento a combinar'
+  if (!isQuoteInstallmentPaymentMethod(paymentMethod)) return 'Pagamento a combinar'
 
   const plan = getQuoteCardInstallmentPlan(numberValue(quote.total), quote.cardInstallments, quote.cardDownPayment)
   const format = (value: number) => new Intl.NumberFormat('pt-BR', {
@@ -224,16 +230,17 @@ export function getQuotePaymentSummary(quote: {
     currency: 'BRL',
   }).format(value)
   const downPaymentPrefix = plan.downPayment > 0 ? `Entrada de ${format(plan.downPayment)} + ` : ''
+  const methodSuffix = paymentMethod === 'CARD' ? 'no cartão' : 'por boleto'
 
   if (plan.financedAmount <= 0) {
-    return `Entrada de ${format(plan.downPayment)}; sem saldo restante no cartão`
+    return `Entrada de ${format(plan.downPayment)}; sem saldo restante`
   }
 
   if (plan.installmentValue === plan.lastInstallmentValue) {
-    return `${downPaymentPrefix}${plan.count}x de ${format(plan.installmentValue)} no cartão`
+    return `${downPaymentPrefix}${plan.count}x de ${format(plan.installmentValue)} ${methodSuffix}`
   }
 
-  return `${downPaymentPrefix}${plan.count - 1}x de ${format(plan.installmentValue)} e última de ${format(plan.lastInstallmentValue)} no cartão`
+  return `${downPaymentPrefix}${plan.count - 1}x de ${format(plan.installmentValue)} e última de ${format(plan.lastInstallmentValue)} ${methodSuffix}`
 }
 
 export function getQuotePaymentDetails(quote: {
@@ -251,7 +258,7 @@ export function getQuotePaymentDetails(quote: {
     : 0
   const totalBeforePaymentDiscount = roundCurrency(total + paymentDiscount)
   const cardPlan = getQuoteCardInstallmentPlan(total, quote.cardInstallments, quote.cardDownPayment)
-  const installments = method === 'CARD' && cardPlan.financedAmount > 0
+  const installments = isQuoteInstallmentPaymentMethod(method) && cardPlan.financedAmount > 0
     ? Array.from({ length: cardPlan.count }, (_, index) => ({
         number: index + 1,
         amount: index === cardPlan.count - 1 ? cardPlan.lastInstallmentValue : cardPlan.installmentValue,
@@ -266,8 +273,8 @@ export function getQuotePaymentDetails(quote: {
     total,
     paymentDiscount,
     totalBeforePaymentDiscount,
-    downPayment: method === 'CARD' ? cardPlan.downPayment : 0,
-    financedAmount: method === 'CARD' ? cardPlan.financedAmount : 0,
+    downPayment: isQuoteInstallmentPaymentMethod(method) ? cardPlan.downPayment : 0,
+    financedAmount: isQuoteInstallmentPaymentMethod(method) ? cardPlan.financedAmount : 0,
     installments,
   }
 }
@@ -379,7 +386,8 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
     : 0
   const discount = roundCurrency(manualDiscount + paymentDiscount)
   const total = roundCurrency(Math.max(afterManualDiscount - paymentDiscount, 0))
-  const cardDownPayment = paymentMethod === 'CARD'
+  const installmentPayment = isQuoteInstallmentPaymentMethod(paymentMethod)
+  const cardDownPayment = installmentPayment
     ? safeQuoteCardDownPayment(pricing.cardDownPayment, total)
     : 0
   const cardFeePercent = paymentMethod === 'CARD' ? safeQuoteCardFeePercent(pricing.cardFeePercent) : 0
@@ -396,7 +404,7 @@ export function calculateQuoteTotals(items: QuoteCalculationItemInput[], pricing
     manualDiscount,
     paymentDiscount,
     paymentMethod,
-    cardInstallments: paymentMethod === 'CARD' ? safeQuoteCardInstallments(pricing.cardInstallments) : 1,
+    cardInstallments: installmentPayment ? safeQuoteCardInstallments(pricing.cardInstallments) : 1,
     cardDownPayment,
     cardFeePercent,
     cardFeeAmount,

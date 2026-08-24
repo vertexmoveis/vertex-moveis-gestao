@@ -51,6 +51,25 @@ test('cartão totalmente pago na entrada não mantém parcelas vazias', () => {
   assert.equal(plan.cardFeeAmount, 0)
 })
 
+test('boleto mantém entrada e parcelas sem taxa de cartão', () => {
+  const firstInstallmentDate = new Date('2026-09-20T12:00:00.000Z')
+  const plan = calculateProjectPaymentPlan({
+    value: 12000,
+    paymentMethod: 'BOLETO',
+    downPayment: 2000,
+    installmentCount: 5,
+    cardFeePercent: 9,
+    firstInstallmentDate,
+  })
+
+  assert.equal(plan.paymentMethod, 'BOLETO')
+  assert.equal(plan.downPayment, 2000)
+  assert.equal(plan.installmentCount, 5)
+  assert.equal(plan.firstInstallmentDate, firstInstallmentDate)
+  assert.equal(plan.cardFeePercent, 0)
+  assert.equal(plan.cardFeeAmount, 0)
+})
+
 test('pagamento a combinar não gera lançamentos financeiros', () => {
   const plan = calculateProjectPaymentPlan({
     value: 10000,

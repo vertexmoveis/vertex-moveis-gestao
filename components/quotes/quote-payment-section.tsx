@@ -5,6 +5,7 @@ import {
   QUOTE_PAYMENT_METHOD_LABELS,
   QUOTE_PAYMENT_METHODS,
   getQuotePaymentSummary,
+  isQuoteInstallmentPaymentMethod,
   type QuotePaymentMethod,
 } from '@/lib/quotes'
 import { formatCurrency } from '@/lib/utils'
@@ -40,6 +41,8 @@ export function QuotePaymentSection({
   onCardInstallmentsChange,
   onCardFeePercentChange,
 }: QuotePaymentSectionProps) {
+  const installmentPayment = isQuoteInstallmentPaymentMethod(paymentMethod)
+
   return (
     <fieldset className="grid grid-cols-1 gap-3 border-y border-[#E8E8E8] py-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px_180px]">
       <legend className="sr-only">Condições de pagamento</legend>
@@ -53,7 +56,7 @@ export function QuotePaymentSection({
         }))}
       />
 
-      {paymentMethod === 'CARD' ? (
+      {installmentPayment ? (
         <>
           <Input
             label="Entrada (R$)"
@@ -62,7 +65,7 @@ export function QuotePaymentSection({
             onChange={(event) => onCardDownPaymentChange(event.target.value)}
           />
           <Select
-            label="Parcelas no cartão"
+            label={paymentMethod === 'CARD' ? 'Parcelas no cartão' : 'Parcelas no boleto'}
             value={cardInstallments}
             onChange={(event) => onCardInstallmentsChange(event.target.value)}
             options={Array.from({ length: 24 }, (_, index) => {
@@ -70,13 +73,19 @@ export function QuotePaymentSection({
               return { value, label: `${value}x` }
             })}
           />
-          <Input
-            label="Taxa da operadora (%)"
-            inputMode="decimal"
-            value={cardFeePercent}
-            onChange={(event) => onCardFeePercentChange(event.target.value)}
-            helperText={`Custo estimado: ${formatCurrency(cardFeeAmount)}`}
-          />
+          {paymentMethod === 'CARD' ? (
+            <Input
+              label="Taxa da operadora (%)"
+              inputMode="decimal"
+              value={cardFeePercent}
+              onChange={(event) => onCardFeePercentChange(event.target.value)}
+              helperText={`Custo estimado: ${formatCurrency(cardFeeAmount)}`}
+            />
+          ) : (
+            <div className="flex min-h-10 items-center rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-3 text-xs text-[#666]">
+              Sem taxa de operadora
+            </div>
+          )}
         </>
       ) : (
         <div className="flex min-h-10 items-center border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-4 py-2 text-sm text-[#7A3B00] lg:col-span-2">
@@ -86,7 +95,7 @@ export function QuotePaymentSection({
         </div>
       )}
 
-      {paymentMethod === 'CARD' ? (
+      {installmentPayment ? (
         <div className="border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-4">
           {getQuotePaymentSummary({
             total,

@@ -118,7 +118,7 @@ export const projectCreateSchema = z.object({
   estimatedEndDate: dateField,
   value: moneyField,
   productionCost: moneyField.default(0),
-  paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD']).default('TO_DEFINE'),
+  paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD', 'BOLETO']).default('TO_DEFINE'),
   paymentDiscount: moneyField.default(0),
   cardFeePercent: percentageField.default(0),
   downPayment: moneyField.default(null),

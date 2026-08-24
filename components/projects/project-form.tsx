@@ -23,6 +23,7 @@ import { useState } from 'react'
 import {
   QUOTE_PAYMENT_METHOD_LABELS,
   QUOTE_PAYMENT_METHODS,
+  isQuoteInstallmentPaymentMethod,
   safeQuotePaymentMethod,
 } from '@/lib/quotes'
 
@@ -114,14 +115,15 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   const handleFormSubmit = async (data: FormData) => {
     const nextValue = Math.max(Number(data.value || 0), 0)
     const nextPaymentMethod = safeQuotePaymentMethod(data.paymentMethod)
+    const installmentPayment = isQuoteInstallmentPaymentMethod(nextPaymentMethod)
     const enteredDownPayment = Math.min(Math.max(Number(data.downPayment || 0), 0), nextValue)
     const enteredInstallmentCount = Math.max(Math.floor(Number(data.installmentCount || 0)), 0)
     const nextDownPayment = nextPaymentMethod === 'PIX'
       ? nextValue
-      : nextPaymentMethod === 'CARD'
+      : installmentPayment
         ? enteredDownPayment
         : 0
-    const nextInstallmentCount = nextPaymentMethod === 'CARD' ? enteredInstallmentCount : 0
+    const nextInstallmentCount = installmentPayment ? enteredInstallmentCount : 0
     const highestPaidInstallment = Math.max(0, ...(paymentSummary?.paidInstallmentNumbers || []))
     const balanceAfterPaidInstallments = Math.max(
       nextValue - nextDownPayment - (paymentSummary?.paidInstallmentTotal || 0),
@@ -180,13 +182,14 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   const value = Number(watchedValue || 0)
   const productionCost = Number(watchedProductionCost || 0)
   const paymentMethod = safeQuotePaymentMethod(watchedPaymentMethod)
+  const installmentPayment = isQuoteInstallmentPaymentMethod(paymentMethod)
   const enteredDownPayment = Math.min(Number(watchedDownPayment || 0), Number.isFinite(value) ? value : 0)
   const downPayment = paymentMethod === 'PIX'
     ? Math.max(Number.isFinite(value) ? value : 0, 0)
-    : paymentMethod === 'CARD'
+    : installmentPayment
       ? Math.max(Number.isFinite(enteredDownPayment) ? enteredDownPayment : 0, 0)
       : 0
-  const installmentCount = paymentMethod === 'CARD'
+  const installmentCount = installmentPayment
     ? Math.max(Math.floor(Number(watchedInstallmentCount || 0)), 0)
     : 0
   const remaining = Math.max((Number.isFinite(value) ? value : 0) - (Number.isFinite(downPayment) ? downPayment : 0), 0)
@@ -272,7 +275,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
           <Select label="Forma de pagamento combinada" options={paymentMethodOptions} {...register('paymentMethod')} />
         </div>
         <input type="hidden" {...register('paymentDiscount')} />
-        {paymentMethod === 'CARD' ? (
+        {installmentPayment ? (
           <>
             <Input
               label="Entrada (R$)"
@@ -293,18 +296,29 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
               {...register('installmentCount')}
             />
             <Input label="Data da primeira parcela" type="date" {...register('firstInstallmentDate')} />
-            <Input
-              label="Taxa do cartão (%)"
-              type="number"
-              step="0.01"
-              min="0"
-              max="30"
-              placeholder="0"
-              {...register('cardFeePercent')}
-            />
-            <div className="flex items-end pb-2 text-xs text-[#777]">
-              Taxa registrada: {formatCurrency(cardFeeAmount)}
-            </div>
+            {paymentMethod === 'CARD' ? (
+              <>
+                <Input
+                  label="Taxa do cartão (%)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="30"
+                  placeholder="0"
+                  {...register('cardFeePercent')}
+                />
+                <div className="flex items-end pb-2 text-xs text-[#777]">
+                  Taxa registrada: {formatCurrency(cardFeeAmount)}
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="hidden" {...register('cardFeePercent')} />
+                <p className="col-span-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+                  Os boletos serão mensais e não terão taxa de operadora.
+                </p>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -325,7 +339,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
             {paidInstallmentNumbers.length} parcela{paidInstallmentNumbers.length !== 1 ? 's' : ''} recebida{paidInstallmentNumbers.length !== 1 ? 's' : ''}.
             {openBalance > 0 ? ` Para manter saldo em aberto, use no mínimo ${minimumInstallmentCount} parcelas do saldo.` : ''}
           </p>
-        ) : paymentMethod === 'CARD' ? (
+        ) : installmentPayment ? (
           <p className="col-span-2 -mt-2 text-xs text-[#777]">A entrada é separada e não conta como parcela do saldo.</p>
         ) : null}
         <div className="col-span-2 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
@@ -358,7 +372,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
         </div>
         <Select label="Status" options={statusOptions} {...register('status')} />
         <Select label="Etapa de Produção" options={stageOptions} {...register('stage')} />
-        <Input label="Aprovação do cartão" type="date" {...register('approvalDate')} />
+        <Input label="Data da aprovação" type="date" {...register('approvalDate')} />
         <Input
           label="Prazo (dias úteis)"
           type="number"

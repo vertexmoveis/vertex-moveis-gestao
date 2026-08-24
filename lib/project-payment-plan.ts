@@ -6,6 +6,7 @@ import {
   safeQuoteCardFeePercent,
   safeQuoteCardInstallments,
   safeQuotePaymentMethod,
+  isQuoteInstallmentPaymentMethod,
   type QuotePaymentMethod,
 } from '@/lib/quotes'
 
@@ -53,11 +54,11 @@ export function calculateProjectPaymentPlan(input: ProjectPaymentPlanInput): Pro
     }
   }
 
-  if (paymentMethod === 'CARD') {
+  if (isQuoteInstallmentPaymentMethod(paymentMethod)) {
     const downPayment = safeQuoteCardDownPayment(input.downPayment, total)
     const balance = roundCurrency(Math.max(total - downPayment, 0))
     const installmentCount = balance > 0 ? safeQuoteCardInstallments(input.installmentCount) : 0
-    const cardFeePercent = safeQuoteCardFeePercent(input.cardFeePercent)
+    const cardFeePercent = paymentMethod === 'CARD' ? safeQuoteCardFeePercent(input.cardFeePercent) : 0
 
     return {
       paymentMethod,

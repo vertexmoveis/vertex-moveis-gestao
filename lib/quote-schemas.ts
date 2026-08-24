@@ -139,7 +139,7 @@ export const quoteSaveSchema = z.object({
   installationFee: moneyField(0),
   marginPercent: percentField,
   discount: moneyField(0),
-  paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD']).default('TO_DEFINE'),
+  paymentMethod: z.enum(['TO_DEFINE', 'PIX', 'CARD', 'BOLETO']).default('TO_DEFINE'),
   cardInstallments: cardInstallmentsField,
   cardDownPayment: moneyField(0),
   cardFeePercent: cardFeePercentField,

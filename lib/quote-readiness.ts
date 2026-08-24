@@ -88,9 +88,9 @@ export function evaluateQuoteReadiness(source: QuoteReadinessSource, now = new D
   if (!hasCompleteAddress(client)) warn('client.address', 'O endereço do cliente ainda não foi cadastrado.')
 
   if (!source.paymentMethod || source.paymentMethod === 'TO_DEFINE') {
-    add('quote.paymentMethod', 'Escolha Pix ou cartão como forma de pagamento.')
+    add('quote.paymentMethod', 'Escolha Pix, cartão ou boleto como forma de pagamento.')
   }
-  if (source.paymentMethod === 'CARD') {
+  if (source.paymentMethod === 'CARD' || source.paymentMethod === 'BOLETO') {
     if (!(Number(source.cardInstallments) >= 1)) add('quote.cardInstallments', 'Informe a quantidade de parcelas.')
     if (!source.firstInstallmentDate) add('quote.firstInstallmentDate', 'Informe a data da primeira parcela.')
   }

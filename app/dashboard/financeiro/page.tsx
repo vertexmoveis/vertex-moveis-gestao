@@ -171,13 +171,18 @@ export default function FinanceiroPage() {
   }, [data])
 
   const togglePayment = async (payment: FinancePayment) => {
+    const plannedPaymentMethod = safeQuotePaymentMethod(payment.plannedPaymentMethod)
     const response = await fetch(`/api/projects/${payment.projectId}/payments/${payment.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         paid: !payment.paidAt,
         paymentMethod: payment.paymentMethod
-          || (safeQuotePaymentMethod(payment.plannedPaymentMethod) === 'CARD' ? 'CARTAO' : 'PIX'),
+          || (plannedPaymentMethod === 'CARD'
+            ? 'CARTAO'
+            : plannedPaymentMethod === 'BOLETO'
+              ? 'BOLETO'
+              : 'PIX'),
       }),
     })
 

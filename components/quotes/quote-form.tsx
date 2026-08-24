@@ -41,6 +41,7 @@ import {
   getQuoteFurnitureDescription,
   getQuoteFurnitureGroup,
   getQuoteFurnitureGroups,
+  isQuoteInstallmentPaymentMethod,
   quoteCentimetersToMillimeters,
   quoteMillimetersToCentimeters,
   resolveQuoteFurnitureSelection,
@@ -978,7 +979,8 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       setError('Use um nome diferente para cada ambiente, como "Dormitório casal" e "Dormitório filho".')
       return
     }
-    const enteredCardDownPayment = paymentMethod === 'CARD' ? parseNumber(cardDownPayment) : 0
+    const installmentPayment = isQuoteInstallmentPaymentMethod(paymentMethod)
+    const enteredCardDownPayment = installmentPayment ? parseNumber(cardDownPayment) : 0
     const minimumVariationTotal = Math.min(...variationPreviews.map((variation) => variation.totals.total))
     if (enteredCardDownPayment > minimumVariationTotal) {
       setError(`A entrada não pode ser maior que o menor total, de ${formatCurrency(minimumVariationTotal)}.`)
@@ -1005,7 +1007,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
       cardDownPayment: enteredCardDownPayment,
       cardFeePercent: paymentMethod === 'CARD' ? parseNumber(cardFeePercent) : 0,
       deliveryBusinessDays: Math.min(Math.max(Math.round(parseNumber(deliveryBusinessDays) || 30), 1), 365),
-      firstInstallmentDate: paymentMethod === 'CARD' ? firstInstallmentDate || undefined : undefined,
+      firstInstallmentDate: installmentPayment ? firstInstallmentDate || undefined : undefined,
       validUntil: validUntil || undefined,
       notes: notes.trim() || undefined,
       customerNotes: customerNotes.trim() || undefined,
@@ -1188,9 +1190,13 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
           label="Primeiro vencimento"
           type="date"
           value={firstInstallmentDate}
-          disabled={paymentMethod !== 'CARD'}
+          disabled={!isQuoteInstallmentPaymentMethod(paymentMethod)}
           onChange={(event) => setFirstInstallmentDate(event.target.value)}
-          helperText={paymentMethod === 'CARD' ? 'As demais parcelas serão mensais.' : 'Disponível para pagamento parcelado.'}
+          helperText={paymentMethod === 'CARD'
+            ? 'As demais parcelas do cartão serão mensais.'
+            : paymentMethod === 'BOLETO'
+              ? 'Os demais boletos vencerão mensalmente.'
+              : 'Disponível para pagamento parcelado.'}
         />
       </div>
 

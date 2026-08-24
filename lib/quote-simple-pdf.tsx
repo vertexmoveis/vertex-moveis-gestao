@@ -391,7 +391,7 @@ function SimpleQuotePdf({
     ...(quote.manualDiscount > 0 ? [{ label: 'DESCONTO COMERCIAL', value: -quote.manualDiscount }] : []),
     ...(quote.paymentDiscount > 0 ? [{ label: 'DESCONTO PIX', value: -quote.paymentDiscount }] : []),
   ]
-  const paymentRows = payment.method === 'CARD'
+  const paymentRows = payment.method === 'CARD' || payment.method === 'BOLETO'
     ? [
         ...(payment.downPayment > 0
           ? [{
@@ -405,7 +405,7 @@ function SimpleQuotePdf({
           label: `Parcela ${installment.number}`,
           dueDate: installment.dueDate,
           amount: installment.amount,
-          method: 'Cartão de crédito',
+          method: payment.method === 'CARD' ? 'Cartão de crédito' : 'Boleto',
         })),
       ]
     : [{
