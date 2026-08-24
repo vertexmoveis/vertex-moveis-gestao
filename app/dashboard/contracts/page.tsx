@@ -274,8 +274,19 @@ export default function ContractsPage() {
   const convertStandalone = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!saleData) return
-    setSaleSubmitting(true)
     setSaleError('')
+    const formData = new FormData(event.currentTarget as HTMLFormElement)
+    const paymentConfirmedAt = String(formData.get('paymentConfirmedAt') || '').trim()
+    const signedInPersonAt = String(formData.get('signedInPersonAt') || '').trim()
+    if (!paymentConfirmedAt) {
+      setSaleError('Informe a data em que a entrada foi recebida.')
+      return
+    }
+    if (saleForm.signedInPerson && !signedInPersonAt) {
+      setSaleError('Informe a data real da assinatura presencial.')
+      return
+    }
+    setSaleSubmitting(true)
     try {
       const environmentNames = saleForm.environmentNames
         .split(/\r?\n/)
@@ -285,13 +296,13 @@ export default function ContractsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentConfirmedAt: saleForm.paymentConfirmedAt,
+          paymentConfirmedAt,
           entryPaymentMethod: saleForm.entryPaymentMethod || undefined,
           balancePaymentMethod: saleData.preview.paymentMethod === 'CARD'
             ? saleForm.balancePaymentMethod
             : undefined,
           signedInPersonAt: saleForm.signedInPerson
-            ? saleForm.signedInPersonAt
+            ? signedInPersonAt
             : undefined,
           environmentNames,
         }),
@@ -519,6 +530,7 @@ export default function ContractsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
                 label="Data em que a entrada foi recebida *"
+                name="paymentConfirmedAt"
                 type="date"
                 max={localDateValue()}
                 value={saleForm.paymentConfirmedAt}
@@ -578,6 +590,7 @@ export default function ContractsPage() {
                 {saleForm.signedInPerson ? (
                   <Input
                     label="Data real da assinatura presencial *"
+                    name="signedInPersonAt"
                     type="date"
                     max={localDateValue()}
                     value={saleForm.signedInPersonAt}
