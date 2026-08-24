@@ -45,6 +45,7 @@ type ContractRow = {
     lastReminderAt: string | null
     reminderCount: number
     signedAt: string | null
+    signatureMethod: 'DIGITAL' | 'IN_PERSON' | null
   }
 }
 
@@ -145,6 +146,9 @@ export default function ContractsPage() {
   const [saleForm, setSaleForm] = useState({
     paymentConfirmedAt: '',
     entryPaymentMethod: '',
+    balancePaymentMethod: 'CARD',
+    signedInPerson: false,
+    signedInPersonAt: '',
     environmentNames: '',
   })
 
@@ -254,6 +258,9 @@ export default function ContractsPage() {
       setSaleForm({
         paymentConfirmedAt: data.preview.suggestedPaymentDate || localDateValue(),
         entryPaymentMethod: '',
+        balancePaymentMethod: data.preview.paymentMethod,
+        signedInPerson: false,
+        signedInPersonAt: '',
         environmentNames: data.preview.environmentNames.join('\n'),
       })
     } catch (requestError) {
@@ -280,6 +287,12 @@ export default function ContractsPage() {
         body: JSON.stringify({
           paymentConfirmedAt: saleForm.paymentConfirmedAt,
           entryPaymentMethod: saleForm.entryPaymentMethod || undefined,
+          balancePaymentMethod: saleData.preview.paymentMethod === 'CARD'
+            ? saleForm.balancePaymentMethod
+            : undefined,
+          signedInPersonAt: saleForm.signedInPerson
+            ? saleForm.signedInPersonAt
+            : undefined,
           environmentNames,
         }),
       })
@@ -334,7 +347,7 @@ export default function ContractsPage() {
                       </div>
                       <div className="text-xs text-[#777]">
                         {row.contract?.signedAt
-                          ? `Assinado em ${formatDate(row.contract.signedAt)}`
+                          ? `${row.contract.signatureMethod === 'IN_PERSON' ? 'Assinado presencialmente' : 'Aceito digitalmente'} em ${formatDate(row.contract.signedAt)}`
                           : row.contract?.viewedAt
                             ? `Visto em ${formatDate(row.contract.viewedAt)}`
                             : `Enviado em ${formatDate(row.contract?.sentAt || null)}`}
@@ -422,7 +435,7 @@ export default function ContractsPage() {
                       </div>
                       <div className="text-xs text-[#777]">
                         {row.contract?.signedAt
-                          ? `Assinado em ${formatDate(row.contract.signedAt)}`
+                          ? `${row.contract.signatureMethod === 'IN_PERSON' ? 'Assinado presencialmente' : 'Aceito digitalmente'} em ${formatDate(row.contract.signedAt)}`
                           : row.contract?.viewedAt
                             ? `Visto em ${formatDate(row.contract.viewedAt)}`
                             : row.contract?.sentAt
@@ -487,15 +500,15 @@ export default function ContractsPage() {
                   <p className="mt-1 text-sm font-semibold text-[#121212]">
                     {saleData.preview.paymentMethod === 'PIX'
                       ? 'Pagamento por Pix'
-                      : `${saleData.preview.installmentCount}x de ${formatCurrency(saleData.preview.installmentValue)}`}
+                      : `${saleData.preview.installmentCount}x de ${formatCurrency(saleData.preview.installmentValue)} ${saleForm.balancePaymentMethod === 'BOLETO' ? 'em boletos' : 'no cartão'}`}
                   </p>
                 </div>
               </div>
             </div>
 
-            {!saleData.contract.signedAt ? (
+            {!saleData.contract.signedAt && !saleForm.signedInPerson ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
-                O cliente já visualizou este contrato, mas ainda não assinou. A venda e o projeto serão registrados agora; a produção continuará aguardando a assinatura.
+                O cliente já visualizou este contrato, mas não há assinatura registrada. Marque abaixo se existe uma via física assinada; caso contrário, a produção continuará aguardando a assinatura.
               </div>
             ) : null}
 
@@ -530,6 +543,51 @@ export default function ContractsPage() {
               ) : null}
             </div>
 
+            {saleData.preview.paymentMethod === 'CARD' ? (
+              <Select
+                label="Como será pago o saldo? *"
+                value={saleForm.balancePaymentMethod}
+                onChange={(event) => setSaleForm((current) => ({ ...current, balancePaymentMethod: event.target.value }))}
+                options={[
+                  { value: 'CARD', label: 'Cartão parcelado' },
+                  { value: 'BOLETO', label: 'Boleto parcelado' },
+                ]}
+                required
+              />
+            ) : null}
+
+            {!saleData.contract.signedAt ? (
+              <div className="space-y-3 rounded-lg border border-[#E3E3E3] p-4">
+                <label className="flex cursor-pointer items-start gap-3 text-sm text-[#222]">
+                  <input
+                    type="checkbox"
+                    checked={saleForm.signedInPerson}
+                    onChange={(event) => setSaleForm((current) => ({
+                      ...current,
+                      signedInPerson: event.target.checked,
+                    }))}
+                    className="mt-0.5 h-4 w-4 accent-[#FF6B00]"
+                  />
+                  <span>
+                    <strong className="block">O contrato já foi assinado presencialmente</strong>
+                    <span className="mt-1 block text-xs leading-5 text-[#777]">
+                      Este é um lançamento administrativo. Não será criado IP, dispositivo ou aceite eletrônico.
+                    </span>
+                  </span>
+                </label>
+                {saleForm.signedInPerson ? (
+                  <Input
+                    label="Data real da assinatura presencial *"
+                    type="date"
+                    max={localDateValue()}
+                    value={saleForm.signedInPersonAt}
+                    onChange={(event) => setSaleForm((current) => ({ ...current, signedInPersonAt: event.target.value }))}
+                    required
+                  />
+                ) : null}
+              </div>
+            ) : null}
+
             <Textarea
               label="Ambientes do projeto (um por linha) *"
               value={saleForm.environmentNames}
@@ -539,7 +597,11 @@ export default function ContractsPage() {
             />
 
             <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">
-              O contrato original será preservado e vinculado ao novo projeto. As parcelas serão copiadas exatamente como estão no contrato.
+              O contrato original será preservado e vinculado ao novo projeto. Valores e vencimentos serão mantidos. {saleForm.balancePaymentMethod !== saleData.preview.paymentMethod
+                ? saleForm.signedInPerson
+                  ? 'A versão online anterior ficará no histórico e uma nova versão, com a condição da via física, será registrada como assinada presencialmente.'
+                  : 'A divergência de pagamento será registrada e exigirá uma nova versão do contrato antes da produção.'
+                : 'A condição de pagamento será preservada como está no documento.'}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">

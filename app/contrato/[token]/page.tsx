@@ -96,7 +96,11 @@ export default async function PublicContractPage({
           </div>
           <div className="sm:text-right">
             <p className="text-[11px] font-bold uppercase text-[#FF6B00]">
-              {contract.signedAt ? 'Contrato aceito' : 'Documento para assinatura'}
+              {contract.signedAt
+                ? contract.signatureMethod === 'IN_PERSON'
+                  ? 'Assinatura presencial registrada'
+                  : 'Contrato aceito digitalmente'
+                : 'Documento para assinatura'}
             </p>
             <h1 className="mt-1 text-xl font-extrabold text-[#121212]">{snapshot.project.name}</h1>
             <p className="mt-1 text-xs text-[#777]">Preparado para {snapshot.client.name}</p>
@@ -140,12 +144,15 @@ export default async function PublicContractPage({
               token={token}
               initialSignedAt={contract.signedAt?.toISOString() || null}
               initialSignatoryName={contract.signatoryName}
+              signatureMethod={contract.signatureMethod}
               defaultSignatoryName={snapshot.client.name}
               disabledMessage={contractState(contract)}
             />
           </div>
           <p className="mt-4 text-xs leading-5 text-[#777]">
-            O aceite eletrônico registra a concordância do cliente e preserva a versão deste contrato no sistema da Vertex Móveis.
+            {contract.signatureMethod === 'IN_PERSON'
+              ? 'A assinatura presencial foi lançada administrativamente. A via física assinada é a evidência original.'
+              : 'O aceite eletrônico registra a concordância do cliente e preserva a versão deste contrato no sistema da Vertex Móveis.'}
           </p>
         </section>
 

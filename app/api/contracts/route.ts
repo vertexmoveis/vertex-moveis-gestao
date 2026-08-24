@@ -180,6 +180,7 @@ export async function GET(req: NextRequest) {
           reminderCount: true,
           expiresAt: true,
           signedAt: true,
+          signatureMethod: true,
           voidedAt: true,
         },
       },
@@ -221,6 +222,7 @@ export async function GET(req: NextRequest) {
         reminderCount: contract.reminderCount,
         expiresAt: contract.expiresAt?.toISOString() || null,
         signedAt: contract.signedAt?.toISOString() || null,
+        signatureMethod: contract.signatureMethod,
       } : null,
     }]
   })
@@ -269,6 +271,7 @@ export async function GET(req: NextRequest) {
         reminderCount: contract.reminderCount,
         expiresAt: contract.expiresAt?.toISOString() || null,
         signedAt: contract.signedAt?.toISOString() || null,
+        signatureMethod: contract.signatureMethod,
       },
     }
   })

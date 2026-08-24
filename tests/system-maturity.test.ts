@@ -5,6 +5,7 @@ import {
   createProjectContractToken,
   decryptProjectContractToken,
   hashProjectContractToken,
+  isInPersonProjectContractSignature,
   parseProjectContractSnapshot,
 } from '../lib/project-contracts'
 import { isLowStock, stockShortage } from '../lib/inventory'
@@ -152,6 +153,51 @@ test('gera o novo contrato assinado como PDF de três páginas', async () => {
     Math.abs(Number(width) - 595.28) < 0.1
     && Math.abs(Number(height) - 841.89) < 0.1
   )))
+})
+
+test('gera registro de assinatura presencial sem evidências de aceite digital', async () => {
+  const snapshot = buildProjectContractSnapshot({
+    id: 'project-in-person',
+    name: 'Móveis planejados casa',
+    room: 'Casa completa',
+    value: 59220.35,
+    deliveryBusinessDays: 30,
+    paymentMethod: 'BOLETO',
+    downPayment: 19222,
+    installmentCount: 11,
+    installmentValue: 3636.21,
+    firstInstallmentDate: new Date('2026-09-20T12:00:00Z'),
+    client: { name: 'Paulo Henrique Campos de Souza', city: 'Cotia', state: 'SP' },
+    environments: [{ name: 'Cozinha' }, { name: 'Sala' }],
+    payments: [
+      { installmentNumber: 0, type: 'DOWN_PAYMENT', amount: 19222, dueDate: new Date('2026-08-22T12:00:00Z') },
+      ...Array.from({ length: 11 }, (_, index) => ({
+        installmentNumber: index + 1,
+        type: 'INSTALLMENT',
+        amount: index === 10 ? 3636.25 : 3636.21,
+        dueDate: new Date(Date.UTC(2026, 8 + index, 20, 12)),
+      })),
+    ],
+  }, { tradeName: 'Vertex Móveis', city: 'Cotia', state: 'SP' })
+
+  const pdf = await renderSignedProjectContractPdf({
+    id: 'contract-in-person',
+    version: 2,
+    snapshot,
+    signedAt: new Date('2026-08-22T12:00:00Z'),
+    signatoryName: 'Paulo Henrique Campos de Souza',
+    acceptedIpHash: null,
+    acceptedUserAgent: null,
+    signatureMethod: 'IN_PERSON',
+    signatureRecordedAt: new Date('2026-08-24T14:00:00Z'),
+    signatureRecordedByName: 'Eduardo Alves Martins',
+    signatureNote: 'Via física é a evidência original.',
+  })
+
+  assert.equal(isInPersonProjectContractSignature('IN_PERSON'), true)
+  assert.equal(isInPersonProjectContractSignature('DIGITAL'), false)
+  assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
+  assert.ok(pdf.length > 5000)
 })
 
 test('mantém pedido extenso com doze parcelas em três páginas', async () => {

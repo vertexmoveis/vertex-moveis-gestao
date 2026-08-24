@@ -40,6 +40,7 @@ function publicContract(contract: {
   signedAt: Date | null
   voidedAt: Date | null
   signatoryName: string | null
+  signatureMethod: string | null
 }) {
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
   if (!snapshot) return null
@@ -56,6 +57,7 @@ function publicContract(contract: {
     expiresAt: contract.expiresAt?.toISOString() || null,
     signedAt: contract.signedAt?.toISOString() || null,
     signatoryName: contract.signatoryName,
+    signatureMethod: contract.signatureMethod,
     snapshot,
   }
 }
@@ -166,6 +168,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         signatoryDocument: parsed.data.signatoryDocument || null,
         acceptedIpHash: hashProjectContractAcceptanceIp(getClientIp(req)),
         acceptedUserAgent: (req.headers.get('user-agent') || '').slice(0, 500) || null,
+        signatureMethod: 'DIGITAL',
+        signatureRecordedAt: now,
+        signatureRecordedById: null,
+        signatureNote: null,
       },
     })
     if (result.count !== 1) {

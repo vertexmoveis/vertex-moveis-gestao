@@ -7,7 +7,10 @@ import {
   View,
   renderToBuffer,
 } from '@react-pdf/renderer'
-import type { ProjectContractSnapshot } from '@/lib/project-contracts'
+import {
+  isInPersonProjectContractSignature,
+  type ProjectContractSnapshot,
+} from '@/lib/project-contracts'
 
 export type ProjectContractPdfInput = {
   id: string
@@ -18,6 +21,10 @@ export type ProjectContractPdfInput = {
   signatoryDocument?: string | null
   acceptedIpHash?: string | null
   acceptedUserAgent?: string | null
+  signatureMethod?: string | null
+  signatureRecordedAt?: Date | null
+  signatureRecordedByName?: string | null
+  signatureNote?: string | null
   logoDataUrl?: string
 }
 
@@ -344,11 +351,11 @@ function dateTime(value: Date | string | null | undefined) {
   }).format(new Date(value))
 }
 
-function dateOnly(value: string | null | undefined) {
+function dateOnly(value: Date | string | null | undefined) {
   if (!value) return 'A combinar'
-  const key = value.slice(0, 10)
+  const key = value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10)
   const [year, month, day] = key.split('-')
-  return year && month && day ? `${day}/${month}/${year}` : value
+  return year && month && day ? `${day}/${month}/${year}` : String(value)
 }
 
 function paymentName(type: string, number: number) {
@@ -393,7 +400,28 @@ function Terms({ terms, startIndex = 0 }: { terms: ProjectContractSnapshot['term
 
 function SignatureBlock({ input, signed }: { input: ProjectContractPdfInput; signed: boolean }) {
   const { snapshot } = input
+  const signedInPerson = isInPersonProjectContractSignature(input.signatureMethod)
   if (signed) {
+    if (signedInPerson) {
+      return (
+        <View style={styles.signedProof} wrap={false}>
+          <Text style={styles.signedTitle}>ASSINATURA PRESENCIAL REGISTRADA</Text>
+          <Text style={styles.details}>
+            Registro administrativo de que a via física foi assinada presencialmente. A via física é a evidência original; este PDF não representa aceite eletrônico.
+          </Text>
+          <Text style={styles.signedName}>{input.signatoryName}</Text>
+          <Text style={styles.signedDetails}>
+            {input.signatoryDocument ? `Documento: ${input.signatoryDocument} · ` : ''}Assinatura presencial em {dateOnly(input.signedAt)}
+          </Text>
+          <View style={styles.audit}>
+            <Text>Contrato: {input.id} · Versão: {input.version} · Gerado em: {dateTime(snapshot.generatedAt)}</Text>
+            <Text>Modalidade: presencial · Registro lançado em: {dateTime(input.signatureRecordedAt)}</Text>
+            <Text>Registrado por: {input.signatureRecordedByName || 'usuário autenticado da empresa'}</Text>
+            {input.signatureNote ? <Text>Observação: {input.signatureNote}</Text> : null}
+          </View>
+        </View>
+      )
+    }
     return (
       <View style={styles.signedProof} wrap={false}>
         <Text style={styles.signedTitle}>ACEITE ELETRÔNICO REGISTRADO</Text>
@@ -415,7 +443,7 @@ function SignatureBlock({ input, signed }: { input: ProjectContractPdfInput; sig
     <>
       <Text style={styles.signatureDate}>Cotia - SP, ______ de ______________________________ de __________.</Text>
       <View style={styles.signature} wrap={false}>
-        <Text style={styles.signatureIntro}>Por estarem de acordo, as partes assinam este instrumento e reconhecem a validade do aceite eletrônico.</Text>
+        <Text style={styles.signatureIntro}>Por estarem de acordo, as partes assinam este instrumento e reconhecem a validade das condições registradas.</Text>
         <View style={styles.signatureGrid}>
           <View style={styles.signatureColumn}>
             <Text style={styles.signatureLine}>{snapshot.company.legalName || snapshot.company.tradeName}</Text>

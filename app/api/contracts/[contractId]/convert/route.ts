@@ -7,11 +7,18 @@ import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { dateOnlyKey, dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-only'
 import { prisma } from '@/lib/db'
 import { normalizeEnvironmentNames } from '@/lib/project-environments'
-import { parseProjectContractSnapshot } from '@/lib/project-contracts'
 import {
+  createProjectContractToken,
+  parseProjectContractSnapshot,
+} from '@/lib/project-contracts'
+import {
+  buildStandaloneCorrectedBoletoContractSnapshot,
   buildStandaloneContractProjectPayments,
+  STANDALONE_BALANCE_PAYMENT_METHODS,
   STANDALONE_ENTRY_PAYMENT_METHODS,
   standaloneContractConversionPreview,
+  standaloneEntryPaymentMethodLabel,
+  standaloneContractProjectPaymentMethod,
 } from '@/lib/standalone-contract-conversion'
 import { calculateProductionWeight } from '@/lib/operational-toolkit'
 import {
@@ -27,6 +34,8 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 const conversionSchema = z.object({
   paymentConfirmedAt: z.string().date(),
   entryPaymentMethod: z.enum(STANDALONE_ENTRY_PAYMENT_METHODS).optional(),
+  balancePaymentMethod: z.enum(STANDALONE_BALANCE_PAYMENT_METHODS).optional(),
+  signedInPersonAt: z.string().date().optional(),
   environmentNames: z.array(z.string().trim().min(2).max(120)).min(1).max(60).optional(),
 }).strict()
 
@@ -92,10 +101,6 @@ export async function GET(
   if (!isConvertibleStatus(contract)) {
     return badRequest('Envie o contrato ao cliente antes de registrar a venda.')
   }
-  if (contract.expiresAt && contract.expiresAt < new Date() && !contract.signedAt) {
-    return badRequest('Este contrato expirou. Crie uma nova versão antes da venda.')
-  }
-
   const snapshot = parseProjectContractSnapshot(contract.snapshot)
   if (!snapshot || !contract.client || contract.client.archivedAt) {
     return badRequest('O contrato não possui dados válidos para criar o projeto.')
@@ -155,6 +160,15 @@ export async function POST(
   if ((dateOnlyKey(paymentConfirmedAt) || '') > dateOnlyKeyInTimeZone(new Date())) {
     return badRequest('A confirmação do pagamento não pode ter uma data futura.')
   }
+  const signedInPersonAt = parsed.data.signedInPersonAt
+    ? toDateOnlyUtc(parsed.data.signedInPersonAt)
+    : null
+  if (parsed.data.signedInPersonAt && !signedInPersonAt) {
+    return badRequest('Informe uma data válida para a assinatura presencial.')
+  }
+  if (signedInPersonAt && (dateOnlyKey(signedInPersonAt) || '') > dateOnlyKeyInTimeZone(new Date())) {
+    return badRequest('A assinatura presencial não pode ter uma data futura.')
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -171,14 +185,45 @@ export async function POST(
       if (contract.project) return { project: contract.project, alreadyConverted: true }
       if (contract.voidedAt || contract.status === 'VOID') throw new Error('VOID')
       if (!isConvertibleStatus(contract)) throw new Error('NOT_SENT')
-      if (contract.expiresAt && contract.expiresAt < new Date() && !contract.signedAt) {
+      if (
+        contract.expiresAt
+        && contract.expiresAt < new Date()
+        && !contract.signedAt
+        && (
+          !signedInPersonAt
+          || (dateOnlyKey(signedInPersonAt) || '') > dateOnlyKeyInTimeZone(contract.expiresAt)
+        )
+      ) {
         throw new Error('EXPIRED')
       }
       if (!contract.client || contract.client.archivedAt) throw new Error('CLIENT_REQUIRED')
+      if (signedInPersonAt && contract.signedAt) throw new Error('ALREADY_SIGNED')
+      if (
+        signedInPersonAt
+        && (dateOnlyKey(signedInPersonAt) || '') < (dateOnlyKey(contract.createdAt) || '')
+      ) {
+        throw new Error('SIGNATURE_BEFORE_CONTRACT')
+      }
 
       const snapshot = parseProjectContractSnapshot(contract.snapshot)
       if (!snapshot) throw new Error('INVALID_SNAPSHOT')
       const preview = standaloneContractConversionPreview(snapshot)
+      const projectPaymentMethod = standaloneContractProjectPaymentMethod(
+        snapshot,
+        parsed.data.balancePaymentMethod,
+      )
+      const paymentTermsChanged = projectPaymentMethod !== preview.paymentMethod
+      const entryPaymentLabel = parsed.data.entryPaymentMethod
+        ? standaloneEntryPaymentMethodLabel(parsed.data.entryPaymentMethod)
+        : null
+      const effectivePaymentTerms = entryPaymentLabel
+        ? `entrada via ${entryPaymentLabel} e saldo em boletos`
+        : 'saldo em boletos'
+      const conversionRecordedAt = new Date()
+      const needsContractRevision = paymentTermsChanged && !signedInPersonAt
+      const revisionChanges = needsContractRevision
+        ? [`Forma de pagamento ajustada para ${effectivePaymentTerms}.`]
+        : []
       const environmentNames = normalizeEnvironmentNames(
         parsed.data.environmentNames || preview.environmentNames,
         snapshot.project.room || snapshot.project.name,
@@ -209,7 +254,7 @@ export async function POST(
           room: environmentNames.join(', '),
           status: 'APPROVED',
           stage: 'PENDING_START',
-          approvalDate: contract.signedAt || paymentConfirmedAt,
+          approvalDate: contract.signedAt || signedInPersonAt || paymentConfirmedAt,
           paymentConfirmedAt,
           deliveryBusinessDays: snapshot.project.deliveryBusinessDays,
           deliveryDeadlineDate,
@@ -220,19 +265,31 @@ export async function POST(
           value: preview.value,
           productionCost: 0,
           productionWeight: calculateProductionWeight(environmentNames.length, []),
-          paymentMethod: preview.paymentMethod,
-          paymentDiscount: snapshot.payment.paymentDiscount || 0,
-          cardFeePercent: snapshot.payment.cardFeePercent || 0,
-          cardFeeAmount: snapshot.payment.cardFeeAmount || 0,
+          paymentMethod: projectPaymentMethod,
+          paymentDiscount: projectPaymentMethod === 'BOLETO' ? 0 : snapshot.payment.paymentDiscount || 0,
+          cardFeePercent: projectPaymentMethod === 'CARD' ? snapshot.payment.cardFeePercent || 0 : 0,
+          cardFeeAmount: projectPaymentMethod === 'CARD' ? snapshot.payment.cardFeeAmount || 0 : 0,
           downPayment: preview.downPayment,
           downPaymentDate: preview.downPayment > 0 ? paymentConfirmedAt : null,
           installmentCount: preview.installmentCount,
           installmentValue: preview.installmentValue,
           firstInstallmentDate,
           managerId,
+          contractRevisionRequiredAt: needsContractRevision ? conversionRecordedAt : null,
+          contractRevisionChanges: needsContractRevision
+            ? revisionChanges as Prisma.InputJsonValue
+            : Prisma.DbNull,
           internalNotes: [
             `Projeto criado a partir do contrato avulso "${contract.standaloneTitle || snapshot.project.name}".`,
             `Contrato de origem: ${contract.id}.`,
+            paymentTermsChanged && signedInPersonAt
+              ? `Condição efetiva confirmada na conversão: ${effectivePaymentTerms}, preservando valores e vencimentos. A versão online anterior informava cartão e foi preservada como histórico cancelado; uma nova versão operacional foi registrada com base na via física assinada.`
+              : paymentTermsChanged
+                ? `Condição efetiva confirmada na conversão: ${effectivePaymentTerms}, preservando valores e vencimentos. O contrato armazenado informa cartão e exige regularização documental.`
+              : '',
+            signedInPersonAt
+              ? `Assinatura presencial informada em ${dateOnlyKey(signedInPersonAt)}; lançamento administrativo realizado por ${auth.user.name}.`
+              : '',
             scopeNotes,
           ].filter(Boolean).join('\n\n'),
           payments: { create: payments },
@@ -249,11 +306,68 @@ export async function POST(
         select: { id: true, name: true },
       })
 
+      const createCorrectedSignedVersion = paymentTermsChanged && Boolean(signedInPersonAt)
       const linked = await tx.projectContract.updateMany({
-        where: { id: contract.id, projectId: null, voidedAt: null },
-        data: { projectId: project.id },
+        where: {
+          id: contract.id,
+          projectId: null,
+          voidedAt: null,
+          ...(signedInPersonAt ? { signedAt: null } : {}),
+        },
+        data: createCorrectedSignedVersion
+          ? {
+              projectId: project.id,
+              status: 'VOID',
+              voidedAt: conversionRecordedAt,
+            }
+          : {
+              projectId: project.id,
+              ...(signedInPersonAt ? {
+                status: 'SIGNED',
+                signedAt: signedInPersonAt,
+                signatoryName: contract.client.name,
+                signatoryDocument: contract.client.document,
+                acceptedIpHash: null,
+                acceptedUserAgent: null,
+                signatureMethod: 'IN_PERSON',
+                signatureRecordedAt: conversionRecordedAt,
+                signatureRecordedById: auth.user.id,
+                signatureNote: 'Assinatura presencial informada durante a conversão do contrato avulso em venda.',
+              } : {}),
+            },
       })
       if (linked.count !== 1) throw new Error('CONCURRENT_CONVERSION')
+
+      if (createCorrectedSignedVersion && signedInPersonAt) {
+        const correctedSnapshot = buildStandaloneCorrectedBoletoContractSnapshot({
+          snapshot,
+          projectId: project.id,
+          projectName: project.name,
+          environmentNames,
+          approvalDate: signedInPersonAt,
+          recordedAt: conversionRecordedAt,
+          entryPaymentMethod: parsed.data.entryPaymentMethod,
+        })
+        const secureToken = createProjectContractToken()
+        await tx.projectContract.create({
+          data: {
+            projectId: project.id,
+            createdById: auth.user.id,
+            version: contract.version + 1,
+            status: 'SIGNED',
+            tokenHash: secureToken.tokenHash,
+            tokenEncrypted: secureToken.tokenEncrypted,
+            snapshot: correctedSnapshot as unknown as Prisma.InputJsonValue,
+            signedAt: signedInPersonAt,
+            signatoryName: contract.client.name,
+            signatoryDocument: contract.client.document,
+            signatureMethod: 'IN_PERSON',
+            signatureRecordedAt: conversionRecordedAt,
+            signatureRecordedById: auth.user.id,
+            signatureNote: 'Registro administrativo gerado a partir da via física assinada; a via física é a evidência original.',
+          },
+        })
+      }
 
       const receivedPayments = await tx.projectPayment.findMany({
         where: { projectId: project.id, paidAt: { not: null } },
@@ -278,12 +392,37 @@ export async function POST(
           description: `Contrato "${contract.standaloneTitle || snapshot.project.name}" convertido em venda.`,
         },
       })
+      if (signedInPersonAt) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: project.id,
+            event: 'Assinatura presencial registrada',
+            description: `Via física informada como assinada por ${contract.client.name} em ${dateOnlyKey(signedInPersonAt)}. Registro administrativo feito por ${auth.user.name}.`,
+          },
+        })
+      }
+      if (paymentTermsChanged) {
+        await tx.timelineEvent.create({
+          data: {
+            projectId: project.id,
+            event: 'Condição de pagamento ajustada',
+            description: signedInPersonAt
+              ? `${effectivePaymentTerms}. Valores e vencimentos foram preservados; a versão online anterior ficou no histórico e a condição da via física foi registrada em nova versão.`
+              : `${effectivePaymentTerms}. Valores e vencimentos foram preservados; a divergência documental exige uma nova versão do contrato.`,
+          },
+        })
+      }
       await tx.activityLog.create({
         data: {
           userId: auth.user.id,
           projectId: project.id,
           action: 'Contrato avulso vendido',
-          details: `${contract.standaloneTitle || snapshot.project.name} · ${contract.client.name}`,
+          details: [
+            `${contract.standaloneTitle || snapshot.project.name} · ${contract.client.name}`,
+            `entrada ${parsed.data.entryPaymentMethod || preview.paymentMethod}`,
+            `saldo ${projectPaymentMethod}`,
+            signedInPersonAt ? 'assinatura presencial' : null,
+          ].filter(Boolean).join(' · '),
         },
       })
       await syncClientRelationshipStage(tx, contract.client.id, { activityAt: paymentConfirmedAt })
@@ -302,8 +441,11 @@ export async function POST(
     if (error instanceof Error && error.message === 'NOT_SENT') return badRequest('Envie o contrato ao cliente antes de registrar a venda.')
     if (error instanceof Error && error.message === 'EXPIRED') return badRequest('Este contrato expirou. Crie uma nova versão antes da venda.')
     if (error instanceof Error && error.message === 'CLIENT_REQUIRED') return badRequest('O cliente do contrato não está disponível.')
+    if (error instanceof Error && error.message === 'ALREADY_SIGNED') return badRequest('Este contrato já possui uma assinatura registrada.')
+    if (error instanceof Error && error.message === 'SIGNATURE_BEFORE_CONTRACT') return badRequest('A assinatura presencial não pode ser anterior à criação do contrato.')
     if (error instanceof Error && error.message === 'INVALID_SNAPSHOT') return badRequest('O contrato armazenado está inválido.')
     if (error instanceof Error && error.message === 'UNSUPPORTED_PAYMENT_METHOD') return badRequest('A forma de pagamento não é compatível com a conversão.')
+    if (error instanceof Error && error.message === 'BALANCE_PAYMENT_METHOD_NOT_ALLOWED') return badRequest('Este contrato não possui saldo parcelado para escolher outra forma de pagamento.')
     if (error instanceof Error && error.message === 'ENTRY_PAYMENT_METHOD_REQUIRED') return badRequest('Informe como a entrada foi recebida.')
     if (error instanceof Error && error.message === 'INVALID_PAYMENT_SCHEDULE') return badRequest('As parcelas do contrato não fecham o valor total.')
     if (error instanceof Error && error.message === 'INVALID_CONTRACT_TERMS') return badRequest('O prazo ou os valores do contrato estão inválidos.')

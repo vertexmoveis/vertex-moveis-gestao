@@ -23,6 +23,7 @@ export async function GET(
       projectId: null,
       ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
     },
+    include: { signatureRecordedBy: { select: { name: true } } },
   })
   if (!contract) {
     return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
@@ -43,6 +44,10 @@ export async function GET(
       signatoryDocument: contract.signatoryDocument,
       acceptedIpHash: contract.acceptedIpHash,
       acceptedUserAgent: contract.acceptedUserAgent,
+      signatureMethod: contract.signatureMethod,
+      signatureRecordedAt: contract.signatureRecordedAt,
+      signatureRecordedByName: contract.signatureRecordedBy?.name || null,
+      signatureNote: contract.signatureNote,
       logoDataUrl: `data:image/png;base64,${logo.toString('base64')}`,
     })
     return new NextResponse(new Uint8Array(buffer), {

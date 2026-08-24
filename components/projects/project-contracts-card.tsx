@@ -28,6 +28,8 @@ type ProjectContract = {
   signedAt: string | null
   voidedAt: string | null
   signatoryName: string | null
+  signatureMethod: string | null
+  signatureRecordedAt: string | null
   createdAt: string
 }
 
@@ -310,11 +312,10 @@ export function ProjectContractsCard({
                 </div>
                 {current.signedAt ? (
                   <p className="mt-1 text-xs text-emerald-700">
-                    Aceito por {current.signatoryName || 'cliente'} em{' '}
-                    {new Intl.DateTimeFormat('pt-BR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    }).format(new Date(current.signedAt))}
+                    {current.signatureMethod === 'IN_PERSON' ? 'Assinado presencialmente por' : 'Aceito digitalmente por'} {current.signatoryName || 'cliente'} em{' '}
+                    {new Intl.DateTimeFormat('pt-BR', current.signatureMethod === 'IN_PERSON'
+                      ? { dateStyle: 'short', timeZone: 'UTC' }
+                      : { dateStyle: 'short', timeStyle: 'short' }).format(new Date(current.signedAt))}
                   </p>
                 ) : current.status === 'SENT' ? (
                   <div className="mt-1 space-y-0.5 text-xs text-[#777]">

@@ -13,6 +13,115 @@ export const STANDALONE_ENTRY_PAYMENT_METHODS = [
 
 export type StandaloneEntryPaymentMethod = typeof STANDALONE_ENTRY_PAYMENT_METHODS[number]
 
+const STANDALONE_ENTRY_PAYMENT_METHOD_LABELS: Record<StandaloneEntryPaymentMethod, string> = {
+  PIX: 'Pix',
+  DINHEIRO: 'dinheiro',
+  CARTAO: 'cartão',
+  BOLETO: 'boleto',
+  TRANSFERENCIA: 'transferência',
+}
+
+export const STANDALONE_BALANCE_PAYMENT_METHODS = ['CARD', 'BOLETO'] as const
+export type StandaloneBalancePaymentMethod = typeof STANDALONE_BALANCE_PAYMENT_METHODS[number]
+
+export function standaloneEntryPaymentMethodLabel(method: StandaloneEntryPaymentMethod) {
+  return STANDALONE_ENTRY_PAYMENT_METHOD_LABELS[method]
+}
+
+function contractCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
+
+function contractDate(value?: string | null) {
+  if (!value) return null
+  const [year, month, day] = value.slice(0, 10).split('-')
+  return year && month && day ? `${day}/${month}/${year}` : null
+}
+
+function boletoBalanceSummary(snapshot: ProjectContractSnapshot, entryMethod?: StandaloneEntryPaymentMethod) {
+  const downPayment = roundCurrency(snapshot.payment.downPayment)
+  if (downPayment > 0 && !entryMethod) throw new Error('ENTRY_PAYMENT_METHOD_REQUIRED')
+  const installments = snapshot.payment.schedule.filter((payment) => payment.type === 'INSTALLMENT')
+  const balance = roundCurrency(installments.reduce((sum, payment) => sum + payment.amount, 0))
+  const firstDueDate = contractDate(installments[0]?.dueDate)
+  const last = installments.at(-1)
+  const regular = installments.slice(0, -1)
+  const regularValue = regular[0]?.amount
+  const regularAreEqual = regular.length > 0
+    && regular.every((payment) => roundCurrency(payment.amount) === roundCurrency(regularValue))
+  const installmentsText = installments.length === 1
+    ? `1 boleto de ${contractCurrency(balance)}`
+    : regularAreEqual && last
+      ? `${installments.length} boletos (${regular.length}x de ${contractCurrency(roundCurrency(regularValue))} e último de ${contractCurrency(roundCurrency(last.amount))})`
+      : `${installments.length} boletos conforme o cronograma`
+  const entryText = downPayment > 0
+    ? `Entrada de ${contractCurrency(downPayment)} via ${standaloneEntryPaymentMethodLabel(entryMethod as StandaloneEntryPaymentMethod)} + `
+    : ''
+  return `${entryText}saldo de ${contractCurrency(balance)} em ${installmentsText}${firstDueDate ? `, a partir de ${firstDueDate}` : ''}`
+}
+
+export function buildStandaloneCorrectedBoletoContractSnapshot({
+  snapshot,
+  projectId,
+  projectName,
+  environmentNames,
+  approvalDate,
+  recordedAt,
+  entryPaymentMethod,
+}: {
+  snapshot: ProjectContractSnapshot
+  projectId: string
+  projectName: string
+  environmentNames: string[]
+  approvalDate: Date
+  recordedAt: Date
+  entryPaymentMethod?: StandaloneEntryPaymentMethod
+}) {
+  const paymentSummary = boletoBalanceSummary(snapshot, entryPaymentMethod)
+  const paymentTerm = `O investimento total é de ${contractCurrency(roundCurrency(snapshot.project.value))}. Condição combinada: ${paymentSummary}. A entrada e as parcelas obedecem ao quadro financeiro deste documento, que integra o contrato para todos os fins.`
+  const signatureTerm = 'A assinatura poderá ocorrer eletronicamente ou em via física. O sistema identifica a versão apresentada e registra a modalidade e a data informadas; na assinatura presencial, a via física é a evidência original. Os dados pessoais serão utilizados para execução do contrato, atendimento, cobrança e cumprimento de obrigações legais, com acesso restrito às finalidades do serviço.'
+
+  return {
+    ...snapshot,
+    generatedAt: recordedAt.toISOString(),
+    company: { ...snapshot.company },
+    client: { ...snapshot.client },
+    project: {
+      ...snapshot.project,
+      id: projectId,
+      name: projectName,
+      room: environmentNames.join(', '),
+      environments: [...environmentNames],
+      approvalDate: approvalDate.toISOString(),
+      scope: snapshot.project.scope?.map((scope) => ({
+        ...scope,
+        furniture: [...scope.furniture],
+        specifications: [...scope.specifications],
+        items: scope.items?.map((item) => ({ ...item })),
+      })),
+    },
+    payment: {
+      ...snapshot.payment,
+      method: 'BOLETO',
+      methodLabel: roundCurrency(snapshot.payment.downPayment) > 0
+        ? `Entrada via ${standaloneEntryPaymentMethodLabel(entryPaymentMethod as StandaloneEntryPaymentMethod)} + saldo em boleto`
+        : 'Boleto parcelado',
+      summary: paymentSummary,
+      paymentDiscount: 0,
+      cardFeePercent: 0,
+      cardFeeAmount: 0,
+      schedule: snapshot.payment.schedule.map((payment) => ({ ...payment })),
+    },
+    terms: snapshot.terms.map((term) => {
+      if (term.title === 'Preço e condição de pagamento') return { ...term, text: paymentTerm }
+      if (term.title === 'Aceite eletrônico e proteção de dados') {
+        return { title: 'Assinatura, registros e proteção de dados', text: signatureTerm }
+      }
+      return { ...term }
+    }),
+  } satisfies ProjectContractSnapshot
+}
+
 const GENERIC_ENVIRONMENTS = new Set([
   'servico contratado',
   'serviço contratado',
@@ -57,6 +166,18 @@ export function standaloneContractPaymentMethod(snapshot: ProjectContractSnapsho
   if (snapshot.payment.method === 'PIX') return 'PIX' as const
   if (snapshot.payment.method === 'CARD') return 'CARD' as const
   throw new Error('UNSUPPORTED_PAYMENT_METHOD')
+}
+
+export function standaloneContractProjectPaymentMethod(
+  snapshot: ProjectContractSnapshot,
+  balancePaymentMethod?: StandaloneBalancePaymentMethod,
+) {
+  const contractMethod = standaloneContractPaymentMethod(snapshot)
+  if (contractMethod === 'PIX') {
+    if (balancePaymentMethod) throw new Error('BALANCE_PAYMENT_METHOD_NOT_ALLOWED')
+    return 'PIX' as const
+  }
+  return balancePaymentMethod || 'CARD'
 }
 
 export function buildStandaloneContractProjectPayments({

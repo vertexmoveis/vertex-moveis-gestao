@@ -94,6 +94,8 @@ function serializeContract(
     signedAt: Date | null
     voidedAt: Date | null
     signatoryName: string | null
+    signatureMethod: string | null
+    signatureRecordedAt: Date | null
     createdAt: Date
   },
 ) {
@@ -124,6 +126,8 @@ function serializeContract(
     signedAt: contract.signedAt?.toISOString() || null,
     voidedAt: contract.voidedAt?.toISOString() || null,
     signatoryName: contract.signatoryName,
+    signatureMethod: contract.signatureMethod,
+    signatureRecordedAt: contract.signatureRecordedAt?.toISOString() || null,
     createdAt: contract.createdAt.toISOString(),
   }
 }

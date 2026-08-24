@@ -22,7 +22,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (!limited) return serviceUnavailable()
   if (!limited.allowed) return NextResponse.json({ error: 'Tente novamente em alguns instantes.' }, { status: 429 })
 
-  const contract = await prisma.projectContract.findUnique({ where: { tokenHash: hashProjectContractToken(token) } })
+  const contract = await prisma.projectContract.findUnique({
+    where: { tokenHash: hashProjectContractToken(token) },
+    include: { signatureRecordedBy: { select: { name: true } } },
+  })
   if (!contract) return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
   if (contract.voidedAt || contract.status === 'VOID') {
     return NextResponse.json({ error: 'Este contrato foi cancelado. Solicite um novo link.' }, { status: 410 })
@@ -44,6 +47,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       signatoryDocument: contract.signatoryDocument,
       acceptedIpHash: contract.acceptedIpHash,
       acceptedUserAgent: contract.acceptedUserAgent,
+      signatureMethod: contract.signatureMethod,
+      signatureRecordedAt: contract.signatureRecordedAt,
+      signatureRecordedByName: contract.signatureRecordedBy?.name || null,
+      signatureNote: contract.signatureNote,
       logoDataUrl: `data:image/png;base64,${logo.toString('base64')}`,
     })
     return new NextResponse(new Uint8Array(buffer), {

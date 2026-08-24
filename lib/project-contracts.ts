@@ -15,6 +15,13 @@ import {
 
 const PROJECT_CONTRACT_SNAPSHOT_VERSION = 1
 
+export const PROJECT_CONTRACT_SIGNATURE_METHODS = ['DIGITAL', 'IN_PERSON'] as const
+export type ProjectContractSignatureMethod = typeof PROJECT_CONTRACT_SIGNATURE_METHODS[number]
+
+export function isInPersonProjectContractSignature(method?: string | null) {
+  return method === 'IN_PERSON'
+}
+
 type AddressSource = {
   address?: string | null
   street?: string | null
@@ -421,8 +428,8 @@ export function buildProjectContractSnapshot(
         text: 'Acordos, aprovações e mudanças deverão constar no sistema, no projeto aprovado, em mensagem escrita ou em documento assinado. Conversas verbais que não forem confirmadas por escrito não alteram este contrato.',
       },
       {
-        title: 'Aceite eletrônico e proteção de dados',
-        text: 'O aceite eletrônico identifica a versão apresentada ao CONTRATANTE e registra data e evidências técnicas de integridade. Os dados pessoais serão utilizados para execução do contrato, atendimento, cobrança e cumprimento de obrigações legais, com acesso restrito às finalidades do serviço.',
+        title: 'Assinatura, registros e proteção de dados',
+        text: 'A assinatura poderá ocorrer eletronicamente ou em via física. O sistema identifica a versão apresentada e registra a modalidade e a data informadas; na assinatura presencial, a via física é a evidência original. Os dados pessoais serão utilizados para execução do contrato, atendimento, cobrança e cumprimento de obrigações legais, com acesso restrito às finalidades do serviço.',
       },
       {
         title: 'Legislação e foro',

@@ -19,7 +19,10 @@ export async function GET(
 
   const contract = await prisma.projectContract.findFirst({
     where: { id: contractId, projectId: id },
-    include: { project: { select: { managerId: true } } },
+    include: {
+      project: { select: { managerId: true } },
+      signatureRecordedBy: { select: { name: true } },
+    },
   })
   if (!contract || !contract.project || !canAccessProject(auth.user, contract.project.managerId)) {
     return NextResponse.json({ error: 'Contrato não encontrado.' }, { status: 404 })
@@ -38,6 +41,10 @@ export async function GET(
       signatoryDocument: contract.signatoryDocument,
       acceptedIpHash: contract.acceptedIpHash,
       acceptedUserAgent: contract.acceptedUserAgent,
+      signatureMethod: contract.signatureMethod,
+      signatureRecordedAt: contract.signatureRecordedAt,
+      signatureRecordedByName: contract.signatureRecordedBy?.name || null,
+      signatureNote: contract.signatureNote,
       logoDataUrl: `data:image/png;base64,${logo.toString('base64')}`,
     })
     return new NextResponse(new Uint8Array(buffer), {

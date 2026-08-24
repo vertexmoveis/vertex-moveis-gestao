@@ -7,15 +7,18 @@ export function ContractAcceptanceActions({
   token,
   initialSignedAt,
   initialSignatoryName,
+  signatureMethod,
   defaultSignatoryName,
   disabledMessage,
 }: {
   token: string
   initialSignedAt: string | null
   initialSignatoryName: string | null
+  signatureMethod?: string | null
   defaultSignatoryName?: string
   disabledMessage?: string | null
 }) {
+  const signedInPerson = signatureMethod === 'IN_PERSON'
   const [name, setName] = useState(defaultSignatoryName || '')
   const [document, setDocument] = useState('')
   const [accepted, setAccepted] = useState(false)
@@ -60,13 +63,12 @@ export function ContractAcceptanceActions({
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
             <div>
-              <p className="font-bold">Contrato aceito</p>
+              <p className="font-bold">{signedInPerson ? 'Assinatura presencial registrada' : 'Contrato aceito digitalmente'}</p>
               <p className="mt-1 text-sm">
-                Aceite registrado por {signatoryName || 'cliente'} em{' '}
-                {new Intl.DateTimeFormat('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                }).format(new Date(signedAt))}.
+                {signedInPerson ? 'Assinatura informada para' : 'Aceite registrado por'} {signatoryName || 'cliente'} em{' '}
+                {new Intl.DateTimeFormat('pt-BR', signedInPerson
+                  ? { dateStyle: 'short', timeZone: 'UTC' }
+                  : { dateStyle: 'short', timeStyle: 'short' }).format(new Date(signedAt))}.
               </p>
             </div>
           </div>
@@ -79,7 +81,7 @@ export function ContractAcceptanceActions({
             className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-6 text-base font-bold text-white hover:bg-[#E05A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2"
           >
             <FileDown size={16} />
-            Abrir contrato assinado em PDF
+            {signedInPerson ? 'Abrir registro do contrato' : 'Abrir contrato assinado em PDF'}
           </a>
         </div>
       </div>

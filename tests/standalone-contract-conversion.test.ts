@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildStandaloneCorrectedBoletoContractSnapshot,
   buildStandaloneContractProjectPayments,
   standaloneContractEnvironmentNames,
+  standaloneContractProjectPaymentMethod,
 } from '@/lib/standalone-contract-conversion'
 import { buildStandaloneContractSnapshot } from '@/lib/standalone-contracts'
 
@@ -93,6 +95,53 @@ test('preserva o cronograma CARD, paga apenas a entrada e mantém as parcelas pe
   )
 })
 
+test('permite registrar o saldo do contrato CARD como BOLETO sem alterar o cronograma', () => {
+  const snapshot = buildCardSnapshot()
+
+  assert.equal(standaloneContractProjectPaymentMethod(snapshot, 'BOLETO'), 'BOLETO')
+
+  const payments = buildStandaloneContractProjectPayments({
+    snapshot,
+    paymentConfirmedAt: new Date('2026-08-22T12:00:00.000Z'),
+    entryPaymentMethod: 'PIX',
+  })
+  assert.equal(payments[0].paymentMethod, 'PIX')
+  assert.ok(payments.slice(1).every((payment) => payment.paymentMethod === null))
+  assert.equal(
+    payments.slice(1).reduce((sum, payment) => Math.round((sum + payment.amount) * 100) / 100, 0),
+    39_998.35,
+  )
+})
+
+test('gera versão BOLETO preservando o escopo original e documentando a entrada via PIX', () => {
+  const snapshot = buildCardSnapshot()
+  const original = structuredClone(snapshot)
+  const corrected = buildStandaloneCorrectedBoletoContractSnapshot({
+    snapshot,
+    projectId: 'project-paulo',
+    projectName: 'Móveis planejados casa',
+    environmentNames: ['COZINHA', 'SALA', 'GOURMET', 'SUÍTE CASAL', 'BANHEIRO', 'CLOSET'],
+    approvalDate: new Date('2026-08-22T12:00:00.000Z'),
+    recordedAt: new Date('2026-08-24T15:00:00.000Z'),
+    entryPaymentMethod: 'PIX',
+  })
+
+  assert.deepEqual(snapshot, original)
+  assert.equal(corrected.project.id, 'project-paulo')
+  assert.deepEqual(corrected.project.scope, original.project.scope)
+  assert.equal(corrected.payment.method, 'BOLETO')
+  assert.equal(corrected.payment.methodLabel, 'Entrada via Pix + saldo em boleto')
+  assert.match(corrected.payment.summary || '', /Entrada de R\$\s*19\.222,00 via Pix/)
+  assert.match(corrected.payment.summary || '', /saldo de R\$\s*39\.998,35 em 11 boletos/)
+  assert.deepEqual(corrected.payment.schedule, original.payment.schedule)
+  assert.notEqual(corrected.payment.schedule, snapshot.payment.schedule)
+  assert.match(
+    corrected.terms.find((term) => term.title === 'Preço e condição de pagamento')?.text || '',
+    /via Pix.*11 boletos/,
+  )
+  assert.ok(corrected.terms.some((term) => term.title === 'Assinatura, registros e proteção de dados'))
+})
+
 test('converte contrato PIX em um único pagamento integral recebido', () => {
   const snapshot = buildStandaloneContractSnapshot({
     title: 'Painel planejado',
@@ -116,6 +165,10 @@ test('converte contrato PIX em um único pagamento integral recebido', () => {
   assert.equal(payments[0].dueDate.toISOString(), snapshot.payment.schedule[0].dueDate)
   assert.equal(payments[0].paidAt, paymentConfirmedAt)
   assert.equal(payments[0].paymentMethod, 'PIX')
+  assert.throws(
+    () => standaloneContractProjectPaymentMethod(snapshot, 'BOLETO'),
+    /BALANCE_PAYMENT_METHOD_NOT_ALLOWED/,
+  )
 })
 
 test('exige a forma usada para receber a entrada de um contrato CARD', () => {
