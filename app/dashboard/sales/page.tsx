@@ -37,10 +37,19 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
       ? requestedSeller ? { createdById: requestedSeller } : {}
       : { createdById: user.id || '__sem_usuario__' }),
   }
+  const standaloneProjectScope: Prisma.ProjectWhereInput = {
+    archivedAt: null,
+    paymentConfirmedAt: { gte: range.start, lt: range.end },
+    sourceQuote: { is: null },
+    contracts: { some: { standaloneTitle: { not: null } } },
+    ...(isAdmin
+      ? requestedSeller ? { managerId: requestedSeller } : {}
+      : { managerId: user.id || '__sem_usuario__' }),
+  }
 
   const followUpLimit = new Date()
   followUpLimit.setDate(followUpLimit.getDate() + 7)
-  const [funnelRows, soldTotals, lostTotals, waitingQuotes, sellerRows, sellers, commercialActions, closedQuotes, lossReasons] = await Promise.all([
+  const [funnelRows, soldTotals, lostTotals, waitingQuotes, sellerRows, sellers, commercialActions, closedQuotes, lossReasons, standaloneSales] = await Promise.all([
     prisma.quote.groupBy({
       by: ['status'],
       where: { ...sellerScope, createdAt: { gte: range.start, lt: range.end } },
@@ -80,7 +89,6 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
       _count: { _all: true },
       _sum: { total: true },
       orderBy: { _sum: { total: 'desc' } },
-      take: 8,
     }),
     isAdmin
       ? prisma.user.findMany({
@@ -126,6 +134,14 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
       orderBy: { _count: { lossReason: 'desc' } },
       take: 6,
     }),
+    prisma.project.findMany({
+      where: standaloneProjectScope,
+      select: {
+        managerId: true,
+        value: true,
+        productionCost: true,
+      },
+    }),
   ])
 
   const counts = QUOTE_STATUSES.reduce<Record<QuoteStatus, number>>((result, status) => {
@@ -144,15 +160,45 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
     amounts[status] = moneyValue(row._sum.total)
   }
 
+  const standaloneSoldCount = standaloneSales.length
+  const standaloneSoldTotal = standaloneSales.reduce((total, project) => total + moneyValue(project.value), 0)
+  const standaloneSoldCost = standaloneSales.reduce((total, project) => total + moneyValue(project.productionCost), 0)
+  counts.SOLD += standaloneSoldCount
+  amounts.SOLD += standaloneSoldTotal
+
   const sellerNames = new Map(sellers.map((seller) => [seller.id, seller.name]))
-  const sellerRanking = sellerRows.map((row) => ({
-    id: row.createdById || 'sem-vendedor',
-    name: row.createdById ? sellerNames.get(row.createdById) || 'Vendedor removido' : 'Sem vendedor',
-    count: row._count._all,
-    total: moneyValue(row._sum.total),
-  }))
+  if (user.id && user.name) sellerNames.set(user.id, user.name)
+  const sellerRankingMap = new Map<string, { id: string; name: string; count: number; total: number }>()
+
+  for (const row of sellerRows) {
+    const id = row.createdById || 'sem-vendedor'
+    sellerRankingMap.set(id, {
+      id,
+      name: row.createdById ? sellerNames.get(row.createdById) || 'Vendedor removido' : 'Sem vendedor',
+      count: row._count._all,
+      total: moneyValue(row._sum.total),
+    })
+  }
+
+  for (const project of standaloneSales) {
+    const id = project.managerId || 'sem-vendedor'
+    const current = sellerRankingMap.get(id)
+    sellerRankingMap.set(id, {
+      id,
+      name: project.managerId ? sellerNames.get(project.managerId) || 'Vendedor removido' : 'Sem vendedor',
+      count: (current?.count || 0) + 1,
+      total: (current?.total || 0) + moneyValue(project.value),
+    })
+  }
+
+  const sellerRanking = [...sellerRankingMap.values()]
+    .sort((left, right) => right.total - left.total || right.count - left.count || left.name.localeCompare(right.name))
+    .slice(0, 8)
+  const soldCount = soldTotals._count._all + standaloneSoldCount
+  const soldTotal = moneyValue(soldTotals._sum.total) + standaloneSoldTotal
+  const soldCost = moneyValue(soldTotals._sum.costTotal) + standaloneSoldCost
   const totalCreated = Object.values(counts).reduce((total, count) => total + count, 0)
-  const closedCount = soldTotals._count._all + lostTotals._count._all
+  const closedCount = soldCount + lostTotals._count._all
   const responseHours = closedQuotes.flatMap((quote) => {
     const outcome = quote.approvedAt || quote.lostAt
     if (!quote.sentAt || !outcome) return []
@@ -168,11 +214,11 @@ async function getSalesData(user: DashboardUser, range: ReturnType<typeof getMon
     counts,
     amounts,
     totalCreated,
-    soldCount: soldTotals._count._all,
-    soldTotal: moneyValue(soldTotals._sum.total),
-    soldCost: moneyValue(soldTotals._sum.costTotal),
+    soldCount,
+    soldTotal,
+    soldCost,
     lostCount: lostTotals._count._all,
-    conversion: closedCount > 0 ? Math.round((soldTotals._count._all / closedCount) * 100) : 0,
+    conversion: closedCount > 0 ? Math.round((soldCount / closedCount) * 100) : 0,
     waitingQuotes: waitingQuotes.map((quote) => ({
       ...quote,
       sentAt: quote.approvalRequests[0]?.sentAt || quote.sentAt,
@@ -229,7 +275,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-[#121212]">Funil do mês</h2>
-                  <p className="mt-1 text-xs text-[#9E9E9E]">{data.totalCreated} orçamento{data.totalCreated !== 1 ? 's' : ''} iniciado{data.totalCreated !== 1 ? 's' : ''} no período</p>
+                  <p className="mt-1 text-xs text-[#9E9E9E]">{data.totalCreated} negócio{data.totalCreated !== 1 ? 's' : ''} movimentado{data.totalCreated !== 1 ? 's' : ''} no período</p>
                 </div>
                 <Link href="/dashboard/quotes" className="flex items-center gap-1 text-xs font-semibold text-[#FF6B00] hover:underline">Orçamentos <ArrowRight size={13} /></Link>
               </div>

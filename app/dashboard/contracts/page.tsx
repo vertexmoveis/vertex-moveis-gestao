@@ -26,7 +26,7 @@ import {
   CONTRACT_CENTER_STATUS_LABELS,
   type ContractCenterStatus,
 } from '@/lib/contract-center'
-import { formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 
 type ContractRow = {
   id: string
@@ -56,6 +56,30 @@ type ContractsPayload = {
   page: number
   totalPages: number
   counts: { all: number; attention: number; waiting: number; signed: number; legacy: number }
+}
+
+type StandaloneConversionPreview = {
+  title: string
+  clientName: string
+  value: number
+  paymentMethod: 'PIX' | 'CARD'
+  downPayment: number
+  installmentCount: number
+  installmentValue: number
+  firstInstallmentDate: string | null
+  suggestedPaymentDate: string
+  environmentNames: string[]
+  deliveryBusinessDays: number
+  deliveryDeadlineDate: string | null
+}
+
+type StandaloneConversionData = {
+  contract: {
+    id: string
+    status: string
+    signedAt: string | null
+  }
+  preview: StandaloneConversionPreview
 }
 
 const emptyPayload: ContractsPayload = {
@@ -114,6 +138,15 @@ export default function ContractsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState(initialStandaloneForm)
+  const [saleData, setSaleData] = useState<StandaloneConversionData | null>(null)
+  const [saleLoading, setSaleLoading] = useState(false)
+  const [saleSubmitting, setSaleSubmitting] = useState(false)
+  const [saleError, setSaleError] = useState('')
+  const [saleForm, setSaleForm] = useState({
+    paymentConfirmedAt: '',
+    entryPaymentMethod: '',
+    environmentNames: '',
+  })
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
@@ -203,6 +236,64 @@ export default function ContractsPage() {
     }
   }
 
+  const openStandaloneSale = async (row: ContractRow) => {
+    setBusyId(row.id)
+    setSaleLoading(true)
+    setSaleError('')
+    try {
+      const response = await fetch(`/api/contracts/${encodeURIComponent(row.id)}/convert`)
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível preparar a venda.')
+      if (result?.alreadyConverted && result?.project?.id) {
+        window.location.assign(`/dashboard/projects/${result.project.id}`)
+        return
+      }
+      if (!result?.contract || !result?.preview) throw new Error('Os dados do contrato estão incompletos.')
+      const data = result as StandaloneConversionData
+      setSaleData(data)
+      setSaleForm({
+        paymentConfirmedAt: data.preview.suggestedPaymentDate || localDateValue(),
+        entryPaymentMethod: '',
+        environmentNames: data.preview.environmentNames.join('\n'),
+      })
+    } catch (requestError) {
+      setError((requestError as Error).message)
+    } finally {
+      setSaleLoading(false)
+      setBusyId(null)
+    }
+  }
+
+  const convertStandalone = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!saleData) return
+    setSaleSubmitting(true)
+    setSaleError('')
+    try {
+      const environmentNames = saleForm.environmentNames
+        .split(/\r?\n/)
+        .map((name) => name.trim())
+        .filter(Boolean)
+      const response = await fetch(`/api/contracts/${encodeURIComponent(saleData.contract.id)}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentConfirmedAt: saleForm.paymentConfirmedAt,
+          entryPaymentMethod: saleForm.entryPaymentMethod || undefined,
+          environmentNames,
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível registrar a venda.')
+      if (!result?.project?.id) throw new Error('A venda foi registrada, mas o projeto não foi localizado.')
+      window.location.assign(`/dashboard/projects/${result.project.id}`)
+    } catch (requestError) {
+      setSaleError((requestError as Error).message)
+    } finally {
+      setSaleSubmitting(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <Header
@@ -257,6 +348,14 @@ export default function ContractsPage() {
                         {row.contract?.publicUrl ? (
                           <a href={row.contract.publicUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#121212] px-3 text-xs font-semibold text-white hover:bg-[#292929]">Abrir <ExternalLink size={13} /></a>
                         ) : null}
+                        <button
+                          type="button"
+                          disabled={busyId === row.id || saleLoading}
+                          onClick={() => void openStandaloneSale(row)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-600 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={14} /> Confirmar venda
+                        </button>
                         {row.status !== 'SIGNED' ? (
                           <button type="button" title="Cancelar contrato" aria-label="Cancelar contrato" disabled={busyId === row.id} onClick={() => void cancelStandalone(row)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={14} /></button>
                         ) : null}
@@ -357,6 +456,99 @@ export default function ContractsPage() {
           </CardBody>
         </Card>
       </div>
+
+      <Modal
+        open={Boolean(saleData)}
+        onClose={() => {
+          if (!saleSubmitting) {
+            setSaleData(null)
+            setSaleError('')
+          }
+        }}
+        title="Confirmar venda do contrato"
+        size="lg"
+      >
+        {saleData ? (
+          <form onSubmit={convertStandalone} className="space-y-5">
+            <div className="rounded-xl border border-[#E8E8E8] bg-[#FAFAFA] p-4">
+              <p className="text-sm font-semibold text-[#121212]">{saleData.preview.title}</p>
+              <p className="mt-1 text-xs text-[#666]">Cliente: {saleData.preview.clientName}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-[#999]">Valor da venda</p>
+                  <p className="mt-1 text-sm font-semibold text-[#121212]">{formatCurrency(saleData.preview.value)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-[#999]">Entrada</p>
+                  <p className="mt-1 text-sm font-semibold text-[#121212]">{formatCurrency(saleData.preview.downPayment)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-[#999]">Parcelamento</p>
+                  <p className="mt-1 text-sm font-semibold text-[#121212]">
+                    {saleData.preview.paymentMethod === 'PIX'
+                      ? 'Pagamento por Pix'
+                      : `${saleData.preview.installmentCount}x de ${formatCurrency(saleData.preview.installmentValue)}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {!saleData.contract.signedAt ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                O cliente já visualizou este contrato, mas ainda não assinou. A venda e o projeto serão registrados agora; a produção continuará aguardando a assinatura.
+              </div>
+            ) : null}
+
+            {saleError ? (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saleError}</div>
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Data em que a entrada foi recebida *"
+                type="date"
+                max={localDateValue()}
+                value={saleForm.paymentConfirmedAt}
+                onChange={(event) => setSaleForm((current) => ({ ...current, paymentConfirmedAt: event.target.value }))}
+                required
+              />
+              {saleData.preview.paymentMethod === 'CARD' && saleData.preview.downPayment > 0 ? (
+                <Select
+                  label="Como a entrada foi recebida? *"
+                  value={saleForm.entryPaymentMethod}
+                  onChange={(event) => setSaleForm((current) => ({ ...current, entryPaymentMethod: event.target.value }))}
+                  options={[
+                    { value: '', label: 'Selecione' },
+                    { value: 'PIX', label: 'Pix' },
+                    { value: 'CARTAO', label: 'Cartão' },
+                    { value: 'DINHEIRO', label: 'Dinheiro' },
+                    { value: 'BOLETO', label: 'Boleto' },
+                    { value: 'TRANSFERENCIA', label: 'Transferência' },
+                  ]}
+                  required
+                />
+              ) : null}
+            </div>
+
+            <Textarea
+              label="Ambientes do projeto (um por linha) *"
+              value={saleForm.environmentNames}
+              onChange={(event) => setSaleForm((current) => ({ ...current, environmentNames: event.target.value }))}
+              rows={7}
+              required
+            />
+
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900">
+              O contrato original será preservado e vinculado ao novo projeto. As parcelas serão copiadas exatamente como estão no contrato.
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
+              <Button type="button" variant="outline" onClick={() => setSaleData(null)} disabled={saleSubmitting}>Cancelar</Button>
+              <Button type="submit" loading={saleSubmitting}><CheckCircle2 size={15} /> Registrar venda</Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
 
       <Modal open={createOpen} onClose={() => !creating && setCreateOpen(false)} title="Novo contrato avulso" size="lg">
         <form onSubmit={createStandalone} className="space-y-5">
