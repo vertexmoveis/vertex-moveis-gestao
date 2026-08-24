@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  isHeicProjectFile,
   normalizeProjectFileDisplayName,
   projectFileContentDisposition,
   projectFileDisplayName,
   projectFileExtension,
 } from '@/lib/project-files'
+
+test('identifica HEIC pelo MIME ou pela extensão', () => {
+  assert.equal(isHeicProjectFile('image/heic', 'foto'), true)
+  assert.equal(isHeicProjectFile('application/octet-stream', 'FOTO.HEIF'), true)
+  assert.equal(isHeicProjectFile('image/jpeg', 'foto.jpg'), false)
+})
 
 test('separa o nome visível da extensão do arquivo', () => {
   assert.equal(projectFileDisplayName('20260803_093010.heic'), '20260803_093010')

@@ -42,6 +42,12 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/api/projects/:id/files/:fileId',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        ],
+      },
+      {
         source: '/manifest.webmanifest',
         headers: publicMetadataHeaders,
       },

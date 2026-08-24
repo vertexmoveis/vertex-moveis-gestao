@@ -40,6 +40,11 @@ export function isAllowedProjectFileType(value: string) {
   return ALLOWED_PROJECT_FILE_TYPES.includes(value as typeof ALLOWED_PROJECT_FILE_TYPES[number])
 }
 
+export function isHeicProjectFile(type: string, name = '') {
+  const normalizedType = type.toLowerCase()
+  return normalizedType === 'image/heic' || normalizedType === 'image/heif' || /\.hei[cf]$/i.test(name)
+}
+
 export function sanitizeProjectFileName(value: string) {
   const normalized = value
     .normalize('NFD')
