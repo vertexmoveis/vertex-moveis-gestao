@@ -9,6 +9,7 @@ import path from 'node:path'
 import { get, list } from '@vercel/blob'
 import { Client } from 'pg'
 import { loadDatabaseEnv } from './database-env.mjs'
+import { loadJsonColumns, restoreRowValues } from './restore-values.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const backupPrefix = 'backups/database/'
@@ -222,6 +223,7 @@ async function restoreSnapshot(snapshot, targetDatabaseUrl) {
     try {
       await restored.connect()
       await restored.query(`SET search_path TO ${quoteIdentifier(schema)}`)
+      const jsonColumnsByTable = await loadJsonColumns(restored)
 
       for (const table of tableOrder) {
         const rows = Array.isArray(snapshot.tables[table]) ? snapshot.tables[table] : []
@@ -233,7 +235,10 @@ async function restoreSnapshot(snapshot, targetDatabaseUrl) {
         const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ')
         const statement = `INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(', ')}) VALUES (${placeholders})`
         for (const row of rows) {
-          await restored.query(statement, columns.map((column) => row[column]))
+          await restored.query(
+            statement,
+            restoreRowValues(table, columns, row, jsonColumnsByTable),
+          )
         }
       }
 

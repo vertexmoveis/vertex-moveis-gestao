@@ -4,6 +4,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import path from 'node:path'
 import { Client } from 'pg'
 import { loadDatabaseEnv } from './database-env.mjs'
+import { loadJsonColumns, restoreRowValues } from './restore-values.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const backupDir = path.resolve(process.env.BACKUP_DIRECTORY || path.join(projectRoot, 'backups'))
@@ -224,6 +225,7 @@ async function restoreTest(snapshot, directUrl) {
     try {
       await restored.connect()
       await restored.query(`SET search_path TO ${quoteIdentifier(schema)}`)
+      const jsonColumnsByTable = await loadJsonColumns(restored)
       for (const table of tableOrder) {
         const rows = snapshot.tables[table]
         if (!rows.length) continue
@@ -232,7 +234,10 @@ async function restoreTest(snapshot, directUrl) {
         const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ')
         const statement = `INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(', ')}) VALUES (${placeholders})`
         for (const row of rows) {
-          await restored.query(statement, columns.map((column) => row[column]))
+          await restored.query(
+            statement,
+            restoreRowValues(table, columns, row, jsonColumnsByTable),
+          )
         }
       }
 
