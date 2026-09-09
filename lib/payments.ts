@@ -11,6 +11,7 @@ export type PaymentScheduleInput = {
   installmentCount: number | null
   firstInstallmentDate?: Date | null
   baseDate?: Date | null
+  markDownPaymentReceived?: boolean
 }
 
 export function roundCurrency(value: number) {
@@ -61,7 +62,7 @@ export function buildPaymentSchedule(input: PaymentScheduleInput) {
       type: PAYMENT_TYPE_DOWN_PAYMENT,
       amount: terms.downPayment,
       dueDate: downPaymentDate,
-      paidAt: downPaymentDate,
+      paidAt: input.markDownPaymentReceived === false ? null : downPaymentDate,
     })
   }
 

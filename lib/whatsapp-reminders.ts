@@ -65,7 +65,7 @@ export async function runAutomatedWhatsAppReminders(input: {
         invalidatedAt: null,
         sentAt: { lte: reminderCutoff },
         OR: [{ lastReminderAt: null }, { lastReminderAt: { lte: reminderCutoff } }],
-        quote: { archivedAt: null, status: 'WAITING_APPROVAL' },
+        quote: { archivedAt: null, status: 'WAITING_APPROVAL', group: { requestId: null } },
       },
       orderBy: { sentAt: 'asc' },
       take: 15,

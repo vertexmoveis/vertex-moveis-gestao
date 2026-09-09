@@ -29,6 +29,7 @@ export type QuoteItemData = {
 }
 
 export type QuoteData = {
+  sourceRequest?: { id: string; title: string; briefing: string; opportunityUrl: string | null; commercialOwner: string; dueDate: string } | null
   id: string
   groupId: string
   number?: number | null

@@ -124,6 +124,7 @@ const quoteVariationSchema = z.object({
 }).strict()
 
 export const quoteSaveSchema = z.object({
+  requestId: z.string().trim().max(100).optional(),
   clientId: z.string().trim().min(1, 'Selecione um cliente'),
   title: z.string().trim().min(1, 'Informe o título').max(160),
   variationType: z.enum(QUOTE_VARIATION_TYPES).default('STANDARD'),

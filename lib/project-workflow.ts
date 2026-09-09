@@ -36,6 +36,8 @@ function isLegacyContractProject(createdAt: Date | string) {
 }
 
 export function getProjectFinancialReadiness(input: {
+  workflowVersion?: number
+  initialPaymentRequired?: boolean
   paymentConfirmedAt?: Date | string | null
   downPayment?: NumericValue
   payments: ProjectWorkflowPayment[]
@@ -51,13 +53,17 @@ export function getProjectFinancialReadiness(input: {
     (payment) => !payment.paidAt && isDateOnlyExpired(payment.dueDate, now),
   )
 
-  if (input.paymentConfirmedAt) {
+  if (input.initialPaymentRequired === false && downPayment === 0) {
+    return { ready: true, label: 'Condição aprovada sem entrada', detail: 'A condição comercial não exige entrada. As parcelas continuam no Financeiro.', hasOverdueInstallments, expectedInitialAmount: 0, paidInitialAmount: 0 }
+  }
+
+  if (input.paymentConfirmedAt && (input.workflowVersion ?? 1) < 2) {
     return {
       ready: true,
       label: 'Pagamento inicial confirmado',
       detail: hasOverdueInstallments
-        ? 'A produção está liberada; existem parcelas vencidas para tratar no Financeiro.'
-        : 'A produção está liberada. Parcelas futuras continuam no Financeiro.',
+        ? 'Condição financeira atendida; existem parcelas vencidas para tratar no Financeiro.'
+        : 'Condição financeira atendida. Parcelas futuras continuam no Financeiro.',
       hasOverdueInstallments,
       expectedInitialAmount: downPayment,
       paidInitialAmount: Math.max(paidEntranceAmount, downPayment),
@@ -70,8 +76,8 @@ export function getProjectFinancialReadiness(input: {
         ready: true,
         label: 'Entrada recebida',
         detail: hasOverdueInstallments
-          ? 'A entrada libera a produção; existem parcelas vencidas para cobrar.'
-          : 'A entrada libera a produção. As demais parcelas não bloqueiam o projeto.',
+          ? 'Entrada recebida; existem parcelas vencidas para cobrar.'
+          : 'Entrada recebida. Confira também contrato e aprovação técnica.',
         hasOverdueInstallments,
         expectedInitialAmount: downPayment,
         paidInitialAmount: paidEntranceAmount,
@@ -94,8 +100,8 @@ export function getProjectFinancialReadiness(input: {
       ready: true,
       label: 'Primeiro pagamento recebido',
       detail: hasOverdueInstallments
-        ? 'A produção está liberada; existem parcelas vencidas para cobrar.'
-        : 'A produção está liberada. Parcelas futuras seguem no Financeiro.',
+        ? 'Condição financeira atendida; existem parcelas vencidas para cobrar.'
+        : 'Condição financeira atendida. Parcelas futuras seguem no Financeiro.',
       hasOverdueInstallments,
       expectedInitialAmount: 0,
       paidInitialAmount: paidPayments.reduce((sum, payment) => sum + moneyValue(payment.amount), 0),

@@ -66,3 +66,4 @@ next-env.d.ts
 # Marketplace metadata generated locally by Vercel integrations
 .agents/
 skills-lock.json
+.next-workflow/

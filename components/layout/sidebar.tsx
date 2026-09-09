@@ -43,7 +43,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
   {
     label: 'Geral',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Visão geral', icon: LayoutDashboard },
     ],
   },
   {
@@ -51,7 +51,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
     items: [
       { href: '/dashboard/clients', label: 'Clientes', icon: Users },
       { href: '/dashboard/quotes', label: 'Orçamentos', icon: Calculator },
-      { href: '/dashboard/sales', label: 'Vendas', icon: TrendingUp },
+      { href: '/dashboard/sales', label: 'Fechamentos', icon: TrendingUp },
     ],
   },
   {
@@ -60,7 +60,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
       { href: '/dashboard/projects', label: 'Projetos', icon: FolderOpen },
       { href: '/dashboard/production', label: 'Produção', icon: Kanban },
       { href: '/dashboard/installation', label: 'Instalação', icon: Truck },
-      { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
+      { href: '/dashboard/calendar', label: 'Agenda operacional', icon: Calendar },
     ],
   },
   {

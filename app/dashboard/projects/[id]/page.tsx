@@ -1,4 +1,7 @@
 'use client'
+import { ProjectTechnicalApproval } from '@/components/projects/project-technical-approval'
+import { technicalApprovalReady } from '@/lib/technical-approval'
+
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -52,6 +55,13 @@ interface ProjectDetail {
   room: string | null
   status: ProjectStatus
   stage: ProductionStage
+  canWrite: boolean
+  initialPaymentRequired: boolean
+  workflowVersion: number
+  technicalApprovedAt: string | null
+  technicalApprovalSnapshot: string | null
+  technicalApprovalCustomer: string | null
+  technicalApprovalEvidence: string | null
   approvalDate: string | null
   paymentConfirmedAt: string | null
   deliveryBusinessDays: number
@@ -519,6 +529,10 @@ export default function ProjectDetailPage() {
     stage: project.stage,
     createdAt: project.createdAt,
     approvalDate: project.approvalDate,
+    workflowVersion: project.workflowVersion,
+    initialPaymentRequired: project.initialPaymentRequired,
+    technicalApprovedAt: project.technicalApprovedAt,
+    technicalApprovalSnapshot: project.technicalApprovalSnapshot,
     paymentConfirmedAt: project.paymentConfirmedAt,
     downPayment: project.downPayment,
     financialReady: project.workflow.financial.ready,
@@ -551,17 +565,17 @@ export default function ProjectDetailPage() {
         ? 'contrato'
         : action === 'OPEN_FILES'
           ? 'arquivos'
-          : 'cliente'
+          : 'aprovacao-tecnica'
     document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
   const workflowStatuses = [
     {
       key: 'approval',
-      label: project.approvalDate ? 'Projeto técnico aprovado' : 'Projeto técnico aguardando aprovação',
-      detail: project.approvalDate
-        ? `Aprovação registrada em ${formatDateOnly(project.approvalDate)}.`
+      label: technicalApprovalReady(project) ? 'Projeto técnico aprovado' : 'Projeto técnico aguardando aprovação',
+      detail: technicalApprovalReady(project)
+        ? `Aprovação registrada em ${formatDateOnly(project.technicalApprovedAt || project.approvalDate)}.`
         : 'Envie o projeto com as medidas para o cliente aprovar.',
-      completed: Boolean(project.approvalDate),
+      completed: technicalApprovalReady(project),
     },
     {
       key: 'financial',
@@ -602,6 +616,8 @@ export default function ProjectDetailPage() {
             Excluir projeto
           </button>
         </div>
+
+        <ProjectTechnicalApproval {...project} projectId={project.id} onUpdated={() => void loadProject(true)} />
 
         <ProjectPhaseWorkspace
           currentPhase={currentPhase}

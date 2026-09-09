@@ -163,6 +163,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = parsed.data
+    if (input.paymentConfirmedAt) return badRequest('Registre o recebimento no Financeiro após criar o projeto.')
+    if (input.stage !== 'PENDING_START') return badRequest('Crie o projeto em preparação e avance pelo painel de etapas.')
     const client = await prisma.client.findFirst({
       where: clientWhereForUser(auth.user, { id: input.clientId }),
       select: { id: true },
@@ -173,7 +175,7 @@ export async function POST(req: NextRequest) {
     const environmentNames = normalizeEnvironmentNames(input.environments, input.room)
     const room = environmentNames.length > 0 ? environmentNames.join(', ') : input.room
     const productionDates = calculateProjectProductionDates({
-      approvalDate: input.paymentConfirmedAt || input.approvalDate,
+      approvalDate: null,
       deliveryBusinessDays: input.deliveryBusinessDays,
       reminderBusinessDays: input.productionReminderBusinessDays,
     })
@@ -191,6 +193,7 @@ export async function POST(req: NextRequest) {
       baseDate: input.startDate || new Date(),
     })
     const schedule = buildPaymentSchedule({
+      markDownPaymentReceived: false,
       value: input.value,
       downPayment: paymentPlan.downPayment,
       downPaymentDate: paymentPlan.downPaymentDate,

@@ -1,3 +1,4 @@
+import { technicalApprovalSelect } from '@/lib/technical-approval'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
@@ -50,6 +51,7 @@ import {
   getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
+  getProjectTransitionBlockers,
 } from '@/lib/project-phases'
 
 function addCalendarDays(date: Date, days: number) {
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       status: true,
       stage: true,
       approvalDate: true,
+        ...technicalApprovalSelect,
       paymentConfirmedAt: true,
       deliveryBusinessDays: true,
       deliveryDeadlineDate: true,
@@ -149,7 +152,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         orderBy: { createdAt: 'desc' },
       },
       files: {
-        where: { securityStatus: { not: 'REJECTED' } },
+
         orderBy: { createdAt: 'desc' },
       },
       timeline: { select: { id: true, event: true, description: true, date: true, createdAt: true }, orderBy: { date: 'asc' } },
@@ -233,6 +236,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       : (currentContract?.status || 'NONE') as ProjectContractWorkflowStatus
   const financialReadiness = getProjectFinancialReadiness({
     paymentConfirmedAt: access.paymentConfirmedAt,
+    workflowVersion: project.workflowVersion,
+    initialPaymentRequired: project.initialPaymentRequired,
     downPayment: access.downPayment,
     payments: access.payments,
   })
@@ -249,6 +254,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     stage: project.stage as ProductionStage,
     createdAt: project.createdAt.toISOString(),
     approvalDate: project.approvalDate?.toISOString() || null,
+    workflowVersion: project.workflowVersion,
+    initialPaymentRequired: project.initialPaymentRequired,
+    technicalApprovedAt: project.technicalApprovedAt?.toISOString() || null,
+    technicalApprovalSnapshot: project.technicalApprovalSnapshot,
+
     paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
     downPayment: moneyValue(access.downPayment),
     financialReady: financialReadiness.ready,
@@ -275,6 +285,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     downPayment: 'downPayment' in project ? optionalMoneyValue(project.downPayment) : null,
     installmentValue: 'installmentValue' in project ? optionalMoneyValue(project.installmentValue) : null,
     approvalDate: project.approvalDate?.toISOString() || null,
+    workflowVersion: project.workflowVersion,
+    initialPaymentRequired: project.initialPaymentRequired,
+    technicalApprovedAt: project.technicalApprovedAt?.toISOString() || null,
+    technicalApprovalSnapshot: project.technicalApprovalSnapshot,
+    technicalApprovalCustomer: project.technicalApprovalCustomer,
+    technicalApprovalEvidence: project.technicalApprovalEvidence,
     paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
     deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
     productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
@@ -292,6 +308,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     firstInstallmentDate: 'firstInstallmentDate' in project && project.firstInstallmentDate ? project.firstInstallmentDate.toISOString() : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+    canWrite: ['ADMIN', 'MANAGER'].includes(auth.user.role),
     canOverridePhase: auth.user.role === 'ADMIN',
     workflow: {
       financial: financialReadiness,
@@ -395,13 +412,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
       })
       if (!existing) throw new PaymentScheduleConflictError('Projeto não encontrado.')
+      if (existing.workflowVersion >= 2 && (stage !== existing.stage || input.status !== existing.status)) throw new PaymentScheduleConflictError('Avance o projeto pelo painel de etapas para conferir as pendências.')
+      if (existing.workflowVersion >= 2 && (input.paymentConfirmedAt?.toISOString().slice(0, 10) || null) !== (existing.paymentConfirmedAt?.toISOString().slice(0, 10) || null)) throw new PaymentScheduleConflictError('Registre ou reabra recebimentos no Financeiro.')
 
       const productionDates = calculateProjectProductionDates({
-        approvalDate: input.paymentConfirmedAt || input.approvalDate,
+        approvalDate: existing.workflowVersion >= 2 ? existing.paymentConfirmedAt : input.paymentConfirmedAt || input.approvalDate,
         deliveryBusinessDays: input.deliveryBusinessDays,
         reminderBusinessDays: input.productionReminderBusinessDays,
       })
-      const estimatedEndDate = productionDates.deliveryDeadlineDate || input.estimatedEndDate
+      const estimatedEndDate = existing.workflowVersion >= 2 ? input.estimatedEndDate : productionDates.deliveryDeadlineDate || input.estimatedEndDate
       const completedAt = stage === 'COMPLETED' ? existing.actualEndDate || new Date() : existing.actualEndDate
       const postSaleFollowUpAt = stage === 'COMPLETED'
         ? existing.postSaleFollowUpAt || addCalendarDays(completedAt || new Date(), 30)
@@ -430,7 +449,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         baseDate: paymentPlan.baseDate,
         startDate: input.startDate,
       }
-      const schedule = buildPaymentSchedule(scheduleInput)
+      const schedule = buildPaymentSchedule({ ...scheduleInput, markDownPaymentReceived: existing.workflowVersion < 2 })
       const effectiveFirstInstallmentDate = schedule.payments.find(
         (payment) => payment.type === PAYMENT_TYPE_INSTALLMENT,
       )?.dueDate || null
@@ -475,11 +494,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           status: input.status,
           stage,
           approvalDate: input.approvalDate,
-          paymentConfirmedAt: input.paymentConfirmedAt,
+          paymentConfirmedAt: existing.workflowVersion >= 2 ? existing.paymentConfirmedAt : input.paymentConfirmedAt,
           deliveryBusinessDays: input.deliveryBusinessDays,
-          deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
+          deliveryDeadlineDate: existing.workflowVersion >= 2 ? existing.deliveryDeadlineDate : productionDates.deliveryDeadlineDate,
           productionReminderBusinessDays: input.productionReminderBusinessDays,
-          productionStartReminderDate: productionDates.productionStartReminderDate,
+          productionStartReminderDate: existing.workflowVersion >= 2 ? existing.productionStartReminderDate : productionDates.productionStartReminderDate,
           startDate: input.startDate,
           estimatedEndDate,
           actualEndDate: completedAt,
@@ -590,6 +609,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       downPayment: optionalMoneyValue(project.downPayment),
       installmentValue: optionalMoneyValue(project.installmentValue),
       approvalDate: project.approvalDate?.toISOString() || null,
+    workflowVersion: project.workflowVersion,
+    initialPaymentRequired: project.initialPaymentRequired,
+    technicalApprovedAt: project.technicalApprovedAt?.toISOString() || null,
+    technicalApprovalSnapshot: project.technicalApprovalSnapshot,
+    technicalApprovalCustomer: project.technicalApprovalCustomer,
+    technicalApprovalEvidence: project.technicalApprovalEvidence,
       paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
       deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
       productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
@@ -647,6 +672,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         stage: true,
         createdAt: true,
         approvalDate: true,
+        ...technicalApprovalSelect,
         paymentConfirmedAt: true,
         downPayment: true,
         actualEndDate: true,
@@ -658,8 +684,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         contractRevisionRequiredAt: true,
         environments: { select: { status: true } },
         files: {
-          where: { securityStatus: { not: 'REJECTED' } },
-          select: { category: true },
+
+          select: { id: true, category: true, securityStatus: true, expiresAt: true },
         },
         payments: { select: { type: true, amount: true, paidAt: true, dueDate: true } },
         contracts: {
@@ -677,6 +703,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const nextStage = parsed.data.stage
       ? normalizeProductionStage(parsed.data.stage as ProductionStage)
       : undefined
+    if (existing.workflowVersion >= 2 && parsed.data.status && !nextStage) return badRequest('Altere o andamento pelo painel de etapas.')
     const stageOverrideReason = parsed.data.stageOverrideReason?.trim() || null
     if (stageOverrideReason && auth.user.role !== 'ADMIN') return forbidden()
     if (parsed.data.contractRequirement && auth.user.role !== 'ADMIN') return forbidden()
@@ -694,14 +721,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             ? 'EXPIRED'
             : (currentContract?.status || 'NONE') as ProjectContractWorkflowStatus
         const financialReadiness = getProjectFinancialReadiness({
+          workflowVersion: existing.workflowVersion,
+          initialPaymentRequired: existing.initialPaymentRequired,
           paymentConfirmedAt: existing.paymentConfirmedAt,
           downPayment: existing.downPayment,
           payments: existing.payments,
         })
-        const blockers = getProjectPhaseBlockers(getProjectPhaseTasks({
+        const blockers = getProjectTransitionBlockers({
           stage: existing.stage as ProductionStage,
           createdAt: existing.createdAt.toISOString(),
           approvalDate: existing.approvalDate?.toISOString() || null,
+          workflowVersion: existing.workflowVersion,
+          initialPaymentRequired: existing.initialPaymentRequired,
+          technicalApprovedAt: existing.technicalApprovedAt?.toISOString() || null,
+          technicalApprovalSnapshot: existing.technicalApprovalSnapshot,
           paymentConfirmedAt: existing.paymentConfirmedAt?.toISOString() || null,
           downPayment: moneyValue(existing.downPayment),
           financialReady: financialReadiness.ready,
@@ -716,7 +749,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           payments: existing.payments,
           clientPhone: existing.client.whatsapp || existing.client.phone,
           postSaleContactedAt: existing.postSaleContactedAt?.toISOString() || null,
-        }, currentPhase))
+        }, targetPhase)
 
         if (blockers.length > 0 && !stageOverrideReason) {
           return NextResponse.json({

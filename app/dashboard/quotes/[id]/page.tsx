@@ -38,7 +38,6 @@ import {
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import { isDateOnlyExpired } from '@/lib/date-only'
 import type { QuoteData } from '@/types/quotes'
-import { PAYMENT_METHODS } from '@/lib/payment-methods'
 
 type ClientOption = {
   id: string
@@ -76,8 +75,7 @@ export default function QuoteDetailPage() {
   const [variantSaving, setVariantSaving] = useState(false)
   const [variantError, setVariantError] = useState('')
   const [convertOpen, setConvertOpen] = useState(false)
-  const [paymentConfirmedAt, setPaymentConfirmedAt] = useState(todayInputValue())
-  const [entryPaymentMethod, setEntryPaymentMethod] = useState('PIX')
+  const [downPaymentDueDate, setDownPaymentDueDate] = useState(todayInputValue())
   const [renewingValidity, setRenewingValidity] = useState(false)
 
   const applyLoadedQuote = useCallback((data: QuoteData) => {
@@ -226,8 +224,7 @@ export default function QuoteDetailPage() {
       setError('O cliente precisa aprovar a versão atual pelo link antes de criar o projeto.')
       return
     }
-    setPaymentConfirmedAt(todayInputValue())
-    setEntryPaymentMethod(quote.paymentMethod === 'BOLETO' ? 'BOLETO' : 'PIX')
+    setDownPaymentDueDate(todayInputValue())
     setConvertOpen(true)
   }
 
@@ -239,10 +236,7 @@ export default function QuoteDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        paymentConfirmedAt,
-        entryPaymentMethod: isQuoteInstallmentPaymentMethod(quote.paymentMethod) && Number(quote.cardDownPayment || 0) > 0
-          ? entryPaymentMethod
-          : undefined,
+        downPaymentDueDate,
       }),
     })
     const data = await response.json()
@@ -443,11 +437,10 @@ export default function QuoteDetailPage() {
     : 0
   const invalidInstallmentTerms = conversionInstallmentPayment && (
     conversionEntry > quote.total ||
-    (conversionBalance > 0 && (conversionInstallments < 1 || !quote.firstInstallmentDate)) ||
-    (conversionEntry > 0 && !entryPaymentMethod)
+    (conversionBalance > 0 && (conversionInstallments < 1 || !quote.firstInstallmentDate))
   )
   const invalidPaymentTerms = quote.paymentMethod === 'TO_DEFINE' || invalidInstallmentTerms
-  const invalidPaymentDate = !paymentConfirmedAt || paymentConfirmedAt > todayInputValue()
+  const invalidPaymentDate = conversionEntry > 0 && !downPaymentDueDate
 
   const paymentSummary = getQuotePaymentSummary(quote)
   const quoteLocked = quote.status === 'SOLD' || Boolean(quote.convertedProject)
@@ -481,6 +474,7 @@ export default function QuoteDetailPage() {
             <ArrowLeft size={16} />
             Voltar para Orçamentos
           </Link>
+          {quote.sourceRequest && <Link href={`/dashboard/quotes/requests?q=${encodeURIComponent(quote.sourceRequest.title)}`} className="text-sm font-semibold text-orange-700">Ver solicitação de origem</Link>}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void openEdit()} disabled={quoteLocked} title={quoteLocked ? 'Pedido já vinculado ao projeto' : 'Editar orçamento'}>
               <Edit3 size={16} />
@@ -1001,14 +995,14 @@ export default function QuoteDetailPage() {
         <div className="space-y-4">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             <p className="font-semibold">Orçamento aprovado</p>
-            <p className="mt-1 text-xs leading-5">Os {quote.deliveryBusinessDays || 30} dias úteis de entrega começarão na data de confirmação abaixo.</p>
+            <p className="mt-1 text-xs leading-5">A venda será registrada e o projeto ficará em preparação. Registre o recebimento no Financeiro. O prazo de fabricação começará com a entrada, quando prevista; sem entrada, a partir deste fechamento.</p>
           </div>
           <Input
-            label="Data da confirmação do pagamento"
+            label="Vencimento previsto da entrada"
             type="date"
             max={todayInputValue()}
-            value={paymentConfirmedAt}
-            onChange={(event) => setPaymentConfirmedAt(event.target.value)}
+            value={downPaymentDueDate}
+            onChange={(event) => setDownPaymentDueDate(event.target.value)}
           />
           {conversionInstallmentPayment ? (
             <div className="space-y-3">
@@ -1022,17 +1016,10 @@ export default function QuoteDetailPage() {
                   Entrada e {quote.paymentMethod === 'BOLETO' ? 'boletos' : 'parcelas'} serão copiados sem alteração.
                 </p>
               </div>
-              {conversionEntry > 0 ? (
-                <Select
-                  label="Como a entrada foi recebida"
-                  options={PAYMENT_METHODS.map((method) => ({ value: method.value, label: method.label }))}
-                  value={entryPaymentMethod}
-                  onChange={(event) => setEntryPaymentMethod(event.target.value)}
-                />
-              ) : null}
+
             </div>
           ) : quote.paymentMethod === 'PIX' ? (
-            <p className="rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#666]">O pagamento via Pix será registrado pelo valor total de {formatCurrency(quote.total)}.</p>
+            <p className="rounded-lg bg-[#F5F5F5] px-3 py-2 text-xs text-[#666]">O pagamento via Pix ficará a receber pelo valor total de {formatCurrency(quote.total)}.</p>
           ) : null}
           {quote.paymentMethod === 'TO_DEFINE' ? (
             <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

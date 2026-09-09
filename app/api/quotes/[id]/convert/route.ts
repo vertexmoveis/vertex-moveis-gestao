@@ -4,13 +4,13 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { buildPaymentSchedule } from '@/lib/payments'
 import { calculateProjectProductionDates } from '@/lib/business-days'
-import { dateOnlyKey, dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-only'
+import { dateOnlyKeyInTimeZone, toDateOnlyUtc } from '@/lib/date-only'
 import { buildDefaultChecklistItems } from '@/lib/checklist'
 import { normalizeEnvironmentNames } from '@/lib/project-environments'
 import { buildProjectMaterialsFromQuoteItems } from '@/lib/project-materials'
 import { calculateProductionWeight } from '@/lib/operational-toolkit'
 import { numberValue } from '@/lib/money'
-import { badRequest, forbidden, getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
+import { badRequest, forbidden, getClientIp, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { automaticReservationQuantity } from '@/lib/inventory-reservations'
@@ -18,12 +18,11 @@ import { buildProjectMdfSpecificationsFromQuoteItems } from '@/lib/project-mdf-s
 import { isQuoteInstallmentPaymentMethod } from '@/lib/quotes'
 
 const conversionSchema = z.object({
-  paymentConfirmedAt: z.string().date(),
-  entryPaymentMethod: z.enum(['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO', 'TRANSFERENCIA']).optional(),
+  downPaymentDueDate: z.string().date().optional(),
 }).strict()
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -41,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return badRequest()
   }
   const parsed = conversionSchema.safeParse(body)
-  if (!parsed.success) return badRequest(parsed.error.issues[0]?.message || 'Informe a data de confirmação do pagamento.')
+  if (!parsed.success) return badRequest('Confira o vencimento da entrada. Recebimentos devem ser registrados no Financeiro.')
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -62,20 +61,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!quote) throw new Error('NOT_FOUND')
       if (auth.user.role !== 'ADMIN' && quote.createdById !== auth.user.id) throw new Error('FORBIDDEN')
       if (quote.convertedProjectId) throw new Error('ALREADY_CONVERTED')
+      const soldOption = await tx.quote.findFirst({ where: { groupId: quote.groupId, convertedProjectId: { not: null } }, select: { id: true } })
+      if (soldOption) throw new Error('ALREADY_CONVERTED')
       if (quote.status !== 'APPROVED' || !quote.approvedAt) throw new Error('NOT_APPROVED')
       if (quote.approvalRequests.length === 0) throw new Error('APPROVAL_PROOF_REQUIRED')
       if (quote.paymentMethod === 'TO_DEFINE') throw new Error('PAYMENT_TERMS_REQUIRED')
 
       const approvalDate = quote.approvedAt
-      const paymentConfirmedAt = toDateOnlyUtc(parsed.data.paymentConfirmedAt)
-      if (!paymentConfirmedAt) throw new Error('INVALID_PAYMENT_DATE')
-      if ((dateOnlyKey(paymentConfirmedAt) || '') > dateOnlyKeyInTimeZone(new Date())) {
-        throw new Error('FUTURE_PAYMENT_DATE')
-      }
-      const productionDates = calculateProjectProductionDates({
-        approvalDate: paymentConfirmedAt,
-        deliveryBusinessDays: quote.deliveryBusinessDays,
-      })
+      const soldAt = new Date()
+      const paymentConfirmedAt = null
       const environmentNames = normalizeEnvironmentNames(
         quote.items.map((item) => item.environmentName || item.environment),
         quote.title
@@ -111,27 +105,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? quote.firstInstallmentDate
         : null
       if (installmentCount > 0 && !firstInstallmentDate) throw new Error('FIRST_INSTALLMENT_REQUIRED')
-      if (installmentPayment && downPayment > 0 && !parsed.data.entryPaymentMethod) {
-        throw new Error('ENTRY_PAYMENT_METHOD_REQUIRED')
-      }
-      const downPaymentDate = paymentConfirmedAt
+      const downPaymentDate = toDateOnlyUtc(parsed.data.downPaymentDueDate || dateOnlyKeyInTimeZone(soldAt))
+      const productionDates = calculateProjectProductionDates({ approvalDate: downPayment > 0 ? null : soldAt, deliveryBusinessDays: quote.deliveryBusinessDays })
       const schedule = buildPaymentSchedule({
         value: quoteTotal,
         downPayment,
         downPaymentDate,
         installmentCount,
         firstInstallmentDate,
-        baseDate: paymentConfirmedAt,
+        baseDate: soldAt,
+        markDownPaymentReceived: false,
       })
-      const payments = schedule.payments.map((payment) => (
-        payment.type === 'DOWN_PAYMENT'
-          ? {
-              ...payment,
-              paidAt: paymentConfirmedAt,
-              paymentMethod: quote.paymentMethod === 'PIX' ? 'PIX' : parsed.data.entryPaymentMethod,
-            }
-          : payment
-      ))
+      const payments = schedule.payments
       const materialDrafts = buildProjectMaterialsFromQuoteItems(quote.items)
       const catalogMaterials = materialDrafts.length > 0
         ? await tx.materialCatalogItem.findMany({
@@ -150,6 +135,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           stage: 'PENDING_START',
           approvalDate,
           paymentConfirmedAt,
+          initialPaymentRequired: downPayment > 0,
           deliveryBusinessDays: quote.deliveryBusinessDays,
           deliveryDeadlineDate: productionDates.deliveryDeadlineDate,
           productionReminderBusinessDays: 7,
@@ -256,7 +242,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           status: 'SOLD',
           approvedAt: quote.approvedAt || approvalDate,
-          soldAt: paymentConfirmedAt,
+          soldAt,
           convertedProjectId: project.id,
         },
       })
@@ -265,7 +251,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           projectId: project.id,
           event: 'Projeto criado do orçamento',
-          description: `Orçamento "${quote.title}" convertido após confirmação do pagamento`,
+          description: `Venda registrada por ${auth.user.name || auth.user.id}. Orçamento "${quote.title}" em preparação; recebimentos, contrato e aprovação técnica serão conferidos separadamente.`,
         },
       })
 
@@ -288,12 +274,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
       }
 
-      await syncClientRelationshipStage(tx, quote.clientId, { activityAt: paymentConfirmedAt })
+      await syncClientRelationshipStage(tx, quote.clientId, { activityAt: soldAt })
       return project
-    })
+    }, { isolationLevel: 'Serializable' })
 
     return NextResponse.json({ success: true, project: result })
   } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && ['P2034', 'P2002'].includes(String(error.code))) return NextResponse.json({ error: 'O fechamento foi atualizado em outra operação. Atualize a página antes de continuar.' }, { status: 409 })
     if (error instanceof Error && error.message === 'NOT_FOUND') {
       return NextResponse.json({ error: 'Orçamento não encontrado.' }, { status: 404 })
     }

@@ -26,6 +26,7 @@ const BACKUP_TABLES = [
   'ProjectPortalAccess',
   'ProjectContract',
   'WarrantyTicket',
+  'QuoteRequest',
   'QuoteGroup',
   'QuoteEnvironmentImage',
   'Quote',

@@ -22,6 +22,7 @@ import {
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
 import { clientWhereForUser } from '@/lib/client-access'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
+import { requestScope } from '@/lib/quote-requests'
 
 function resolveGroupStatus(quotes: Array<{ status: string }>) {
   return QUOTE_GROUP_STATUS_PRIORITY.find((status) => quotes.some((quote) => quote.status === status))
@@ -156,6 +157,12 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      if (input.requestId) {
+        const request = await tx.quoteRequest.findFirst({ where: { id: input.requestId, ...requestScope(auth.user) }, include: { quoteGroup: true } })
+        if (!request || request.clientId !== input.clientId || request.status === 'CANCELLED') throw new Error('REQUEST_INVALID')
+        if (request.quoteGroup) throw new Error('REQUEST_LINKED')
+        await tx.quoteRequest.update({ where: { id: request.id }, data: { status: 'IN_PROGRESS', receivedAt: request.receivedAt || new Date() } })
+      }
       await ensureDefaultQuoteSettings(tx)
       const [priceRules, materials] = await Promise.all([
         getActiveQuotePriceRules(tx),
@@ -170,6 +177,7 @@ export async function POST(req: NextRequest) {
       }))
       const group = await tx.quoteGroup.create({
         data: {
+          requestId: input.requestId,
           clientId: input.clientId,
           createdById: auth.user.id,
           title: input.title,
@@ -251,7 +259,9 @@ export async function POST(req: NextRequest) {
         total: Number(quote.total),
       })),
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'REQUEST_INVALID') return badRequest('Solicitação indisponível ou cliente diferente do encaminhamento.')
+    if ((error instanceof Error && error.message === 'REQUEST_LINKED') || (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002')) return NextResponse.json({ error: 'Esta solicitação já possui um orçamento. Atualize a lista.' }, { status: 409 })
     return serverError()
   }
 }

@@ -4,6 +4,7 @@ import { badRequest, getClientIp, requireRole, serverError, serviceUnavailable }
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { moneyValue } from '@/lib/money'
 import { isPaymentMethod } from '@/lib/payment-methods'
+import { syncProjectReceiptWorkflow } from '@/lib/project-receipt-workflow'
 
 export async function PATCH(
   req: NextRequest,
@@ -81,6 +82,7 @@ export async function PATCH(
       if (!paid && payment.type === 'DOWN_PAYMENT' && receivedCount === 0) {
         await tx.project.update({ where: { id }, data: { paymentConfirmedAt: null } })
       }
+      await syncProjectReceiptWorkflow(tx, id)
       return nextPayment
     })
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })

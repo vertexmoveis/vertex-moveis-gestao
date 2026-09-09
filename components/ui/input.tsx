@@ -1,5 +1,7 @@
+'use client'
+
 import { cn } from '@/lib/utils'
-import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef } from 'react'
+import { InputHTMLAttributes, TextareaHTMLAttributes, forwardRef, useId } from 'react'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -10,10 +12,12 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, helperText, icon, ...props }, ref) => {
+    const generatedId = useId()
+    const inputId = props.id || generatedId
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm font-medium text-[#121212]">{label}</label>
+          <label htmlFor={inputId} className="text-sm font-medium text-[#121212]">{label}</label>
         )}
         <div className="relative">
           {icon && (
@@ -33,6 +37,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               className
             )}
             {...props}
+            id={inputId}
           />
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -50,10 +55,12 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, ...props }, ref) => {
+    const generatedId = useId()
+    const inputId = props.id || generatedId
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm font-medium text-[#121212]">{label}</label>
+          <label htmlFor={inputId} className="text-sm font-medium text-[#121212]">{label}</label>
         )}
         <textarea
           ref={ref}
@@ -67,6 +74,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           )}
           rows={3}
           {...props}
+          id={inputId}
         />
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
@@ -84,10 +92,12 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, label, error, options, placeholder, ...props }, ref) => {
+    const generatedId = useId()
+    const inputId = props.id || generatedId
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-sm font-medium text-[#121212]">{label}</label>
+          <label htmlFor={inputId} className="text-sm font-medium text-[#121212]">{label}</label>
         )}
         <select
           ref={ref}
@@ -100,6 +110,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             className
           )}
           {...props}
+          id={inputId}
         >
           {placeholder && <option value="">{placeholder}</option>}
           {options.map((opt) => (

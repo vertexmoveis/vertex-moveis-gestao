@@ -270,6 +270,7 @@ export async function POST(
           cardFeePercent: projectPaymentMethod === 'CARD' ? snapshot.payment.cardFeePercent || 0 : 0,
           cardFeeAmount: projectPaymentMethod === 'CARD' ? snapshot.payment.cardFeeAmount || 0 : 0,
           downPayment: preview.downPayment,
+          initialPaymentRequired: preview.downPayment > 0,
           downPaymentDate: preview.downPayment > 0 ? paymentConfirmedAt : null,
           installmentCount: preview.installmentCount,
           installmentValue: preview.installmentValue,

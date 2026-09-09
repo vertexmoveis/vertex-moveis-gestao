@@ -180,6 +180,7 @@ export interface ProjectData {
   room: string | null
   status: ProjectStatus
   stage: ProductionStage
+  workflowVersion?: number
   approvalDate: string | null
   paymentConfirmedAt?: string | null
   deliveryBusinessDays: number

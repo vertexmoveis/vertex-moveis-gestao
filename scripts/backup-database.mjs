@@ -37,6 +37,7 @@ const tableOrder = [
   'ProjectPortalAccess',
   'ProjectContract',
   'WarrantyTicket',
+  'QuoteRequest',
   'QuoteGroup',
   'QuoteEnvironmentImage',
   'Quote',

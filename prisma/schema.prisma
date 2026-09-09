@@ -46,6 +46,8 @@ model User {
   purchaseOrders             PurchaseOrder[]        @relation("PurchaseOrderCreatedBy")
   privacyRequests            PrivacyRequest[]       @relation("PrivacyRequestCreatedBy")
   alertStates                UserAlertState[]
+  quoteRequests              QuoteRequest[] @relation("RequestAssigned")
+  quoteRequestsCreated       QuoteRequest[] @relation("RequestCreated")
 }
 
 model UserAlertState {
@@ -102,6 +104,7 @@ model Client {
   projects                   Project[]
   quotes                     Quote[]
   quoteGroups                QuoteGroup[]
+  quoteRequests              QuoteRequest[]
   privacyRequests            PrivacyRequest[]
   standaloneContracts        ProjectContract[] @relation("StandaloneContractClient")
 
@@ -129,6 +132,13 @@ model Project {
   status                         String                 @default("APPROVED")
   stage                          String                 @default("PENDING_START")
   approvalDate                   DateTime?
+  workflowVersion                Int                    @default(2)
+  initialPaymentRequired         Boolean                @default(true)
+  technicalApprovedAt            DateTime?
+  technicalApprovalSnapshot      String?
+  technicalApprovalCustomer      String?
+  technicalApprovalEvidence      String?
+  technicalApprovalRecordedBy    String?
   paymentConfirmedAt             DateTime?
   deliveryBusinessDays           Int                    @default(30)
   deliveryDeadlineDate           DateTime?
@@ -284,6 +294,8 @@ model QuoteGroup {
   createdById String?
   createdBy   User?                   @relation(fields: [createdById], references: [id], onDelete: SetNull)
   title       String
+  requestId   String?                 @unique
+  request     QuoteRequest?           @relation(fields: [requestId], references: [id], onDelete: Restrict)
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
   quotes      Quote[]
@@ -292,6 +304,35 @@ model QuoteGroup {
   @@index([clientId])
   @@index([createdById])
   @@index([updatedAt])
+}
+
+model QuoteRequest {
+  id                  String    @id @default(cuid())
+  clientId            String
+  client              Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdById         String
+  createdBy           User      @relation("RequestCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedToId        String
+  assignedTo          User      @relation("RequestAssigned", fields: [assignedToId], references: [id], onDelete: Restrict)
+  title               String
+  briefing            String
+  environments        String
+  commercialOwner     String
+  opportunityUrl      String?
+  externalOpportunityId String? @unique
+  referenceUrl        String?
+  desiredDeliveryDate DateTime?
+  dueDate             DateTime
+  status              String    @default("RECEIVED")
+  missingInformation  String?
+  nextAction          String?
+  receivedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  quoteGroup          QuoteGroup?
+
+  @@index([assignedToId, status, dueDate])
+  @@index([clientId])
 }
 
 model QuoteEnvironmentImage {

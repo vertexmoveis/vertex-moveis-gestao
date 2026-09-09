@@ -17,6 +17,7 @@ test('escopo de cliente limita o gerente aos vinculos de responsabilidade', () =
       { managerId: 'manager-1' },
       { projects: { some: { managerId: 'manager-1', archivedAt: null } } },
       { quotes: { some: { createdById: 'manager-1', archivedAt: null } } },
+      { quoteRequests: { some: { assignedToId: 'manager-1' } } },
     ],
   })
 })

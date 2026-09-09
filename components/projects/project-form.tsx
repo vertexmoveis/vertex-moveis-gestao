@@ -61,7 +61,7 @@ interface User { id: string; name: string }
 interface ProjectFormProps {
   clients: Client[]
   managers: User[]
-  initialData?: Partial<Record<keyof FormData, string | null> & { id: string }>
+  initialData?: Partial<Record<keyof FormData, string | null> & { id: string; workflowVersion: number }>
   paymentSummary?: {
     paidInstallmentNumbers: number[]
     paidInstallmentTotal: number
@@ -209,7 +209,7 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
   const deliveryBusinessDays = Math.max(Math.floor(Number(watchedDeliveryBusinessDays || DEFAULT_DELIVERY_BUSINESS_DAYS)), 1)
   const reminderBusinessDays = Math.max(Math.floor(Number(watchedReminderBusinessDays || DEFAULT_PRODUCTION_REMINDER_BUSINESS_DAYS)), 1)
   const productionDates = calculateProjectProductionDates({
-    approvalDate: watchedPaymentConfirmedAt || watchedApprovalDate,
+    approvalDate: (initialData?.workflowVersion ?? 2) >= 2 ? watchedPaymentConfirmedAt : watchedPaymentConfirmedAt || watchedApprovalDate,
     deliveryBusinessDays,
     reminderBusinessDays,
   })
@@ -253,7 +253,8 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
           </p>
         </div>
         <Input
-          label="Confirmação do pagamento"
+          label="Confirmação do pagamento (registrada no Financeiro)"
+          readOnly={(initialData?.workflowVersion ?? 2) >= 2}
           type="date"
           {...register('paymentConfirmedAt')}
         />
@@ -370,9 +371,9 @@ export function ProjectForm({ clients, managers, initialData, paymentSummary, on
             </div>
           </div>
         </div>
-        <Select label="Status" options={statusOptions} {...register('status')} />
-        <Select label="Etapa de Produção" options={stageOptions} {...register('stage')} />
-        <Input label="Data da aprovação" type="date" {...register('approvalDate')} />
+        <Select label="Status" options={(initialData?.workflowVersion ?? 2) >= 2 ? statusOptions.filter(option => option.value === (initialData?.status || 'APPROVED')) : statusOptions} {...register('status')} />
+        <Select label="Etapa de Produção" options={(initialData?.workflowVersion ?? 2) >= 2 ? stageOptions.filter(option => option.value === defaultStage) : stageOptions} {...register('stage')} />
+        <Input label="Data do aceite comercial" type="date" {...register('approvalDate')} />
         <Input
           label="Prazo (dias úteis)"
           type="number"

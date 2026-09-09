@@ -79,6 +79,7 @@ type ClientOption = {
 type QuoteFormProps = {
   clients: ClientOption[]
   initialData?: QuoteData | null
+  defaults?: { clientId: string; title: string; notes: string }
   onSubmit: (data: QuotePayload) => Promise<void>
   onCancel: () => void
 }
@@ -353,9 +354,9 @@ function toCalculationItem(item: DraftItem) {
   }
 }
 
-export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFormProps) {
-  const [clientId, setClientId] = useState(initialData?.client?.id || '')
-  const [title, setTitle] = useState(initialData?.title || '')
+export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }: QuoteFormProps) {
+  const [clientId, setClientId] = useState(initialData?.client?.id || defaults?.clientId || '')
+  const [title, setTitle] = useState(initialData?.title || defaults?.title || '')
   const [variations, setVariations] = useState<QuoteVariationInput[]>(() => {
     const type = safeQuoteVariationType(initialData?.variationType)
     return [{
@@ -374,7 +375,7 @@ export function QuoteForm({ clients, initialData, onSubmit, onCancel }: QuoteFor
   const [deliveryBusinessDays, setDeliveryBusinessDays] = useState(String(initialData?.deliveryBusinessDays || 30))
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(initialData?.firstInstallmentDate?.slice(0, 10) || todayInputValue())
   const [validUntil, setValidUntil] = useState(initialData?.validUntil?.slice(0, 10) || '')
-  const [notes, setNotes] = useState(initialData?.notes || '')
+  const [notes, setNotes] = useState(initialData?.notes || defaults?.notes || '')
   const [customerNotes, setCustomerNotes] = useState(
     initialData?.customerNotes || 'Orçamento válido conforme medidas informadas. Produção após aprovação e pagamento combinado.'
   )

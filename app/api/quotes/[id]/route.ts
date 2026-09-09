@@ -66,6 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         convertedProject: { select: { id: true, name: true } },
         group: {
           select: {
+            request: { select: { id: true, title: true, briefing: true, opportunityUrl: true, commercialOwner: true, dueDate: true } },
             images: {
               orderBy: [{ environmentName: 'asc' }, { position: 'asc' }, { createdAt: 'asc' }],
               select: { id: true, environmentName: true, name: true, caption: true, type: true, size: true, securityStatus: true, securityDetails: true, position: true, createdAt: true },
@@ -148,6 +149,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     ...serializeQuote(quoteWithoutApprovalRequests),
+    sourceRequest: group.request,
     environmentImages: group.images.map((image) => ({ ...image, createdAt: image.createdAt.toISOString() })),
     readiness: evaluateQuoteReadiness({
       ...quote,

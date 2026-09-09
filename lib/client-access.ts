@@ -9,6 +9,7 @@ export function clientAccessScope(user: Pick<AuthenticatedUser, 'id' | 'role'>):
       { managerId: user.id },
       { projects: { some: { managerId: user.id, archivedAt: null } } },
       { quotes: { some: { createdById: user.id, archivedAt: null } } },
+      { quoteRequests: { some: { assignedToId: user.id } } },
     ],
   }
 }

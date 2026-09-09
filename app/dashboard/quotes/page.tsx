@@ -1,4 +1,6 @@
 'use client'
+import Link from 'next/link'
+
 
 import { Calculator, ChevronLeft, ChevronRight, ExternalLink, FileText, Plus, Search } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -165,6 +167,7 @@ export default function QuotesPage() {
       />
 
       <div className="flex-1 space-y-4 p-6">
+        <nav aria-label="Orçamentos" className="flex flex-wrap gap-3 text-sm font-semibold"><Link className="rounded-lg border bg-white px-4 py-2" href="/dashboard/quotes/requests">Solicitações</Link><span aria-current="page" className="rounded-lg bg-orange-100 px-4 py-2 text-orange-900">Propostas</span><Link className="rounded-lg border bg-white px-4 py-2" href="/dashboard/sales">Fechamentos</Link></nav>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
           <button
             type="button"

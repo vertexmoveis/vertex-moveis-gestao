@@ -1,3 +1,4 @@
+import { technicalApprovalReady, type TechnicalFile } from '@/lib/technical-approval'
 import type { ProductionStage, ProjectEnvironmentStatus } from '@/types'
 import {
   getProjectContractReadiness,
@@ -63,6 +64,10 @@ export type ProjectNextAction = {
 export type ProjectPhaseInput = {
   stage: ProductionStage
   createdAt: string
+  workflowVersion?: number
+  initialPaymentRequired?: boolean
+  technicalApprovedAt?: string | null
+  technicalApprovalSnapshot?: string | null
   approvalDate?: string | null
   paymentConfirmedAt?: string | null
   downPayment?: number | null
@@ -74,7 +79,7 @@ export type ProjectPhaseInput = {
   contractWaivedReason?: string | null
   productionBlockedAt?: string | null
   environments: { status: ProjectEnvironmentStatus }[]
-  files: { category: string }[]
+  files: TechnicalFile[]
   payments: ProjectWorkflowPayment[]
   clientPhone?: string | null
   postSaleContactedAt?: string | null
@@ -116,6 +121,8 @@ function allEnvironmentsMatch(input: ProjectPhaseInput, statuses: ProjectEnviron
 export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMacroPhase): ProjectPhaseTask[] {
   if (phase === 'PREPARATION') {
     const financial = getProjectFinancialReadiness({
+      workflowVersion: input.workflowVersion,
+      initialPaymentRequired: input.initialPaymentRequired,
       paymentConfirmedAt: input.paymentConfirmedAt,
       downPayment: input.downPayment,
       payments: input.payments,
@@ -149,7 +156,8 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
       { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true, group: 'TECHNICAL', action: 'EDIT_PROJECT' },
       { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
       { key: 'technical-project', label: 'Projeto técnico anexado', completed: hasFile(input, 'TECHNICAL_PROJECT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
-      { key: 'approval', label: 'Aprovação do cliente registrada', completed: Boolean(input.approvalDate), required: true, group: 'TECHNICAL', action: 'REQUEST_APPROVAL' },
+      { key: 'approval', label: 'Aprovação técnica do cliente registrada', completed: technicalApprovalReady(input), required: true, group: 'TECHNICAL', action: 'REQUEST_APPROVAL' },
+      { key: 'unblocked', label: 'Projeto sem impedimentos', completed: !input.productionBlockedAt, required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
     ]
   }
 
@@ -207,6 +215,12 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
 
 export function getProjectPhaseBlockers(tasks: ProjectPhaseTask[]) {
   return tasks.filter((task) => task.required && !task.completed).map((task) => task.label)
+}
+
+export function getProjectTransitionBlockers(input: ProjectPhaseInput, targetPhase: ProjectMacroPhase) {
+  const start = getProjectMacroPhaseIndex(getProjectMacroPhase(input.stage))
+  const end = getProjectMacroPhaseIndex(targetPhase)
+  return [...new Set(PROJECT_MACRO_PHASES.slice(start, Math.max(start, end)).flatMap(phase => getProjectPhaseBlockers(getProjectPhaseTasks(input, phase))))]
 }
 
 export function getProjectNextAction(tasks: ProjectPhaseTask[], phase: ProjectMacroPhase): ProjectNextAction {

@@ -1,3 +1,4 @@
+import { IntakeSummary } from '@/components/dashboard/intake-summary'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
@@ -204,6 +205,7 @@ export default async function DashboardPage() {
       />
 
       <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+        <IntakeSummary user={user || {}} />
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-7">
           <StatsCard title="Clientes" value={data.totalClients} icon={Users} color="blue" delay={0} />

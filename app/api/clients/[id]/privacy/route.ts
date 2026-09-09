@@ -13,6 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     include: req.nextUrl.searchParams.get('export') === '1' ? {
       projects: { where: { archivedAt: null }, include: { payments: true, environments: true } },
       quotes: { where: { archivedAt: null }, include: { items: true } },
+      quoteRequests: true,
     } : undefined,
   })
   if (!client) return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
