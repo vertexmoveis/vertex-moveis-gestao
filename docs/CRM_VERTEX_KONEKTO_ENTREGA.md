@@ -38,10 +38,14 @@ Os testes integrados usaram PostgreSQL local em memória via PGlite, com integra
 
 Antes de executar esta versão em um ambiente compartilhado, aplicar a migração `20260909160000_quote_requests_and_preparation` e gerar o cliente Prisma pelo fluxo de implantação do projeto. A migração está preparada no código, mas não foi executada na base real. A publicação também não foi realizada.
 
-O plano completo permanece em `../../analysis/PLANO_CRM_VERTEX_KONEKTO.md`, relativos a este documento. As etapas seguintes são:
+O plano completo está em [PLANO_CRM_VERTEX_KONEKTO.md](PLANO_CRM_VERTEX_KONEKTO.md). As etapas seguintes são:
 
 - Fazer o piloto com casos reais e confirmar responsáveis, evidência do aceite e marco contratual dos prazos.
 - Manter o encaminhamento manual entre Konekto e Vertex, conforme decisão do usuário. Integração automática não faz parte do escopo solicitado.
 - Definir e implementar alçadas de desconto/margem, relatórios adicionais e regras avançadas de capacidade ou liberação parcial por ambiente conforme a necessidade observada.
 
 Limitações da primeira versão: a aprovação técnica é registrada pela equipe com evidência; não é uma nova assinatura eletrônica do cliente. O vínculo externo depende do identificador informado. As regras legadas foram preservadas, e sua revisão exige conferência individual no piloto.
+
+## Preparação para publicação
+
+A primeira tentativa de publicação foi interrompida pela auditoria de dependências, antes de acessar produção. A versão de publicação atualiza Next.js e eslint-config-next para 16.3.4, sharp para 0.35.4 e as dependências transitivas sinalizadas. A auditoria completa passou sem vulnerabilidades. Os 181 testes da versão isolada passaram; os três testes adicionais da pasta original pertencem à alteração separada do visualizador de arquivos e não fazem parte desta publicação.
