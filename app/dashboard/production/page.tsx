@@ -6,7 +6,6 @@ import { KanbanBoard } from '@/components/kanban/kanban-board'
 import type { ProjectData } from '@/types'
 import { serializeEnvironment, summarizeEnvironments } from '@/lib/project-environments'
 import { optionalMoneyValue } from '@/lib/money'
-import { getProductionProjectState } from '@/lib/production-board'
 import { COMPANY_PROFILE_ID, DEFAULT_COMPANY_PROFILE } from '@/lib/company-profile'
 import { getProductionCapacityWeeks } from '@/lib/production-capacity'
 import { toDateOnlyUtc } from '@/lib/date-only'
@@ -169,20 +168,16 @@ export default async function ProductionPage() {
   const projects = production.projects
 
   const totalActive = projects.filter((p) => p.stage !== 'COMPLETED').length
-  const totalCompleted = projects.filter((p) => p.stage === 'COMPLETED').length
-  const projectStates = projects.map((project) => getProductionProjectState(project, referenceDate))
-  const totalDelayed = projectStates.filter((state) => state.overdue).length
-  const totalBlocked = projectStates.filter((state) => state.blocked).length
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <Header
         title="Produção"
-        subtitle={`${totalActive} em andamento · ${totalDelayed} atrasado${totalDelayed === 1 ? '' : 's'} · ${totalBlocked} bloqueado${totalBlocked === 1 ? '' : 's'} · ${totalCompleted} concluído${totalCompleted === 1 ? '' : 's'} recente${totalCompleted === 1 ? '' : 's'}`}
+        subtitle={`${totalActive} pedidos em andamento · acompanhe as etapas de cada projeto`}
         userName={session?.user?.name || ''}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-[#F5F5F5] p-4 lg:p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[#F8F9FA] p-4 lg:px-6">
         {production.limited ? (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
             Mostrando os {PRODUCTION_PROJECT_LIMIT} projetos mais atualizados. Use Projetos para localizar os demais.

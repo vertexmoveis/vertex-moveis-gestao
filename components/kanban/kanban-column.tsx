@@ -37,8 +37,8 @@ export function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: stage })
 
   return (
-    <section className="flex min-h-[320px] min-w-[340px] max-w-[420px] basis-[380px] flex-1 self-start flex-col overflow-hidden rounded-lg border border-[#E7E7E7] bg-white">
-      <header className="flex min-h-12 items-center justify-between gap-2 border-b border-[#E7E7E7] bg-white px-3.5 py-2">
+    <section className="flex h-full min-h-0 w-[300px] shrink-0 flex-col">
+      <header className="flex min-h-16 shrink-0 items-center justify-between gap-2 rounded-md border border-[#E7E7E7] bg-white px-3.5 py-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
@@ -65,8 +65,11 @@ export function KanbanColumn({
 
       <div
         ref={setNodeRef}
+        tabIndex={0}
+        role="region"
+        aria-label={`Projetos em ${label}`}
         className={cn(
-          'min-h-[240px] flex-1 space-y-3 overflow-y-auto bg-[#FAFAFA] p-3 transition-colors',
+          'mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-md pb-4 pr-1 transition-colors [scrollbar-gutter:stable] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]',
           isOver && 'bg-orange-50/70 shadow-[inset_0_0_0_2px_#FDBA74]',
         )}
       >

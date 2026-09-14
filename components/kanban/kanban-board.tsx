@@ -34,7 +34,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type WheelEvent,
 } from 'react'
 import { KanbanColumn } from './kanban-column'
 import { KanbanCard } from './kanban-card'
@@ -148,7 +147,9 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
   const [managerId, setManagerId] = useState('ALL')
   const [attentionFilter, setAttentionFilter] = useState<ProductionAttentionFilter>('ALL')
   const [viewMode, setViewMode] = useState<ProductionViewMode>('BOARD')
-  const [showEmptyStages, setShowEmptyStages] = useState(false)
+  const [projectFilter, setProjectFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ACTIVE')
+  const [showEmptyStages, setShowEmptyStages] = useState(true)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [dialog, setDialog] = useState<ActionDialog | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
@@ -192,10 +193,13 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
   const baseFilteredProjects = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLocaleLowerCase('pt-BR')
     return projects.filter((project) => {
+      const completed = normalizeProductionStage(project.stage) === 'COMPLETED'
+      if (projectFilter === 'ACTIVE' && completed) return false
+      if (projectFilter === 'COMPLETED' && !completed) return false
       if (managerId !== 'ALL' && project.manager?.id !== managerId) return false
       return !normalizedQuery || projectSearchValue(project).includes(normalizedQuery)
     })
-  }, [deferredQuery, managerId, projects])
+  }, [deferredQuery, managerId, projectFilter, projects])
 
   const stats = useMemo(() => {
     return baseFilteredProjects.reduce(
@@ -263,14 +267,6 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
       behavior: 'smooth',
     })
   }, [])
-
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const node = scrollRef.current
-    if (!node || Math.abs(event.deltaY) <= Math.abs(event.deltaX) || node.scrollWidth <= node.clientWidth) return
-    event.preventDefault()
-    node.scrollLeft += event.deltaY
-    updateScrollState()
-  }, [updateScrollState])
 
   const persistProjectPatch = useCallback(async (
     sourceProject: ProjectData,
@@ -479,6 +475,8 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
     setQuery('')
     setManagerId('ALL')
     setAttentionFilter('ALL')
+    setProjectFilter('ALL')
+    setViewMode('BOARD')
   }
 
   const renderBoard = () => {
@@ -492,7 +490,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-[280px] flex-1">
           <button
             type="button"
             aria-label="Voltar colunas"
@@ -506,11 +504,13 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
 
           <div
             ref={scrollRef}
-            onWheel={handleWheel}
-            className="h-full overflow-x-auto overflow-y-hidden scroll-smooth pb-2"
+            tabIndex={0}
+            role="region"
+            aria-label="Quadro de produção: role horizontalmente para ver todas as etapas"
+            className="absolute inset-0 overflow-x-auto overflow-y-hidden pb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
           >
             <div className={cn(
-              'flex h-full min-w-max items-start gap-4',
+              'flex h-full min-w-max items-stretch gap-3',
               visibleStages.length <= 4 && 'min-w-full',
             )}>
               {visibleStages.map((stage) => {
@@ -559,9 +559,30 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="sticky top-0 z-30 shrink-0 rounded-lg border border-[#E7E7E7] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]">
-        <div className="flex flex-wrap items-center gap-2 p-2 md:flex-nowrap">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="shrink-0 border-b border-[#E7E7E7]">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
+          <div className="flex items-center gap-1" role="group" aria-label="Filtrar pedidos">
+            {([
+              { value: 'ALL', label: 'Geral' },
+              { value: 'ACTIVE', label: 'Em andamento' },
+              { value: 'COMPLETED', label: 'Concluídos recentes' },
+            ] as const).map((filter) => (
+              <button key={filter.value} type="button" aria-pressed={projectFilter === filter.value}
+                onClick={() => setProjectFilter(filter.value)}
+                className={cn('border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]',
+                  projectFilter === filter.value ? 'border-[#FF6B00] text-[#B84D00]' : 'border-transparent text-[#666] hover:text-[#222]')}>
+                {filter.label}
+              </button>
+            ))}
+            <span className="ml-2 rounded-full bg-orange-50 px-2.5 py-1 text-xs text-[#B84D00]" role="status">{visibleProjects.length} pedido{visibleProjects.length === 1 ? '' : 's'}</span>
+          </div>
+          <button type="button" onClick={() => setSummaryOpen((current) => !current)} aria-expanded={summaryOpen}
+            className="rounded-md px-3 py-2 text-xs font-medium text-[#666] hover:bg-white focus-visible:ring-2 focus-visible:ring-[#FF6B00]">
+            {summaryOpen ? 'Ocultar resumo' : 'Indicadores e capacidade'}
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pb-3">
           <label className="relative min-w-[240px] flex-1">
             <span className="sr-only">Buscar projeto, cliente ou ambiente</span>
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#777]" />
@@ -645,42 +666,44 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
         ) : null}
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
-        <MetricButton
-          label="Atrasados"
-          value={stats.overdue}
-          icon={AlertTriangle}
-          active={attentionFilter === 'OVERDUE'}
-          tone="red"
-          onClick={() => setMetricFilter('OVERDUE')}
-        />
-        <MetricButton
-          label="Bloqueados"
-          value={stats.blocked}
-          icon={LockKeyhole}
-          active={attentionFilter === 'BLOCKED'}
-          tone="amber"
-          onClick={() => setMetricFilter('BLOCKED')}
-        />
-        <MetricButton
-          label="Próximos 7 dias"
-          value={stats.dueSoon}
-          icon={CalendarClock}
-          active={attentionFilter === 'DUE_SOON'}
-          tone="blue"
-          onClick={() => setMetricFilter('DUE_SOON')}
-        />
-        <MetricButton
-          label="Sem prazo"
-          value={stats.noDeadline}
-          icon={CalendarClock}
-          active={attentionFilter === 'NO_DEADLINE'}
-          tone="gray"
-          onClick={() => setMetricFilter('NO_DEADLINE')}
-        />
-      </div>
+      {summaryOpen ? <div className="shrink-0 space-y-3">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <MetricButton
+            label="Atrasados"
+            value={stats.overdue}
+            icon={AlertTriangle}
+            active={attentionFilter === 'OVERDUE'}
+            tone="red"
+            onClick={() => setMetricFilter('OVERDUE')}
+          />
+          <MetricButton
+            label="Bloqueados"
+            value={stats.blocked}
+            icon={LockKeyhole}
+            active={attentionFilter === 'BLOCKED'}
+            tone="amber"
+            onClick={() => setMetricFilter('BLOCKED')}
+          />
+          <MetricButton
+            label="Próximos 7 dias"
+            value={stats.dueSoon}
+            icon={CalendarClock}
+            active={attentionFilter === 'DUE_SOON'}
+            tone="blue"
+            onClick={() => setMetricFilter('DUE_SOON')}
+          />
+          <MetricButton
+            label="Sem prazo"
+            value={stats.noDeadline}
+            icon={CalendarClock}
+            active={attentionFilter === 'NO_DEADLINE'}
+            tone="gray"
+            onClick={() => setMetricFilter('NO_DEADLINE')}
+          />
+        </div>
 
-      <ProductionCapacity weeks={capacityWeeks} />
+        <ProductionCapacity weeks={capacityWeeks} />
+      </div> : null}
 
       {notice ? (
         <div

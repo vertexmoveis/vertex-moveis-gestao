@@ -18,7 +18,6 @@ import {
   UnlockKeyhole,
 } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
-import { StatusBadge } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { isEnvironmentCompleted } from '@/lib/project-environments'
 import {
@@ -104,9 +103,15 @@ export function KanbanCard({
         isPending && 'opacity-70',
       )}
     >
-      <div className="p-3.5">
-        <div className="mb-2 flex items-start justify-between gap-2">
-          <StatusBadge status={project.status} />
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <Link
+            href={`/dashboard/projects/${project.id}`}
+            className="line-clamp-2 pt-1 text-sm font-semibold leading-5 text-[#121212] hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
+            onPointerDown={stopPointer}
+          >
+            {project.name}
+          </Link>
           <div className="flex items-center gap-1">
             {isPending ? <Loader2 size={14} className="animate-spin text-[#FF6B00]" /> : null}
             {!isDragging ? (
@@ -125,14 +130,6 @@ export function KanbanCard({
           </div>
         </div>
 
-        <Link
-          href={`/dashboard/projects/${project.id}`}
-          className="line-clamp-2 text-base font-semibold leading-5 text-[#121212] transition-colors hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={stopPointer}
-        >
-          {project.name}
-        </Link>
         <p className="mt-0.5 truncate text-[13px] text-[#666]">{project.client.name}</p>
         {environmentNames ? <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-[#8A8A8A]">{environmentNames}</p> : null}
 
@@ -140,7 +137,7 @@ export function KanbanCard({
           {attention.blocked ? (
             <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
               <LockKeyhole size={11} className="shrink-0" />
-              <span className="shrink-0 font-semibold">Produção bloqueada</span>
+              <span className="shrink-0 font-semibold">Bloqueado</span>
               <span aria-hidden="true">·</span>
               <span className="truncate">{project.productionBlockReason || 'Motivo não informado'}</span>
             </div>
@@ -203,13 +200,7 @@ export function KanbanCard({
           </div>
         ) : null}
 
-        {nextStage ? (
-          <p className="mt-2 rounded-md bg-[#F7F7F7] px-2 py-1.5 text-[10px] text-[#777]">
-            Próxima etapa: <span className="font-semibold text-[#333]">{PRODUCTION_STAGE_LABELS[nextStage]}</span>
-          </p>
-        ) : null}
-
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEFEF] pt-3">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#EFEFEF] pt-2">
           {project.manager ? (
             <div className="flex min-w-0 items-center gap-1.5">
               <Avatar name={project.manager.name} size="xs" />
@@ -217,8 +208,11 @@ export function KanbanCard({
             </div>
           ) : <span />}
 
+        </div>
           {!isDragging ? (
-            <div className="flex shrink-0 items-center gap-1.5">
+            <details className="mt-2 border-t border-[#EFEFEF] pt-2" onPointerDown={stopPointer}>
+              <summary className="cursor-pointer rounded text-xs font-medium text-[#666] hover:text-[#FF6B00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00]">Ações do pedido</summary>
+            <div className="mt-2 flex items-center justify-between gap-1.5">
               <Link
                 href={`/dashboard/projects/${project.id}#materiais`}
                 aria-label="Abrir materiais e compras"
@@ -282,8 +276,8 @@ export function KanbanCard({
                 <ChevronRight size={14} />
               </button>
             </div>
+            </details>
           ) : null}
-        </div>
       </div>
     </article>
   )
