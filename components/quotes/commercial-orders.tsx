@@ -16,7 +16,7 @@ import type { QuotePayload } from '@/components/quotes/quote-form'
 
 const QuoteForm = dynamic(() => import('@/components/quotes/quote-form').then(m => m.QuoteForm), { loading: () => <p>Carregando formulário…</p> })
 const emptyClients: { id: string; name: string }[] = []
-const empty: CommercialResult & { canWrite?: boolean } = { items: [], total: 0, owners: [], counts: { all: 0, active: 0, closed: 0 } }
+const empty: CommercialResult & { canWrite?: boolean } = { items: [], total: 0, owners: [], counts: { all: 0, active: 0, closed: 0, lost: 0, sold: 0 } }
 const dateLabel = (value: string) => value.slice(0,10).split('-').reverse().join('/')
 
 export function CommercialOrders({ clientId = '' }: { clientId?: string }) {
@@ -74,7 +74,7 @@ export function CommercialOrders({ clientId = '' }: { clientId?: string }) {
     <div className={embedded ? 'space-y-3' : 'flex-1 space-y-4 bg-[#F8F9FA] p-4 md:p-6'}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E5E5]">
         <div className="flex flex-wrap" role="group" aria-label="Visão dos pedidos">
-          {([['all','Geral'],['active','Em andamento'],['closed','Encerrados']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={view===value} onClick={()=>change('view',value)} className={cn('border-b-2 px-3 py-3 text-sm font-medium',view===value?'border-orange-500 text-orange-700':'border-transparent text-[#666]')}>{label} <span className="ml-1 text-xs">{data.counts[value]}</span></button>)}
+          {([['all','Geral'],['active','Em andamento'],['closed','Encerrados'],['lost','Perdidos'],['sold','Vendidos']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={view===value} onClick={()=>change('view',value)} className={cn('border-b-2 px-3 py-3 text-sm font-medium',view===value?'border-orange-500 text-orange-700':'border-transparent text-[#666]')}>{label} <span className="ml-1 text-xs">{data.counts[value]}</span></button>)}
         </div>
         {embedded && data.canWrite && <Link className="text-sm text-orange-700" href={`/dashboard/quotes?new=1&clientId=${encodeURIComponent(clientId)}`}>Novo orçamento</Link>}
       </div>

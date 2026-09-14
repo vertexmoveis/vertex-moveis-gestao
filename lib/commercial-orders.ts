@@ -58,7 +58,9 @@ export function commercialOrdersQuery(input: CommercialInput) {
     ), filtered AS (SELECT * FROM orders WHERE TRUE ${filters}),
     visible AS (SELECT * FROM filtered WHERE ${input.view || 'active'} = 'all'
       OR (${input.view || 'active'} = 'active' AND status NOT IN ('SOLD','LOST','CANCELLED'))
-      OR (${input.view || 'active'} = 'closed' AND status IN ('SOLD','LOST','CANCELLED'))),
+      OR (${input.view || 'active'} = 'closed' AND status = 'CANCELLED')
+      OR (${input.view || 'active'} = 'lost' AND status = 'LOST')
+      OR (${input.view || 'active'} = 'sold' AND status = 'SOLD')),
     paged AS (SELECT * FROM visible ORDER BY "updatedAt" DESC, id LIMIT ${input.pageSize} OFFSET ${(input.page - 1) * input.pageSize})
     SELECT json_build_object(
       'items', COALESCE((SELECT json_agg(row_to_json(paged)::jsonb - 'searchText') FROM paged),'[]'::json),
@@ -66,7 +68,9 @@ export function commercialOrdersQuery(input: CommercialInput) {
       'owners', COALESCE((SELECT json_agg(x) FROM (SELECT DISTINCT "ownerId" AS id, "ownerName" AS name FROM orders WHERE "ownerId" IS NOT NULL ORDER BY name) x),'[]'::json),
       'counts',json_build_object('all',(SELECT COUNT(*)::int FROM filtered),
         'active',(SELECT COUNT(*)::int FROM filtered WHERE status NOT IN ('SOLD','LOST','CANCELLED')),
-        'closed',(SELECT COUNT(*)::int FROM filtered WHERE status IN ('SOLD','LOST','CANCELLED')))
+        'closed',(SELECT COUNT(*)::int FROM filtered WHERE status = 'CANCELLED'),
+        'lost',(SELECT COUNT(*)::int FROM filtered WHERE status = 'LOST'),
+        'sold',(SELECT COUNT(*)::int FROM filtered WHERE status = 'SOLD'))
     ) AS result
   `
 }

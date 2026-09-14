@@ -12,5 +12,5 @@ export type CommercialOrder = {
 }
 export type CommercialResult = {
   items: CommercialOrder[]; total: number; owners: { id: string; name: string }[];
-  counts: { all: number; active: number; closed: number };
+  counts: { all: number; active: number; closed: number; lost: number; sold: number };
 }
