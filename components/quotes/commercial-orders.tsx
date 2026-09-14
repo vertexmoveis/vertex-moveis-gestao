@@ -74,7 +74,7 @@ export function CommercialOrders({ clientId = '' }: { clientId?: string }) {
     <div className={embedded ? 'space-y-3' : 'flex-1 space-y-4 bg-[#F8F9FA] p-4 md:p-6'}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E5E5]">
         <div className="flex flex-wrap" role="group" aria-label="Visão dos pedidos">
-          {([['all','Geral'],['active','Em andamento'],['closed','Encerrados'],['lost','Perdidos'],['sold','Vendidos']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={view===value} onClick={()=>change('view',value)} className={cn('border-b-2 px-3 py-3 text-sm font-medium',view===value?'border-orange-500 text-orange-700':'border-transparent text-[#666]')}>{label} <span className="ml-1 text-xs">{data.counts[value]}</span></button>)}
+          {([['all','Geral'],['active','Em andamento'],['lost','Perdidos'],['sold','Vendidos']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={view===value} onClick={()=>change('view',value)} className={cn('border-b-2 px-3 py-3 text-sm font-medium',view===value?'border-orange-500 text-orange-700':'border-transparent text-[#666]')}>{label} <span className="ml-1 text-xs">{data.counts[value]}</span></button>)}
         </div>
         {embedded && data.canWrite && <Link className="text-sm text-orange-700" href={`/dashboard/quotes?new=1&clientId=${encodeURIComponent(clientId)}`}>Novo orçamento</Link>}
       </div>
