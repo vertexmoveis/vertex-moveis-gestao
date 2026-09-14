@@ -474,7 +474,7 @@ export default function QuoteDetailPage() {
             <ArrowLeft size={16} />
             Voltar para Orçamentos
           </Link>
-          {quote.sourceRequest && <Link href={`/dashboard/quotes/requests?q=${encodeURIComponent(quote.sourceRequest.title)}`} className="text-sm font-semibold text-orange-700">Ver solicitação de origem</Link>}
+          {quote.sourceRequest && <Link href={`/dashboard/quotes?requestId=${encodeURIComponent(quote.sourceRequest.id)}`} className="text-sm font-semibold text-orange-700">Ver solicitação de origem</Link>}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void openEdit()} disabled={quoteLocked} title={quoteLocked ? 'Pedido já vinculado ao projeto' : 'Editar orçamento'}>
               <Edit3 size={16} />

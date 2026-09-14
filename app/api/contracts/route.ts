@@ -64,8 +64,9 @@ export async function GET(req: NextRequest) {
   const status = CONTRACT_CENTER_STATUSES.includes(requestedStatus as ContractCenterStatus)
     ? requestedStatus as ContractCenterStatus
     : null
-  const page = Math.max(Number(req.nextUrl.searchParams.get('page') || 1), 1)
-  const pageSize = Math.min(Math.max(Number(req.nextUrl.searchParams.get('pageSize') || 20), 1), 50)
+  const page = Math.min(100000, Math.max(1, Number.parseInt(req.nextUrl.searchParams.get('page') || '1') || 1))
+  const pageSize = Math.min(50, Math.max(1, Number.parseInt(req.nextUrl.searchParams.get('pageSize') || '20') || 20))
+  const standaloneOnly = req.nextUrl.searchParams.get('standalone') === '1'
   const accessFilter = auth.user.role === 'ADMIN'
     ? Prisma.empty
     : Prisma.sql`AND project."managerId" = ${auth.user.id}`
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
     legacy: bigint
   }
   type ContractPageRow = { id: string; centerStatus: ContractCenterStatus }
-  const [countRows, pageRows] = await Promise.all([
+  const [countRows, pageRows] = standaloneOnly ? [[], []] : await Promise.all([
     prisma.$queryRaw<ContractCountRow[]>(Prisma.sql`
       ${classifiedProjects}
       SELECT
@@ -227,25 +228,37 @@ export async function GET(req: NextRequest) {
     }]
   })
 
-  const standaloneContracts = await prisma.projectContract.findMany({
-    where: {
-      projectId: null,
-      voidedAt: null,
-      ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
-      ...(q ? {
-        OR: [
-          { standaloneTitle: { contains: q, mode: 'insensitive' as const } },
-          { client: { name: { contains: q, mode: 'insensitive' as const } } },
-        ],
-      } : {}),
-    },
-    include: {
-      client: { select: { name: true, whatsapp: true, phone: true } },
-      createdBy: { select: { name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  })
+  const now = new Date()
+  const unsigned: Prisma.ProjectContractWhereInput = { signedAt: null, status: { not: 'SIGNED' } }
+  const unexpired: Prisma.ProjectContractWhereInput = { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] }
+  const stateWhere: Prisma.ProjectContractWhereInput = !status ? {} : status === 'SIGNED'
+    ? { OR: [{ signedAt: { not: null } }, { status: 'SIGNED' }] }
+    : status === 'EXPIRED' ? { AND: [unsigned, { expiresAt: { lt: now } }] }
+    : status === 'VIEWED' ? { AND: [unsigned, unexpired, { viewedAt: { not: null } }] }
+    : status === 'SENT' ? { AND: [unsigned, unexpired, { viewedAt: null }] }
+    : { id: { in: [] } }
+  const standaloneWhere: Prisma.ProjectContractWhereInput = {
+    projectId: null, voidedAt: null,
+    ...(standaloneOnly && req.nextUrl.searchParams.get('contractId') ? { id: req.nextUrl.searchParams.get('contractId')! } : {}),
+    ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }),
+    ...(req.nextUrl.searchParams.get('clientId') ? { clientId: req.nextUrl.searchParams.get('clientId')! } : {}),
+    ...(q ? { OR: [
+      { standaloneTitle: { contains: q, mode: 'insensitive' } },
+      { client: { name: { contains: q, mode: 'insensitive' } } },
+    ] } : {}),
+  }
+  const [standaloneContracts, standaloneTotal, standaloneAll, standaloneSigned, standaloneExpired] = await Promise.all([
+    prisma.projectContract.findMany({
+      where: { AND: [standaloneWhere, stateWhere] },
+      include: { client: { select: { name: true, whatsapp: true, phone: true } }, createdBy: { select: { name: true } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      skip: (page - 1) * pageSize, take: pageSize,
+    }),
+    prisma.projectContract.count({ where: { AND: [standaloneWhere, stateWhere] } }),
+    prisma.projectContract.count({ where: standaloneWhere }),
+    prisma.projectContract.count({ where: { AND: [standaloneWhere, { OR: [{ signedAt: { not: null } }, { status: 'SIGNED' }] }] } }),
+    prisma.projectContract.count({ where: { AND: [standaloneWhere, unsigned, { expiresAt: { lt: now } }] } }),
+  ])
   const allStandaloneItems = standaloneContracts.map((contract) => {
     let publicUrl: string | null = null
     try {
@@ -281,10 +294,8 @@ export async function GET(req: NextRequest) {
 
   const countRow = countRows[0]
   const standaloneCounts = {
-    all: allStandaloneItems.length,
-    attention: allStandaloneItems.filter((item) => item.status === 'EXPIRED').length,
-    waiting: allStandaloneItems.filter((item) => item.status === 'SENT' || item.status === 'VIEWED').length,
-    signed: allStandaloneItems.filter((item) => item.status === 'SIGNED').length,
+    all: standaloneAll, attention: standaloneExpired,
+    waiting: standaloneAll - standaloneSigned - standaloneExpired, signed: standaloneSigned,
   }
   const counts = {
     all: Number(countRow?.all || 0) + standaloneCounts.all,
@@ -298,11 +309,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     items: rows,
     standaloneItems,
-    standaloneTotal: standaloneItems.length,
+    standaloneTotal,
     total,
     page,
     pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    totalPages: Math.max(Math.ceil(Math.max(standaloneTotal, total) / pageSize), 1),
     counts,
   })
 }

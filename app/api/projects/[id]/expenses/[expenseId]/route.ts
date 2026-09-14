@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { badRequest, getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
-import { expenseSchema } from '../route'
+import { expenseSchema } from '@/lib/expense-schema'
 import { moneyValue, type NumericValue } from '@/lib/money'
 
 function serializeExpense<T extends { amount: NumericValue; incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {

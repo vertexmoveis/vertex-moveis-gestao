@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { expenseSchema } from '@/lib/expense-schema'
 import { prisma } from '@/lib/db'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { badRequest, getClientIp, requireRole, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { moneyValue, type NumericValue } from '@/lib/money'
-
-export const expenseSchema = z.object({
-  category: z.enum(['LABOR', 'FREIGHT', 'INSTALLATION', 'CONSUMABLES', 'REWORK', 'OTHER']),
-  description: z.string().trim().min(2).max(160),
-  amount: z.coerce.number().positive().max(10_000_000),
-  incurredAt: z.string().date(),
-  supplier: z.string().trim().max(120).nullable().optional(),
-  notes: z.string().trim().max(500).nullable().optional(),
-}).strict()
 
 function serializeExpense<T extends { amount: NumericValue; incurredAt: Date; createdAt: Date; updatedAt: Date }>(expense: T) {
   return {

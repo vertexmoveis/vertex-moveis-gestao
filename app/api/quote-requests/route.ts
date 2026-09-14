@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
   const search = (query.get('q') || '').trim().slice(0, 120)
   const where: Prisma.QuoteRequestWhereInput = {
     AND: [requestScope(auth.user), {
+      ...(query.get('clientId') ? { clientId: query.get('clientId')! } : {}),
+      ...(query.get('id') ? { id: query.get('id')! } : {}),
       ...(status && REQUEST_STATUSES.includes(status as never) ? { status } : {}),
       ...(query.get('overdue') === '1' ? { dueDate: { lt: toDateOnlyUtc(dateOnlyKeyInTimeZone(new Date()))! }, status: { notIn: ['READY', 'CANCELLED'] } } : {}),
       ...(search ? { OR: [{ title: { contains: search, mode: 'insensitive' } }, { client: { name: { contains: search, mode: 'insensitive' } } }] } : {}),
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
     const [items, total, users, clients] = await Promise.all([
       prisma.quoteRequest.findMany({ where, orderBy: [{ dueDate: 'asc' }, { id: 'asc' }], skip: (page - 1) * 20, take: 20,
         include: { client: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } },
-          quoteGroup: { select: { quotes: { where: { archivedAt: null }, orderBy: { variationOrder: 'asc' }, take: 1, select: { id: true } } } } },
+          quoteGroup: { select: { quotes: { where: { archivedAt: null, ...(auth.user.role === 'ADMIN' ? {} : { createdById: auth.user.id }) }, orderBy: { variationOrder: 'asc' }, take: 1, select: { id: true } } } } },
       }),
       prisma.quoteRequest.count({ where }),
       prisma.user.findMany({ where: { active: true, role: { in: ['ADMIN', 'MANAGER'] }, ...(auth.user.role === 'ADMIN' ? {} : { id: auth.user.id }) }, select: { id: true, name: true } }),

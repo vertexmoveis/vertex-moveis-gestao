@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { commercialOrdersQuery } from '@/lib/commercial-orders'
+import type { CommercialResult } from '@/lib/commercial-order-types'
 import { clientUpdateSchema } from '@/lib/schemas'
 import { badRequest, getClientIp, requireAuth, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
@@ -97,8 +99,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const [commercial] = await prisma.$queryRaw<{ result: CommercialResult }[]>(commercialOrdersQuery({ userId: auth.user.id, isAdmin: auth.user.role === 'ADMIN', clientId: id, view: 'all', page: 1, pageSize: 1, today: new Date() }))
   return NextResponse.json({
     ...client,
+    commercialOrderCount: commercial.result.total,
     createdAt: client.createdAt.toISOString(),
     updatedAt: client.updatedAt.toISOString(),
     relationshipStageChangedAt: client.relationshipStageChangedAt.toISOString(),

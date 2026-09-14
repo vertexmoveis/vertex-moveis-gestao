@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Phone, Mail, MapPin, FolderOpen, ArrowLeft, MessageCircle,
-  Calendar, User, FileText, Archive, ArchiveRestore
+  Calendar, User, Archive, ArchiveRestore
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
@@ -14,14 +14,16 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { ClientForm } from '@/components/clients/client-form'
 import { ClientPrivacyCard } from '@/components/clients/client-privacy-card'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { formatClientAddress } from '@/lib/address'
 import Link from 'next/link'
 import type { ClientData, ProjectStatus } from '@/types'
-import { QUOTE_STATUS_BG, QUOTE_STATUS_LABELS, type QuoteStatus } from '@/lib/quotes'
-import { cn } from '@/lib/utils'
+import type { QuoteStatus } from '@/lib/quotes'
+import { CommercialOrders } from '@/components/quotes/commercial-orders'
+import { ClientContractHistory } from '@/components/clients/client-contract-history'
 
 interface ClientDetail extends ClientData {
+  commercialOrderCount: number
   projects: Array<{
     id: string
     name: string
@@ -282,7 +284,7 @@ export default function ClientDetailPage() {
             <div className="grid grid-cols-3 gap-3">
               <Card>
                 <CardBody className="text-center py-4">
-                  <p className="text-2xl font-bold text-[#121212]">{client.quotes.length}</p>
+                  <p className="text-2xl font-bold text-[#121212]">{client.commercialOrderCount}</p>
                   <p className="text-[10px] text-[#9E9E9E] uppercase tracking-wide mt-1">Orçamentos</p>
                 </CardBody>
               </Card>
@@ -314,48 +316,8 @@ export default function ClientDetailPage() {
 
           {/* Projects */}
           <div className="space-y-6 lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <h3 className="text-sm font-semibold text-[#121212]">
-                  Histórico de orçamentos ({client.quotes.length})
-                </h3>
-              </CardHeader>
-              <CardBody className="p-0">
-                {client.quotes.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-[#9E9E9E]">
-                    <FileText size={32} className="mb-2 opacity-20" />
-                    <p className="text-sm">Nenhum orçamento cadastrado</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-[#F0F0F0]">
-                    {client.quotes.map((quote) => (
-                      <Link
-                        key={quote.id}
-                        href={`/dashboard/quotes/${quote.id}`}
-                        className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-[#FAFAFA]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-[#121212]">
-                              #{String(quote.number).padStart(4, '0')} · {quote.title}
-                            </p>
-                            <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', QUOTE_STATUS_BG[quote.status])}>
-                              {QUOTE_STATUS_LABELS[quote.status]}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-[#777]">
-                            {quote.variationName} · Atualizado em {formatDate(quote.updatedAt)}
-                          </p>
-                        </div>
-                        {quote.total !== null && (
-                          <p className="shrink-0 text-sm font-semibold text-[#121212]">{formatCurrency(quote.total)}</p>
-                        )}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
+            <Card><CardHeader><h3 className="text-sm font-semibold">Pedidos de orçamento</h3></CardHeader><CardBody><CommercialOrders clientId={client.id} /></CardBody></Card>
+            <ClientContractHistory clientId={client.id} />
 
             <Card>
               <CardHeader>
