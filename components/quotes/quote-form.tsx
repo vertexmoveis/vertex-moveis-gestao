@@ -306,7 +306,7 @@ function itemToDraft(item?: QuoteItemData, draftId = 'initial-item-1'): DraftIte
     accessories: item?.accessories || [],
     finish: item ? item.finish || '' : DEFAULT_QUOTE_INTERNAL_FINISH,
     notes: item?.notes || '',
-    material: item?.material || DEFAULT_QUOTE_MATERIAL,
+    material: item?.material || '',
   }
 }
 
@@ -348,7 +348,7 @@ function toCalculationItem(item: DraftItem) {
     manualPrice: parseNumber(item.manualPrice),
     accessories: item.accessories,
     quantity: Math.max(1, Math.round(parseNumber(item.quantity) || 1)),
-    material: item.material || DEFAULT_QUOTE_MATERIAL,
+    material: item.material,
     finish: item.finish,
     notes: item.notes,
   }
@@ -767,7 +767,6 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   }
 
   const applyEnvironmentMaterial = (groupKey: string, material: string) => {
-    if (!material) return
     const defaultFinish = materials.find((option) => option.name === material)?.defaultFinish
     setItems((current) => current.map((item) => (
       environmentGroupKey(item) === groupKey
@@ -985,6 +984,10 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
       setError('Use um nome diferente para cada ambiente, como "Dormitório casal" e "Dormitório filho".')
       return
     }
+    if (items.some((item) => !item.material.trim())) {
+      setError('Escolha o material de todos os ambientes antes de salvar.')
+      return
+    }
     const installmentPayment = isQuoteInstallmentPaymentMethod(paymentMethod)
     const enteredCardDownPayment = installmentPayment ? parseNumber(cardDownPayment) : 0
     const minimumVariationTotal = Math.min(...variationPreviews.map((variation) => variation.totals.total))
@@ -1122,6 +1125,20 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-[#D9D9D9] bg-white px-5 py-8 text-center"><p className="text-sm font-medium text-[#444]">Nenhum ambiente adicionado</p><p className="mt-1 text-xs text-[#777]">Escolha o ambiente acima e clique em + Ambiente para começar.</p></div>
         ) : entryMode === 'QUICK' ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {environmentGroups.map((group) => {
+                const selectedMaterials = [...new Set(group.indexes.map((index) => items[index].material))]
+                return <Select
+                  key={group.key}
+                  label={`Material · ${group.name}`}
+                  value={selectedMaterials.length === 1 ? selectedMaterials[0] : ''}
+                  placeholder={selectedMaterials.length > 1 ? 'Vários materiais' : 'Escolha o material'}
+                  onChange={(event) => applyEnvironmentMaterial(group.key, event.target.value)}
+                  options={(materials.length ? materials : [{ name: DEFAULT_QUOTE_MATERIAL }]).map((option) => ({ value: option.name, label: option.name }))}
+                />
+              })}
+            </div>
           <QuoteQuickEntry
             items={items}
             totals={calculated.items.map((item) => item.total)}
@@ -1135,6 +1152,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
             onRemove={removeItem}
             onAdd={() => addItemToEnvironment(environmentGroups[environmentGroups.length - 1]?.key || environmentGroups[0].key)}
           />
+          </div>
         ) : <div className="space-y-4">
           {environmentGroups.map((environmentGroup) => {
             const groupItems = environmentGroup.indexes.map((index) => items[index])
