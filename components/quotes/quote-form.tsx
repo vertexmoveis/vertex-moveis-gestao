@@ -172,7 +172,7 @@ function parseNumber(value: string) {
 }
 
 type SavedQuoteDraft = {
-  version: 1 | 2
+  version: 1 | 2 | 3
   savedAt: number
   data: {
     clientId: string
@@ -198,7 +198,7 @@ type SavedQuoteDraft = {
 function isSavedQuoteDraft(value: unknown): value is SavedQuoteDraft {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<SavedQuoteDraft>
-  return (candidate.version === 1 || candidate.version === 2)
+  return (candidate.version === 1 || candidate.version === 2 || candidate.version === 3)
     && Boolean(candidate.data)
     && Array.isArray(candidate.data?.items)
 }
@@ -360,6 +360,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   const [clientId, setClientId] = useState(initialData?.client?.id || defaults?.clientId || '')
   const [title, setTitle] = useState(initialData?.title || defaults?.title || '')
   const [variations, setVariations] = useState<QuoteVariationInput[]>(() => {
+    if (!initialData) return []
     const type = safeQuoteVariationType(initialData?.variationType)
     return [{
       type,
@@ -451,7 +452,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
       try {
         const saved = JSON.parse(localStorage.getItem(draftStorageKey) || 'null') as unknown
         if (isSavedQuoteDraft(saved)) {
-          if (isNewQuote && saved.version < 2) {
+          if (isNewQuote && saved.version < 3) {
             localStorage.removeItem(draftStorageKey)
           } else {
             const serverUpdatedAt = initialData?.updatedAt ? new Date(initialData.updatedAt).getTime() : 0
@@ -482,7 +483,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
     if (JSON.stringify(currentDraftData) === initialDraftSignature.current) return
     const timeout = window.setTimeout(() => {
       const savedAt = Date.now()
-      localStorage.setItem(draftStorageKey, JSON.stringify({ version: 2, savedAt, data: currentDraftData } satisfies SavedQuoteDraft))
+      localStorage.setItem(draftStorageKey, JSON.stringify({ version: 3, savedAt, data: currentDraftData } satisfies SavedQuoteDraft))
       setDraftSavedAt(savedAt)
     }, 900)
     return () => window.clearTimeout(timeout)
@@ -596,7 +597,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
     setVariations((current) => {
       const exists = current.some((variation) => variation.type === type)
       if (exists) {
-        return current.length > 1 ? current.filter((variation) => variation.type !== type) : current
+        return current.filter((variation) => variation.type !== type)
       }
       if (current.length >= MAX_QUOTE_OPTIONS) return current
       return [...current, { type, name: quoteVariationDefaultName(type) }]
