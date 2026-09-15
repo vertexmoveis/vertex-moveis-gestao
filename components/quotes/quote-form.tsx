@@ -172,7 +172,7 @@ function parseNumber(value: string) {
 }
 
 type SavedQuoteDraft = {
-  version: 1
+  version: 1 | 2
   savedAt: number
   data: {
     clientId: string
@@ -198,7 +198,9 @@ type SavedQuoteDraft = {
 function isSavedQuoteDraft(value: unknown): value is SavedQuoteDraft {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<SavedQuoteDraft>
-  return candidate.version === 1 && Boolean(candidate.data) && Array.isArray(candidate.data?.items)
+  return (candidate.version === 1 || candidate.version === 2)
+    && Boolean(candidate.data)
+    && Array.isArray(candidate.data?.items)
 }
 
 function todayInputValue() {
@@ -397,6 +399,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
   const [entryMode, setEntryMode] = useState<'QUICK' | 'DETAILED'>('DETAILED')
   const [financialRiskConfirmed, setFinancialRiskConfirmed] = useState(false)
+  const isNewQuote = !initialData
   const draftStorageKey = `vertex:quote-draft:${initialData?.id || 'new'}`
   const clientOptions = [...clients]
   if (initialData?.client && !clientOptions.some((client) => client.id === initialData.client?.id)) {
@@ -448,8 +451,12 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
       try {
         const saved = JSON.parse(localStorage.getItem(draftStorageKey) || 'null') as unknown
         if (isSavedQuoteDraft(saved)) {
-          const serverUpdatedAt = initialData?.updatedAt ? new Date(initialData.updatedAt).getTime() : 0
-          if (saved.savedAt > serverUpdatedAt) setRecoverableDraft(saved)
+          if (isNewQuote && saved.version < 2) {
+            localStorage.removeItem(draftStorageKey)
+          } else {
+            const serverUpdatedAt = initialData?.updatedAt ? new Date(initialData.updatedAt).getTime() : 0
+            if (saved.savedAt > serverUpdatedAt) setRecoverableDraft(saved)
+          }
         }
 
         const recent = JSON.parse(localStorage.getItem('vertex:recent-furniture') || '[]') as unknown
@@ -468,14 +475,14 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
       }
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [draftStorageKey, initialData?.updatedAt])
+  }, [draftStorageKey, initialData?.updatedAt, isNewQuote])
 
   useEffect(() => {
     if (!draftReady || recoverableDraft || saving) return
     if (JSON.stringify(currentDraftData) === initialDraftSignature.current) return
     const timeout = window.setTimeout(() => {
       const savedAt = Date.now()
-      localStorage.setItem(draftStorageKey, JSON.stringify({ version: 1, savedAt, data: currentDraftData } satisfies SavedQuoteDraft))
+      localStorage.setItem(draftStorageKey, JSON.stringify({ version: 2, savedAt, data: currentDraftData } satisfies SavedQuoteDraft))
       setDraftSavedAt(savedAt)
     }, 900)
     return () => window.clearTimeout(timeout)
