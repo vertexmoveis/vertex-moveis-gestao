@@ -293,6 +293,8 @@ const NON_JOINERY_FURNITURE_BY_ENVIRONMENT: Record<string, readonly string[]> = 
 const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = {
   Cozinha: [
     group('Armário', ['Armário aéreo', 'Armário aéreo em L', 'Armário aéreo basculante', 'Armário aéreo de canto', 'Armário aéreo com nicho', 'Armário aéreo com portas de vidro', 'Armário sobre geladeira', 'Ponte sobre geladeira', 'Armário inferior', 'Armário inferior em L', 'Armário inferior de canto'], CABINET_ACCESSORIES),
+    group('Eletrodomésticos embutidos', ['Módulo para coifa embutida', 'Módulo para depurador', 'Módulo para lava-louças integrada', 'Módulo para frigobar', 'Armário para pequenos eletrodomésticos'], [...CABINET_ACCESSORIES, 'Ventilação para equipamentos']),
+    group('Organizadores de cozinha', ['Porta-temperos deslizante', 'Despenseiro extraível', 'Módulo com lixeira dupla', 'Módulo porta-bandejas', 'Módulo de canto com cestos giratórios'], [...CABINET_ACCESSORIES, 'Cesto aramado', 'Lixeira embutida']),
     group('Gabinete', ['Gabinete de pia', 'Gabinete em L', 'Gabinete em U', 'Gabinete de canto', 'Gabinete para cooktop', 'Gabinete para lava-louças', 'Gabinete com portas', 'Gabinete com gavetas', 'Gabinete com gaveteiro'], [...CABINET_ACCESSORIES, 'Lixeira embutida', 'Organizador de panelas']),
     group('Torre', ['Torre quente', 'Torre para forno', 'Torre para micro-ondas', 'Torre para forno e micro-ondas', 'Torre de eletrodomésticos', 'Torre despenseiro', 'Torre para geladeira'], CABINET_ACCESSORIES),
     group('Módulo para forno', ['Módulo avulso para forno de embutir', 'Módulo para forno de embutir com gaveteiro'], CABINET_ACCESSORIES),
@@ -304,6 +306,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
   ],
   Banheiro: [
     group('Gabinete', ['Gabinete de cuba', 'Gabinete em L', 'Gabinete de canto', 'Gabinete suspenso', 'Gabinete de piso', 'Gabinete para cuba dupla', 'Gabinete com gavetas', 'Gabinete com gaveteiro'], [...CABINET_ACCESSORIES, 'Cesto de roupas']),
+    group('Organizadores de banheiro', ['Armário com cesto basculante', 'Módulo porta-papel higiênico', 'Armário de medicamentos com fechadura'], [...CABINET_ACCESSORIES, 'Cesto de roupas', 'Fechadura']),
     group('Armário', ['Armário aéreo', 'Armário em L', 'Armário sobre vaso', 'Armário lateral', 'Armário para toalhas', 'Armário com nicho'], CABINET_ACCESSORIES),
     group('Gaveteiro', ['Gaveteiro avulso', 'Gaveteiro suspenso', 'Gaveteiro com rodízios'], CABINET_ACCESSORIES),
     group('Espelheira', ['Espelheira simples', 'Espelheira com armário', 'Espelheira com nicho'], [...STANDARD_ACCESSORIES, 'Iluminação para espelho']),
@@ -320,6 +323,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Estudo', ['Escrivaninha', 'Bancada de estudos', 'Escrivaninha suspensa'], [...STANDARD_ACCESSORIES, 'Organizador de cabos'], 'LINEAR_METER'),
     group('TV', ['Painel para TV', 'Painel ripado para TV', 'Rack suspenso', 'Rack de piso'], STANDARD_ACCESSORIES),
     group('Cama e armazenamento', ['Cama com gavetas', 'Cama-baú', 'Cama retrátil', 'Baú aos pés da cama'], CABINET_ACCESSORIES, 'UNIT'),
+    group('Camas especiais', ['Cama com auxiliar', 'Cama plataforma', 'Cama suspensa com escrivaninha', 'Cama retrátil com sofá'], CABINET_ACCESSORIES, 'UNIT'),
     group('Sapateira', ['Sapateira vertical', 'Sapateira baixa', 'Sapateira com espelho'], CABINET_ACCESSORIES),
     group('Nicho e prateleira', ['Nicho decorativo', 'Nicho de cabeceira', 'Prateleira'], STANDARD_ACCESSORIES, 'LINEAR_METER'),
   ],
@@ -327,6 +331,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
   Closet: [
     group('Closet', ['Closet aberto', 'Closet com portas', 'Closet linear', 'Closet em L', 'Closet em U', 'Closet de canto', 'Closet com ilha'], WARDROBE_ACCESSORIES),
     group('Módulo de closet', ['Módulo cabideiro', 'Módulo de prateleiras', 'Módulo gaveteiro', 'Módulo de canto', 'Maleiro', 'Calceiro', 'Camiseiro', 'Porta-bolsas'], WARDROBE_ACCESSORIES),
+    group('Organizadores de closet', ['Módulo para roupas longas', 'Módulo para bolsas com portas de vidro', 'Módulo para malas de viagem', 'Módulo com cabideiro basculante'], WARDROBE_ACCESSORIES),
     group('Gaveteiro', ['Gaveteiro avulso', 'Gaveteiro com rodízios', 'Gaveteiro central', 'Gaveteiro com tampo de vidro'], [...CABINET_ACCESSORIES, 'Tampo de vidro']),
     group('Sapateira', ['Sapateira vertical', 'Sapateira inclinada', 'Sapateira com portas', 'Sapateira giratória'], CABINET_ACCESSORIES),
     group('Ilha', ['Ilha com gavetas', 'Ilha para acessórios', 'Ilha com porta-joias'], [...CABINET_ACCESSORIES, 'Tampo de vidro'], 'UNIT'),
@@ -341,6 +346,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Gaveteiro', ['Gaveteiro avulso', 'Gaveteiro com rodízios'], CABINET_ACCESSORIES),
     group('Cristaleira e bar', ['Cristaleira', 'Bar', 'Adega', 'Porta-garrafas', 'Móvel para bebidas'], [...STANDARD_ACCESSORIES, 'Porta-taças']),
     group('Equipamentos', ['Armário para equipamentos', 'Torre para eletrônicos', 'Móvel para projetor', 'Nicho para caixas de som'], [...STANDARD_ACCESSORIES, 'Ventilação para equipamentos']),
+    group('Integração de ambientes', ['Estante com bancada integrada', 'Armário com estação de trabalho oculta', 'Módulo para robô aspirador', 'Móvel para toca-discos e vinis'], [...CABINET_ACCESSORIES, 'Ventilação para equipamentos']),
     group('Nicho e prateleira', ['Nicho decorativo', 'Prateleira', 'Prateleira iluminada'], STANDARD_ACCESSORIES, 'LINEAR_METER'),
   ],
   'Home theater': [],
@@ -350,11 +356,13 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Bar e café', ['Bar', 'Adega', 'Cantinho do café', 'Torre de café'], [...STANDARD_ACCESSORIES, 'Porta-garrafas', 'Porta-taças']),
     group('Banco alemão', ['Banco alemão reto', 'Banco alemão de canto', 'Banco alemão com baú'], STANDARD_ACCESSORIES, 'UNIT'),
     group('Mesa', ['Mesa de jantar', 'Mesa com base em MDF', 'Mesa extensível'], STANDARD_ACCESSORIES, 'UNIT'),
+    group('Mesas compactas', ['Mesa de parede rebatível', 'Mesa com banco integrado', 'Mesa de canto sob medida'], STANDARD_ACCESSORIES, 'UNIT'),
     group('Painel', ['Painel decorativo', 'Painel ripado', 'Móvel divisor'], STANDARD_ACCESSORIES),
   ],
   Escritório: [
     group('Escrivaninha', ['Escrivaninha reta', 'Escrivaninha em L', 'Escrivaninha em U', 'Escrivaninha suspensa', 'Bancada para duas pessoas'], [...STANDARD_ACCESSORIES, 'Organizador de cabos'], 'LINEAR_METER'),
     group('Estação de trabalho', ['Estação individual', 'Estação dupla', 'Estação compartilhada', 'Mesa de reunião'], [...STANDARD_ACCESSORIES, 'Calha de tomadas'], 'UNIT'),
+    group('Postos especiais', ['Mesa para computador gamer', 'Mesa para costura', 'Mesa para desenho', 'Bancada para videoconferência'], [...STANDARD_ACCESSORIES, 'Organizador de cabos'], 'UNIT'),
     group('Armário', ['Armário baixo', 'Armário alto', 'Armário em L', 'Armário de canto', 'Armário aéreo', 'Armário técnico', 'Armário com gaveteiro', 'Armário para impressora'], CABINET_ACCESSORIES),
     group('Arquivo e gaveteiro', ['Gaveteiro avulso', 'Gaveteiro móvel', 'Gaveteiro fixo', 'Gaveteiro com rodízios', 'Arquivo para pastas', 'Arquivo suspenso'], [...CABINET_ACCESSORIES, 'Fechadura']),
     group('Estante', ['Estante para livros', 'Biblioteca', 'Estante vazada', 'Nicho organizador'], CABINET_ACCESSORIES),
@@ -366,6 +374,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Gaveteiro', ['Gaveteiro avulso', 'Gaveteiro com rodízios'], CABINET_ACCESSORIES),
     group('Torre', ['Torre para lavadora e secadora', 'Torre de roupas', 'Torre com nichos'], CABINET_ACCESSORIES),
     group('Vassoureiro', ['Vassoureiro simples', 'Vassoureiro com prateleiras', 'Vassoureiro alto'], CABINET_ACCESSORIES),
+    group('Organizadores de lavanderia', ['Armário para aspirador vertical', 'Módulo para robô aspirador', 'Módulo com cestos separadores de roupas', 'Armário com tábua de passar retrátil'], [...CABINET_ACCESSORIES, 'Cesto de roupas']),
     group('Bancada', ['Bancada de apoio', 'Bancada para dobrar roupas', 'Tábua de passar embutida'], STANDARD_ACCESSORIES, 'LINEAR_METER'),
     group('Nicho e prateleira', ['Nicho para produtos', 'Nicho para máquina', 'Prateleira'], STANDARD_ACCESSORIES, 'LINEAR_METER'),
   ],
@@ -377,6 +386,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Ilha', ['Ilha com armários', 'Ilha para cooktop', 'Ilha para refeições'], [...STANDARD_ACCESSORIES, 'Tomada torre'], 'LINEAR_METER'),
     group('Bebidas', ['Adega', 'Cristaleira', 'Móvel para cervejeira', 'Móvel para frigobar', 'Porta-garrafas'], [...STANDARD_ACCESSORIES, 'Porta-taças']),
     group('Churrasqueira', ['Nicho para churrasqueira', 'Armário lateral para churrasqueira', 'Módulo para utensílios de churrasco'], CABINET_ACCESSORIES),
+    group('Complementos gourmet', ['Módulo porta-espetos', 'Armário para carvão e acessórios', 'Móvel para chopeira', 'Torre para forno de pizza'], [...CABINET_ACCESSORIES, 'Ventilação para equipamentos']),
   ],
   Churrasqueira: [],
   'Hall de entrada': [
@@ -384,6 +394,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Sapateira', ['Sapateira vertical', 'Sapateira baixa', 'Sapateira com banco'], CABINET_ACCESSORIES),
     group('Armário', ['Armário de entrada', 'Armário em L', 'Armário de canto', 'Armário com gaveteiro'], CABINET_ACCESSORIES),
     group('Organização', ['Cabideiro planejado', 'Chapeleira', 'Porta-chaves', 'Banco-baú'], STANDARD_ACCESSORIES, 'UNIT'),
+    group('Entrada integrada', ['Móvel de entrada com banco e cabideiro', 'Armário para casacos', 'Módulo para correspondências'], CABINET_ACCESSORIES),
     group('Painel', ['Painel com espelho', 'Painel ripado', 'Painel decorativo'], [...STANDARD_ACCESSORIES, 'Espelho']),
   ],
   Corredor: [
@@ -403,10 +414,13 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
     group('Gaveteiro', ['Gaveteiro de ferramentas', 'Gaveteiro com rodízios', 'Gaveteiro avulso'], [...CABINET_ACCESSORIES, 'Fechadura']),
     group('Bancada', ['Bancada de trabalho', 'Bancada com gavetas', 'Bancada para ferramentas'], [...STANDARD_ACCESSORIES, 'Painel perfurado'], 'LINEAR_METER'),
     group('Estante', ['Estante', 'Prateleira reforçada', 'Maleiro'], CABINET_ACCESSORIES),
+    group('Organização de garagem', ['Armário para capacetes', 'Armário para equipamentos esportivos', 'Módulo organizador de ferramentas'], [...CABINET_ACCESSORIES, 'Fechadura']),
   ],
   'Quarto infantil': [
     group('Guarda-roupa', ['Guarda-roupa de abrir', 'Guarda-roupa de correr', 'Guarda-roupa em L', 'Guarda-roupa de canto', 'Guarda-roupa com nichos'], WARDROBE_ACCESSORIES),
     group('Cama', ['Cama infantil', 'Cama com gavetas', 'Bicama', 'Beliche', 'Cama elevada', 'Cama casinha'], STANDARD_ACCESSORIES, 'UNIT'),
+    group('Camas infantis especiais', ['Cama montessoriana', 'Treliche', 'Beliche com escada de gavetas', 'Cama elevada com área de estudo'], CABINET_ACCESSORIES, 'UNIT'),
+    group('Brinquedoteca', ['Organizador de brinquedos com caixas', 'Estante de livros frontal', 'Bancada de atividades infantis'], CABINET_ACCESSORIES, 'UNIT'),
     group('Estudo', ['Escrivaninha', 'Bancada de estudos', 'Mesa infantil'], [...STANDARD_ACCESSORIES, 'Organizador de cabos'], 'LINEAR_METER'),
     group('Organização', ['Cômoda', 'Gaveteiro avulso', 'Armário para brinquedos', 'Baú de brinquedos', 'Estante para livros'], CABINET_ACCESSORIES),
     group('Cabeceira e TV', ['Cabeceira', 'Criado-mudo', 'Painel para TV'], STANDARD_ACCESSORIES),
@@ -434,6 +448,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
   ],
   Studio: [
     group('Multifuncional', ['Cama retrátil', 'Mesa retrátil', 'Bancada retrátil', 'Sofá com armazenamento', 'Móvel divisor'], STANDARD_ACCESSORIES, 'UNIT'),
+    group('Soluções compactas', ['Cama retrátil com mesa integrada', 'Armário com cozinha oculta', 'Mesa de parede rebatível', 'Armário com estação de trabalho oculta'], CABINET_ACCESSORIES, 'UNIT'),
     group('Cozinha compacta', ['Minicozinha', 'Armário aéreo', 'Gabinete de pia', 'Torre de eletrodomésticos'], CABINET_ACCESSORIES),
     group('Armazenamento', ['Guarda-roupa', 'Guarda-roupa em L', 'Armário multiuso', 'Armário em L', 'Gaveteiro avulso', 'Maleiro', 'Estante'], CABINET_ACCESSORIES),
   ],
@@ -452,6 +467,7 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
   ],
   Loja: [
     group('Exposição', ['Expositor de parede', 'Expositor central', 'Estante expositora', 'Painel canaletado', 'Nicho iluminado'], [...STANDARD_ACCESSORIES, 'Fechadura']),
+    group('Expositores especiais', ['Expositor para calçados', 'Expositor para joias', 'Expositor para cosméticos', 'Gôndola de marcenaria', 'Arara integrada ao armário'], [...STANDARD_ACCESSORIES, 'Tampo de vidro', 'Fechadura']),
     group('Atendimento', ['Balcão de atendimento', 'Balcão caixa', 'Vitrine', 'Provador planejado'], [...STANDARD_ACCESSORIES, 'Passa-fios'], 'LINEAR_METER'),
     group('Estoque', ['Armário de estoque', 'Gaveteiro', 'Prateleira reforçada', 'Maleiro'], [...CABINET_ACCESSORIES, 'Fechadura']),
   ],
@@ -460,6 +476,8 @@ const QUOTE_FURNITURE_CATALOG: Record<string, readonly QuoteFurnitureGroup[]> = 
   ],
   'Móvel especial': [
     group('Porta', ['Porta de giro', 'Porta mimetizada'], [...STANDARD_ACCESSORIES, 'Fechadura', 'Puxador cava']),
+    group('Marcenaria pet', ['Módulo para caixa de areia', 'Comedouro pet embutido', 'Cama pet integrada ao armário'], CABINET_ACCESSORIES, 'UNIT'),
+    group('Divisórias e fechamentos', ['Divisória vazada de MDF', 'Biombo articulado sob medida', 'Fechamento de vão sob escada'], STANDARD_ACCESSORIES),
     group('Especial', ['Armário sob escada', 'Porta oculta', 'Móvel divisor', 'Painel ripado', 'Armário pet', 'Móvel para aquário', 'Oratório', 'Armário técnico'], STANDARD_ACCESSORIES, 'UNIT'),
   ],
 }
@@ -492,6 +510,18 @@ const FURNITURE_SEARCH_ALIASES: Record<string, readonly string[]> = {
   'Criado-mudo de piso': ['mesa de cabeceira'],
   'Painel para TV': ['painel de televisão', 'home'],
   'Balcão de recepção': ['recepção', 'balcão de atendimento'],
+  'Cama com auxiliar': ['bicama', 'cama de solteiro auxiliar'],
+  'Cama suspensa com escrivaninha': ['cama alta', 'cama elevada', 'cama com escritorio'],
+  'Cama montessoriana': ['cama montessori', 'cama infantil baixa'],
+  'Módulo para coifa embutida': ['armario para coifa'],
+  'Armário para pequenos eletrodomésticos': ['armario para air fryer', 'armario para airfryer', 'armario para batedeira', 'garagem de eletrodomesticos'],
+  'Módulo para robô aspirador': ['robo de limpeza', 'base para robo', 'estacao de recarga robo'],
+  'Armário com estação de trabalho oculta': ['home office escondido', 'escritorio oculto', 'escrivaninha embutida'],
+  'Mesa de parede rebatível': ['mesa dobravel', 'mesa articulada'],
+  'Móvel para toca-discos e vinis': ['movel para vitrola', 'discos de vinil'],
+  'Módulo para caixa de areia': ['banheiro de gato', 'armario para gato'],
+  'Comedouro pet embutido': ['comedouro cachorro', 'comedouro gato', 'porta racao'],
+  'Gôndola de marcenaria': ['gondola de loja', 'expositor de produtos'],
   'Outro móvel sob medida': ['móvel personalizado', 'outro móvel', 'sob medida'],
 }
 
