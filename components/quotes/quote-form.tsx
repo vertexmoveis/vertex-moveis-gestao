@@ -377,18 +377,18 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   const [validUntil, setValidUntil] = useState(initialData?.validUntil?.slice(0, 10) || '')
   const [notes, setNotes] = useState(initialData?.notes || defaults?.notes || '')
   const [customerNotes, setCustomerNotes] = useState(
-    initialData?.customerNotes || 'Orçamento válido conforme medidas informadas. Produção após aprovação e pagamento combinado.'
+    initialData?.customerNotes || ''
   )
   const [items, setItems] = useState<DraftItem[]>(
     initialData?.items?.length
       ? initialData.items.map((item, index) => itemToDraft(item, item.id || `initial-item-${index + 1}`))
-      : [emptyItem()]
+      : []
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [priceRules, setPriceRules] = useState<QuotePriceRule[]>([])
   const [materials, setMaterials] = useState<MaterialOption[]>([])
-  const [newEnvironmentType, setNewEnvironmentType] = useState(QUOTE_ENVIRONMENT_OPTIONS[0])
+  const [newEnvironmentType, setNewEnvironmentType] = useState('')
   const [collapsedEnvironments, setCollapsedEnvironments] = useState<Set<string>>(() => new Set())
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set())
   const [recentSelections, setRecentSelections] = useState<RecentFurnitureSelection[]>([])
@@ -795,6 +795,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   }
 
   const addEnvironment = () => {
+    if (!newEnvironmentType) return
     setItems((current) => {
       const environmentName = uniqueEnvironmentName(newEnvironmentType, current)
       const draftId = clientDraftId()
@@ -869,7 +870,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   const removeEnvironment = (groupKey: string) => {
     setItems((current) => {
       const next = current.filter((item) => environmentGroupKey(item) !== groupKey)
-      return next.length ? next : [emptyItem()]
+      return next
     })
   }
 
@@ -955,6 +956,10 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
     }
     if (!clientId) {
       setError('Selecione o cliente do orçamento.')
+      return
+    }
+    if (!items.length) {
+      setError('Escolha e adicione um ambiente ao orçamento.')
       return
     }
     if (!variations.length || variations.length > MAX_QUOTE_OPTIONS) {
@@ -1266,10 +1271,10 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
             <Select
               value={newEnvironmentType}
               onChange={(event) => setNewEnvironmentType(event.target.value)}
-              options={QUOTE_ENVIRONMENT_OPTIONS.map((option) => ({ value: option, label: option }))}
+              options={[{ value: '', label: 'Escolha um ambiente' }, ...QUOTE_ENVIRONMENT_OPTIONS.map((option) => ({ value: option, label: option }))]}
               aria-label="Novo ambiente"
             />
-            <Button type="button" variant="outline" size="sm" onClick={addEnvironment} disabled={items.length >= 80}>
+            <Button type="button" variant="outline" size="sm" onClick={addEnvironment} disabled={!newEnvironmentType || items.length >= 80}>
               <Plus size={14} />
               Ambiente
             </Button>
@@ -1277,7 +1282,9 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
           </div>
         </div>
 
-        {entryMode === 'QUICK' ? (
+        {items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#D9D9D9] bg-white px-5 py-8 text-center"><p className="text-sm font-medium text-[#444]">Nenhum ambiente adicionado</p><p className="mt-1 text-xs text-[#777]">Escolha o ambiente acima e clique em + Ambiente para começar.</p></div>
+        ) : entryMode === 'QUICK' ? (
           <QuoteQuickEntry
             items={items}
             totals={calculated.items.map((item) => item.total)}
