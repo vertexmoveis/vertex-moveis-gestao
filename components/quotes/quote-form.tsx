@@ -1059,12 +1059,8 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="text-sm text-[#777]">Defina o cliente, adicione os ambientes e confira o orçamento.</p>
 
       {recoverableDraft ? (
         <div className="flex flex-col gap-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
@@ -1094,166 +1090,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
         <Input label="Validade" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} />
       </div>
 
-      <fieldset className="border-y border-[#E8E8E8] bg-[#FAFAFA] px-4 py-4">
-        <legend className="px-1 text-sm font-semibold text-[#121212]">Variação do orçamento</legend>
-        {initialData ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Select
-              label="Tipo da variação"
-              value={variations[0]?.type || 'STANDARD'}
-              onChange={(event) => updateSingleVariationType(event.target.value as QuoteVariationType)}
-              options={[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => ({
-                value: type,
-                label: QUOTE_VARIATION_LABELS[type],
-              }))}
-            />
-            <Input
-              label="Nome apresentado"
-              value={variations[0]?.name || ''}
-              onChange={(event) => updateVariationName(variations[0]?.type || 'STANDARD', event.target.value)}
-              placeholder="Ex.: Madeirado"
-            />
-            {(initialData.groupVariants?.length || 0) > 1 ? (
-              <label className="flex min-h-10 items-center gap-3 border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-3 py-2 text-sm text-[#6B350D] md:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={syncScope === 'GROUP'}
-                  onChange={(event) => setSyncScope(event.target.checked ? 'GROUP' : 'CURRENT')}
-                  className="h-4 w-4 accent-[#FF6B00]"
-                />
-                <span>Aplicar estrutura, medidas e condições às outras variações deste orçamento</span>
-              </label>
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => {
-                const selected = variations.some((variation) => variation.type === type)
-                return (
-                  <label
-                    key={type}
-                    className={`flex min-h-10 items-center gap-2 border px-3 py-2 text-sm font-medium ${
-                      selected ? 'border-[#FF6B00] bg-[#FFF3E8] text-[#A64200]' : 'border-[#D9D9D9] bg-white text-[#555]'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleNewVariation(type)}
-                      className="h-4 w-4 accent-[#FF6B00]"
-                    />
-                    <span>{QUOTE_VARIATION_LABELS[type]}</span>
-                  </label>
-                )
-              })}
-            </div>
-            {variations.some((variation) => variation.type === 'CUSTOM') ? (
-              <Input
-                label="Nome da variação personalizada"
-                value={variations.find((variation) => variation.type === 'CUSTOM')?.name || ''}
-                onChange={(event) => updateVariationName('CUSTOM', event.target.value)}
-                placeholder="Ex.: Opção econômica"
-              />
-            ) : null}
-            <div className="overflow-x-auto border border-[#E2E2E2] bg-white">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead className="bg-[#F3F3F3] text-left text-xs uppercase text-[#777]">
-                  <tr>
-                    <th className="px-3 py-2">Variação</th>
-                    <th className="px-3 py-2 text-right">Custo</th>
-                    <th className="px-3 py-2 text-right">Lucro previsto</th>
-                    <th className="px-3 py-2 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EEEEEE]">
-                  {variationPreviews.map((variation) => (
-                    <tr key={variation.type}>
-                      <td className="px-3 py-2 font-semibold text-[#121212]">{variation.name}</td>
-                      <td className="px-3 py-2 text-right text-[#555]">{formatCurrency(variation.totals.costTotal)}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-emerald-600">{formatCurrency(variation.totals.profit)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-[#121212]">{formatCurrency(variation.totals.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </fieldset>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Input
-          label="Prazo de entrega (dias úteis)"
-          type="number"
-          min={1}
-          max={365}
-          value={deliveryBusinessDays}
-          onChange={(event) => setDeliveryBusinessDays(event.target.value)}
-          helperText="Contado após a aprovação e a confirmação do pagamento."
-        />
-        <Input
-          label="Primeiro vencimento"
-          type="date"
-          value={firstInstallmentDate}
-          disabled={!isQuoteInstallmentPaymentMethod(paymentMethod)}
-          onChange={(event) => setFirstInstallmentDate(event.target.value)}
-          helperText={paymentMethod === 'CARD'
-            ? 'As demais parcelas do cartão serão mensais.'
-            : paymentMethod === 'BOLETO'
-              ? 'Os demais boletos vencerão mensalmente.'
-              : 'Disponível para pagamento parcelado.'}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px]">
-        <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
-          <p className="text-sm font-semibold text-[#121212]">Tabela automática da Vertex</p>
-          <p className="mt-1 text-xs text-[#777]">
-            O preço muda conforme ambiente, móvel e padrão selecionados. Móvel difícil aumenta 30%; muito difícil, 60%.
-          </p>
-        </div>
-        <Input label="Instalação" inputMode="decimal" value={installationFee} onChange={(event) => setInstallationFee(event.target.value)} />
-        <Input label="Desconto comercial" inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} />
-      </div>
-
-      {financialHealth.warnings.length ? (
-        <div className={`border-l-4 px-4 py-3 ${financialHealth.requiresConfirmation ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50'}`}>
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={18} className={`mt-0.5 shrink-0 ${financialHealth.requiresConfirmation ? 'text-red-600' : 'text-amber-700'}`} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[#121212]">Proteção de preço e lucro</p>
-              <ul className="mt-1 space-y-1 text-xs text-[#555]">
-                {financialHealth.warnings.map((warning) => <li key={warning.key}>• {warning.message}</li>)}
-              </ul>
-              {financialHealth.requiresConfirmation ? (
-                <label className="mt-3 flex items-start gap-2 text-xs font-medium text-red-800">
-                  <input type="checkbox" checked={financialRiskConfirmed} onChange={(event) => setFinancialRiskConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
-                  <span>Conferi os custos e autorizo salvar este orçamento mesmo com estes alertas.</span>
-                </label>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <QuotePaymentSection
-        paymentMethod={paymentMethod}
-        cardDownPayment={cardDownPayment}
-        cardInstallments={cardInstallments}
-        cardFeePercent={cardFeePercent}
-        cardFeeAmount={displayedTotals.cardFeeAmount}
-        paymentDiscount={displayedTotals.paymentDiscount}
-        total={displayedTotals.total}
-        calculatedCardInstallments={displayedTotals.cardInstallments}
-        calculatedCardDownPayment={displayedTotals.cardDownPayment}
-        onPaymentMethodChange={setPaymentMethod}
-        onCardDownPaymentChange={setCardDownPayment}
-        onCardInstallmentsChange={setCardInstallments}
-        onCardFeePercentChange={setCardFeePercent}
-      />
-
-      <section className="border-y border-[#E8E8E8] bg-[#F7F7F7] py-4">
+      <section className="rounded-xl border border-[#E8E8E8] bg-[#FAFAFA] p-4">
         <div className="mb-4 flex flex-col gap-3 px-1 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h3 className="text-sm font-semibold text-[#121212]">Ambientes do orçamento</h3>
@@ -1267,7 +1104,7 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
               <button type="button" onClick={() => setEntryMode('DETAILED')} className={`flex items-center gap-1.5 rounded-md px-3 text-xs font-semibold ${entryMode === 'DETAILED' ? 'bg-[#121212] text-white' : 'text-[#666]'}`}><SlidersHorizontal size={13} /> Completo</button>
               <button type="button" onClick={() => setEntryMode('QUICK')} className={`flex items-center gap-1.5 rounded-md px-3 text-xs font-semibold ${entryMode === 'QUICK' ? 'bg-[#121212] text-white' : 'text-[#666]'}`}><Rows3 size={13} /> Rápido</button>
             </div>
-            <div className="grid grid-cols-[minmax(180px,1fr)_auto] gap-2 lg:w-[420px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 lg:w-[420px]">
             <Select
               value={newEnvironmentType}
               onChange={(event) => setNewEnvironmentType(event.target.value)}
@@ -1308,8 +1145,8 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
             const collapsed = collapsedEnvironments.has(environmentGroup.key)
 
             return (
-              <article key={environmentGroup.key} className="overflow-visible border border-[#DCDCDC] bg-white">
-                <header className="flex flex-col gap-3 bg-[#F2F2F2] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+              <article key={environmentGroup.key} className="overflow-visible rounded-xl border border-[#E5E5E5] bg-white">
+                <header className="flex flex-col gap-3 rounded-t-xl bg-[#F7F7F7] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#121212] text-white">
                       <Layers3 size={17} />
@@ -1528,10 +1365,188 @@ export function QuoteForm({ clients, initialData, defaults, onSubmit, onCancel }
         </div>}
       </section>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+
+      <fieldset className="rounded-xl border border-[#E8E8E8] bg-white px-4 pb-4 pt-2">
+        <legend className="px-1 text-sm font-semibold text-[#121212]">Variação do orçamento</legend>
+        {initialData ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Select
+              label="Tipo da variação"
+              value={variations[0]?.type || 'STANDARD'}
+              onChange={(event) => updateSingleVariationType(event.target.value as QuoteVariationType)}
+              options={[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => ({
+                value: type,
+                label: QUOTE_VARIATION_LABELS[type],
+              }))}
+            />
+            <Input
+              label="Nome apresentado"
+              value={variations[0]?.name || ''}
+              onChange={(event) => updateVariationName(variations[0]?.type || 'STANDARD', event.target.value)}
+              placeholder="Ex.: Madeirado"
+            />
+            {(initialData.groupVariants?.length || 0) > 1 ? (
+              <label className="flex min-h-10 items-center gap-3 border-l-4 border-[#FF6B00] bg-[#FFF7ED] px-3 py-2 text-sm text-[#6B350D] md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={syncScope === 'GROUP'}
+                  onChange={(event) => setSyncScope(event.target.checked ? 'GROUP' : 'CURRENT')}
+                  className="h-4 w-4 accent-[#FF6B00]"
+                />
+                <span>Aplicar estrutura, medidas e condições às outras variações deste orçamento</span>
+              </label>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {[...DEFAULT_QUOTE_VARIATIONS, 'CUSTOM' as const].map((type) => {
+                const selected = variations.some((variation) => variation.type === type)
+                return (
+                  <label
+                    key={type}
+                    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      selected ? 'border-[#FF6B00] bg-[#FFF3E8] text-[#A64200]' : 'border-[#D9D9D9] bg-white text-[#555]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleNewVariation(type)}
+                      className="h-4 w-4 accent-[#FF6B00]"
+                    />
+                    <span>{QUOTE_VARIATION_LABELS[type]}</span>
+                  </label>
+                )
+              })}
+            </div>
+            {variations.some((variation) => variation.type === 'CUSTOM') ? (
+              <Input
+                label="Nome da variação personalizada"
+                value={variations.find((variation) => variation.type === 'CUSTOM')?.name || ''}
+                onChange={(event) => updateVariationName('CUSTOM', event.target.value)}
+                placeholder="Ex.: Opção econômica"
+              />
+            ) : null}
+            {items.length > 0 && variationPreviews.length > 1 ? <div className="overflow-x-auto rounded-lg border border-[#E2E2E2] bg-white">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead className="bg-[#F3F3F3] text-left text-xs uppercase text-[#777]">
+                  <tr>
+                    <th className="px-3 py-2">Variação</th>
+                    <th className="px-3 py-2 text-right">Custo</th>
+                    <th className="px-3 py-2 text-right">Lucro previsto</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EEEEEE]">
+                  {variationPreviews.map((variation) => (
+                    <tr key={variation.type}>
+                      <td className="px-3 py-2 font-semibold text-[#121212]">{variation.name}</td>
+                      <td className="px-3 py-2 text-right text-[#555]">{formatCurrency(variation.totals.costTotal)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-600">{formatCurrency(variation.totals.profit)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-[#121212]">{formatCurrency(variation.totals.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div> : null}
+          </div>
+        )}
+      </fieldset>
+
+      <details className="group rounded-xl border border-[#E8E8E8] bg-white" open={initialData ? true : undefined}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-4 [&::-webkit-details-marker]:hidden">
+          <div><h3 className="text-sm font-semibold">Condições comerciais</h3><p className="mt-1 text-xs text-[#777]">Pagamento, prazo de entrega, instalação e desconto</p></div>
+          <ChevronDown size={18} className="shrink-0 text-[#777] transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-4 border-t border-[#F0F0F0] p-4">
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              label="Prazo de entrega (dias úteis)"
+              type="number"
+              min={1}
+              max={365}
+              value={deliveryBusinessDays}
+              onChange={(event) => setDeliveryBusinessDays(event.target.value)}
+              helperText="Contado após a aprovação e a confirmação do pagamento."
+            />
+            <Input
+              label="Primeiro vencimento"
+              type="date"
+              value={firstInstallmentDate}
+              disabled={!isQuoteInstallmentPaymentMethod(paymentMethod)}
+              onChange={(event) => setFirstInstallmentDate(event.target.value)}
+              helperText={paymentMethod === 'CARD'
+                ? 'As demais parcelas do cartão serão mensais.'
+                : paymentMethod === 'BOLETO'
+                  ? 'Os demais boletos vencerão mensalmente.'
+                  : 'Disponível para pagamento parcelado.'}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px]">
+            <div className="rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] px-4 py-3">
+              <p className="text-sm font-semibold text-[#121212]">Tabela automática da Vertex</p>
+              <p className="mt-1 text-xs text-[#777]">
+                O preço muda conforme ambiente, móvel e padrão selecionados. Móvel difícil aumenta 30%; muito difícil, 60%.
+              </p>
+            </div>
+            <Input label="Instalação" inputMode="decimal" value={installationFee} onChange={(event) => setInstallationFee(event.target.value)} />
+            <Input label="Desconto comercial" inputMode="decimal" value={discount} onChange={(event) => setDiscount(event.target.value)} />
+          </div>
+
+          <QuotePaymentSection
+            paymentMethod={paymentMethod}
+            cardDownPayment={cardDownPayment}
+            cardInstallments={cardInstallments}
+            cardFeePercent={cardFeePercent}
+            cardFeeAmount={displayedTotals.cardFeeAmount}
+            paymentDiscount={displayedTotals.paymentDiscount}
+            total={displayedTotals.total}
+            calculatedCardInstallments={displayedTotals.cardInstallments}
+            calculatedCardDownPayment={displayedTotals.cardDownPayment}
+            onPaymentMethodChange={setPaymentMethod}
+            onCardDownPaymentChange={setCardDownPayment}
+            onCardInstallmentsChange={setCardInstallments}
+            onCardFeePercentChange={setCardFeePercent}
+          />
+
+        </div>
+      </details>
+
+      <details className="group rounded-xl border border-[#E8E8E8] bg-white" open={notes || customerNotes ? true : undefined}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><span className="text-sm font-semibold">Observações e mensagem <span className="ml-2 text-xs font-normal text-[#999]">Opcional</span></span><ChevronDown size={18} className="text-[#777] group-open:rotate-180" /></summary>
+        <div className="border-t border-[#F0F0F0] p-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Textarea label="Observações internas" value={notes} onChange={(event) => setNotes(event.target.value)} />
         <Textarea label="Mensagem para o cliente" value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} />
       </div>
+        </div>
+      </details>
+
+      {items.length > 0 && financialHealth.warnings.length ? (
+        <div className={`border-l-4 px-4 py-3 ${financialHealth.requiresConfirmation ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50'}`}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className={`mt-0.5 shrink-0 ${financialHealth.requiresConfirmation ? 'text-red-600' : 'text-amber-700'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#121212]">Proteção de preço e lucro</p>
+              <ul className="mt-1 space-y-1 text-xs text-[#555]">
+                {financialHealth.warnings.map((warning) => <li key={warning.key}>• {warning.message}</li>)}
+              </ul>
+              {financialHealth.requiresConfirmation ? (
+                <label className="mt-3 flex items-start gap-2 text-xs font-medium text-red-800">
+                  <input type="checkbox" checked={financialRiskConfirmed} onChange={(event) => setFinancialRiskConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
+                  <span>Conferi os custos e autorizo salvar este orçamento mesmo com estes alertas.</span>
+                </label>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+      {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
       <QuoteFormSummary
         subtotal={displayedTotals.subtotal}

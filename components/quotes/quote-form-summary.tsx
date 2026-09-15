@@ -27,16 +27,16 @@ export function QuoteFormSummary({
   onCancel,
 }: QuoteFormSummaryProps) {
   return (
-    <div className="z-30 -mx-2 border-t border-[#D8D8D8] bg-white px-2 pb-1 pt-3 md:sticky md:bottom-0 md:bg-white/95 md:backdrop-blur-sm">
-      <div className="grid grid-cols-2 gap-3 rounded-lg bg-[#121212] p-4 text-white md:grid-cols-5">
-        <div><p className="text-xs text-white/50">Subtotal</p><p className="text-base font-semibold">{formatCurrency(subtotal)}</p></div>
-        <div><p className="text-xs text-white/50">Descontos</p><p className="text-base font-semibold">{formatCurrency(discount)}</p></div>
-        <div><p className="text-xs text-white/50">Custo</p><p className="text-base font-semibold">{formatCurrency(costTotal)}</p></div>
-        <div><p className="text-xs text-white/50">Lucro previsto</p><p className="text-base font-semibold text-emerald-300">{formatCurrency(profit)}</p></div>
-        <div><p className="text-xs text-white/50">Total</p><p className="text-lg font-bold text-[#FFB06B]">{formatCurrency(total)}</p></div>
+    <div className="border-t border-[#E8E8E8] bg-white pt-4">
+      <div className="grid grid-cols-2 gap-4 rounded-xl border border-[#E8E8E8] bg-[#FAFAFA] p-4 text-[#121212] sm:grid-cols-5">
+        <div><p className="text-xs text-[#777]">Subtotal</p><p className="text-base font-semibold">{formatCurrency(subtotal)}</p></div>
+        <div><p className="text-xs text-[#777]">Descontos</p><p className="text-base font-semibold">{formatCurrency(discount)}</p></div>
+        <div><p className="text-xs text-[#777]">Custo</p><p className="text-base font-semibold">{formatCurrency(costTotal)}</p></div>
+        <div><p className="text-xs text-[#777]">Lucro previsto</p><p className="text-base font-semibold text-emerald-700">{formatCurrency(profit)}</p></div>
+        <div><p className="text-xs text-[#777]">Total</p><p className="text-lg font-bold text-[#E65C00]">{formatCurrency(total)}</p></div>
       </div>
 
-      <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-[#777]">
           {draftSavedAt
             ? `Rascunho salvo neste computador às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(draftSavedAt))}.`
