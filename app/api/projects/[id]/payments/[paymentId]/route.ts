@@ -10,7 +10,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; paymentId: string }> }
 ) {
-  const auth = await requireRole(['ADMIN'])
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const { id, paymentId } = await params

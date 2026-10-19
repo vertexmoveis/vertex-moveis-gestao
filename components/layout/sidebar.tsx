@@ -34,6 +34,7 @@ type SidebarNavItem = {
   label: string
   icon: LucideIcon
   adminOnly?: boolean
+  financeOnly?: boolean
 }
 
 const SIDEBAR_STORAGE_KEY = 'vertex:sidebar-collapsed'
@@ -66,7 +67,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
   {
     label: 'Gestão',
     items: [
-      { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, adminOnly: true },
+      { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, financeOnly: true },
       { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
       { href: '/dashboard/contracts', label: 'Contratos', icon: FileSignature },
       { href: '/dashboard/post-sale', label: 'Pós-venda', icon: HeartHandshake },
@@ -212,7 +213,10 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
 
         <nav aria-label="Menu principal" className="flex-1 overflow-y-auto px-2 py-3 scrollbar-none">
           {navSections.map((section, sectionIndex) => {
-            const visibleItems = section.items.filter((item) => !item.adminOnly || userRole === 'ADMIN')
+            const visibleItems = section.items.filter((item) => (
+              (!item.adminOnly || userRole === 'ADMIN')
+              && (!item.financeOnly || userRole === 'ADMIN' || userRole === 'MANAGER')
+            ))
             if (!visibleItems.length) return null
             const hasActiveItem = visibleItems.some((item) => item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href))
             const sectionOpen = openSections[section.label] !== false || hasActiveItem

@@ -44,7 +44,7 @@ function parsePagination(searchParams: URLSearchParams) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireRole(['ADMIN'])
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const limited = await rateLimit(`api:financeiro:get:${auth.user.id}:${getClientIp(req)}`, 80, 60 * 1000).catch((error) => {
