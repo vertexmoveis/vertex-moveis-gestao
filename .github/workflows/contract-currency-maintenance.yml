@@ -51,8 +51,37 @@ jobs:
             echo "Não foi possível carregar a configuração. Nenhum contrato foi alterado."
             exit 1
           fi
-      - name: Executar plano restrito e criptografar resultado
-        run: node --import tsx --env-file-if-exists=.vercel/.env.production.local scripts/contract-currency-maintenance.ts
+      - name: Conferir registros e criptografar resultado
+        if: inputs.mode == 'audit'
+        run: node --import tsx scripts/contract-currency-maintenance.ts
+      - name: Corrigir no ambiente de produção e publicar
+        if: inputs.mode == 'apply'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          deploy_status=0
+          npx vercel@58.4.4 deploy --prod --logs --token="$VERCEL_TOKEN" \
+            --build-env "CONTRACT_CURRENCY_REPAIR_PLAN=$CONTRACT_CURRENCY_REPAIR_PLAN" \
+            --build-env "MAINTENANCE_PUBLIC_KEY=$MAINTENANCE_PUBLIC_KEY" \
+            --build-env MAINTENANCE_MODE=apply --build-env MAINTENANCE_RESULT_LOG=1 \
+            > /tmp/currency-deploy.log 2>&1 || deploy_status=$?
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          const log = readFileSync('/tmp/currency-deploy.log', 'utf8')
+          const chunks = new Map([...log.matchAll(/CONTRACT_CURRENCY_RESULT_CHUNK:(\d{4}):([A-Za-z0-9+/=]+)/g)].map(match => [Number(match[1]), match[2]]))
+          const end = [...log.matchAll(/CONTRACT_CURRENCY_RESULT_END:(\d+)/g)].at(-1)
+          if (!end || chunks.size !== Number(end[1]) || [...chunks.keys()].some(index => index >= chunks.size)) {
+            console.error('Resultado criptografado indisponível. Conferir registros antes de repetir.')
+            process.exit(1)
+          }
+          const envelope = Buffer.from([...chunks.entries()].sort((a, b) => a[0] - b[0]).map(entry => entry[1]).join(''), 'base64').toString('utf8')
+          JSON.parse(envelope)
+          writeFileSync('contract-currency-result.encrypted.json', envelope)
+          console.log('Resultado criptografado recuperado.')
+          NODE
+          exit "$deploy_status"
       - name: Guardar resultado criptografado
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

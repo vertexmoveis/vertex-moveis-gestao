@@ -65,14 +65,23 @@ async function writeEncrypted(payload: unknown, key: ReturnType<typeof encryptio
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()])
   const encryptedKey = publicEncrypt({ key, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, aesKey)
   aesKey.fill(0)
-  await writeFile(outputPath, JSON.stringify({
+  const envelope = JSON.stringify({
     version: 1,
     algorithm: 'RSA-OAEP-256+A256GCM',
     encryptedKey: encryptedKey.toString('base64'),
     iv: iv.toString('base64'),
     tag: cipher.getAuthTag().toString('base64'),
     ciphertext: ciphertext.toString('base64'),
-  }), { encoding: 'utf8', mode: 0o600 })
+  })
+  await writeFile(outputPath, envelope, { encoding: 'utf8', mode: 0o600 })
+  if (process.env.MAINTENANCE_RESULT_LOG === '1') {
+    const encoded = Buffer.from(envelope, 'utf8').toString('base64')
+    const chunks = encoded.match(/.{1,900}/g) || []
+    for (const [index, chunk] of chunks.entries()) {
+      console.log(`CONTRACT_CURRENCY_RESULT_CHUNK:${String(index).padStart(4, '0')}:${chunk}`)
+    }
+    console.log(`CONTRACT_CURRENCY_RESULT_END:${chunks.length}`)
+  }
 }
 
 async function audit(db: PrismaClient, targets: Target[]) {
