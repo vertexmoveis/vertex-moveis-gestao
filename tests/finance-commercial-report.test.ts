@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildFinanceCommercialReport,
   financeCommercialMonth,
+  type FinanceCommercialContract,
   type FinanceCommercialProject,
   type FinanceCommercialQuote,
 } from '@/lib/finance-commercial-report'
@@ -23,6 +24,17 @@ function quote(overrides: Partial<FinanceCommercialQuote> = {}): FinanceCommerci
     status: 'SENT', total: 15_000,
     createdAt: '2026-09-12T12:00:00Z', updatedAt: '2026-09-12T12:00:00Z',
     sentAt: '2026-09-12T12:00:00Z', client: { name: 'João' }, ...overrides,
+  }
+}
+
+function contract(overrides: Partial<FinanceCommercialContract> = {}): FinanceCommercialContract {
+  return {
+    id: 'contract-paula', projectId: null, standaloneTitle: 'Cozinha',
+    status: 'VIEWED', client: { name: 'Paula' },
+    snapshot: JSON.stringify({ project: { name: 'Cozinha', value: 32_500 }, client: { name: 'Paula' } }),
+    createdAt: '2026-10-19T12:00:00Z', updatedAt: '2026-10-19T13:00:00Z',
+    sentAt: '2026-10-19T12:10:00Z', viewedAt: '2026-10-19T13:00:00Z',
+    ...overrides,
   }
 }
 
@@ -175,4 +187,153 @@ test('busca filtra listas e totais depois de eliminar as opções de uma venda',
   assert.equal(result.sold.count, 0)
   assert.equal(result.negotiating.count, 1)
   assert.equal(result.potentialTotal, 15_000)
+})
+
+test('venda sem orçamento visualizada aparece uma vez como negociação, sem projeto', () => {
+  const result = buildFinanceCommercialReport({ month: '2026-10', now, projects: [], quotes: [], contracts: [contract()] })
+  assert.equal(result.negotiating.count, 1)
+  assert.equal(result.negotiating.amount, 32_500)
+  assert.equal(result.negotiating.items[0].source, 'CONTRACT')
+  assert.equal(result.negotiating.items[0].contractId, 'contract-paula')
+  assert.equal(result.negotiating.items[0].clientName, 'Paula')
+  assert.equal(result.negotiating.items[0].title, 'Cozinha')
+  assert.equal(result.sold.count, 0)
+  assert.equal(result.lost.count, 0)
+  assert.equal(result.potentialTotal, 32_500)
+})
+
+test('contrato avulso assinado conta como vendido na assinatura e sai da negociação', () => {
+  const signed = contract({
+    status: 'SIGNED', createdAt: '2026-09-12T12:00:00Z', sentAt: '2026-09-12T13:00:00Z',
+    signedAt: '2026-10-03T12:00:00Z',
+  })
+  const result = buildFinanceCommercialReport({ month: '2026-10', now, projects: [], quotes: [], contracts: [signed] })
+  assert.equal(result.sold.count, 1)
+  assert.equal(result.sold.amount, 32_500)
+  assert.equal(result.sold.items[0].eventDate, '2026-10-03T12:00:00.000Z')
+  assert.equal(result.negotiating.count, 0)
+  assert.equal(result.potentialTotal, 32_500)
+})
+
+test('contrato convertido e suas versões não duplicam o projeto no financeiro', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [project()], quotes: [],
+    contracts: [
+      contract({ id: 'old-version', projectId: 'project-1', status: 'VOID', voidedAt: '2026-10-01T12:00:00Z' }),
+      contract({ id: 'signed-version', projectId: 'project-1', status: 'SIGNED', signedAt: '2026-10-02T12:00:00Z' }),
+      contract({ id: 'viewed-version', projectId: 'project-1' }),
+    ],
+  })
+  assert.equal(result.sold.count, 1)
+  assert.equal(result.sold.amount, 50_000)
+  assert.equal(result.sold.items[0].source, 'PROJECT')
+  assert.equal(result.negotiating.count, 0)
+  assert.equal(result.lost.count, 0)
+  assert.equal(result.potentialTotal, 50_000)
+})
+
+test('contrato de projeto vendido antes do mês não reaparece como negociação', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [project({ approvalDate: '2026-09-20T12:00:00Z' })], quotes: [],
+    contracts: [contract({ projectId: 'project-1' })],
+  })
+  assert.equal(result.sold.count, 0)
+  assert.equal(result.negotiating.count, 0)
+  assert.equal(result.potentialTotal, 0)
+})
+
+test('histórico mantém avulso enviado antes da assinatura e conversão posteriores', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-09', now, projects: [project()], quotes: [],
+    contracts: [contract({
+      projectId: 'project-1', status: 'SIGNED',
+      createdAt: '2026-09-12T12:00:00Z', sentAt: '2026-09-12T13:00:00Z',
+      signedAt: '2026-10-02T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z',
+    })],
+  })
+  assert.equal(result.sold.count, 0)
+  assert.equal(result.negotiating.count, 1)
+  assert.equal(result.negotiating.amount, 32_500)
+  assert.equal(result.negotiating.items[0].source, 'CONTRACT')
+})
+
+test('histórico considera assinatura do avulso anterior à conversão do projeto', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-09', now, projects: [project()], quotes: [],
+    contracts: [contract({
+      projectId: 'project-1', status: 'SIGNED',
+      createdAt: '2026-09-12T12:00:00Z', sentAt: '2026-09-12T13:00:00Z',
+      signedAt: '2026-09-20T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z',
+    })],
+  })
+  assert.equal(result.sold.count, 1)
+  assert.equal(result.sold.amount, 32_500)
+  assert.equal(result.sold.items[0].eventDate, '2026-09-20T12:00:00.000Z')
+  assert.equal(result.negotiating.count, 0)
+})
+
+test('rascunho, contrato cancelado e expirado não viram negociação nem perda comercial', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [], quotes: [],
+    contracts: [
+      contract({ id: 'draft', status: 'DRAFT', sentAt: null, viewedAt: null }),
+      contract({ id: 'void', status: 'VOID', voidedAt: '2026-10-19T14:00:00Z' }),
+      contract({ id: 'cancelled', status: 'CANCELLED', voidedAt: '2026-10-19T14:00:00Z' }),
+      contract({ id: 'expired', status: 'EXPIRED', expiresAt: '2026-10-18T12:00:00Z' }),
+      contract({ id: 'expired-by-date', expiresAt: '2026-10-18T12:00:00Z' }),
+    ],
+  })
+  assert.equal(result.sold.count, 0)
+  assert.equal(result.negotiating.count, 0)
+  assert.equal(result.lost.count, 0)
+  assert.equal(result.potentialTotal, 0)
+})
+
+test('contrato assinado após a validade ainda conta como venda pela assinatura', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [], quotes: [],
+    contracts: [contract({ status: 'SIGNED', expiresAt: '2026-10-17T12:00:00Z', signedAt: '2026-10-19T14:00:00Z' })],
+  })
+  assert.equal(result.sold.count, 1)
+  assert.equal(result.negotiating.count, 0)
+})
+
+test('busca do relatório inclui cliente e título dos contratos sem orçamento', () => {
+  const input = {
+    month: '2026-10', now, projects: [project()], quotes: [quote()],
+    contracts: [contract(), contract({
+      id: 'other-client', standaloneTitle: 'Quarto', client: { name: 'Ana' },
+      snapshot: JSON.stringify({ project: { value: 10_000 } }),
+    })],
+  }
+  for (const query of ['paula', ' COZINHA ']) {
+    const result = buildFinanceCommercialReport({ ...input, projects: [], query })
+    assert.equal(result.negotiating.count, 1)
+    assert.equal(result.negotiating.amount, 32_500)
+    assert.equal(result.negotiating.items[0].contractId, 'contract-paula')
+    assert.equal(result.potentialTotal, 32_500)
+  }
+})
+
+test('contrato usa nomes salvos no documento quando faltam título e cliente atuais', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [], quotes: [],
+    contracts: [contract({ standaloneTitle: null, client: null })],
+  })
+  assert.equal(result.negotiating.count, 1)
+  assert.equal(result.negotiating.items[0].clientName, 'Paula')
+  assert.equal(result.negotiating.items[0].title, 'Cozinha')
+})
+
+test('documento malformado ou sem valor não gera total financeiro inventado', () => {
+  const result = buildFinanceCommercialReport({
+    month: '2026-10', now, projects: [], quotes: [],
+    contracts: [
+      contract({ id: 'malformed', snapshot: '{invalid' }),
+      contract({ id: 'missing', snapshot: JSON.stringify({ project: {} }) }),
+      contract({ id: 'invalid', snapshot: JSON.stringify({ project: { value: 'inválido' } }) }),
+    ],
+  })
+  assert.equal(result.negotiating.count, 0)
+  assert.equal(result.potentialTotal, 0)
 })

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const now = new Date()
   const month = financeCommercialMonth(req.nextUrl.searchParams.get('month'), now)
-  const [projects, quotes] = await Promise.all([
+  const [projects, quotes, contracts] = await Promise.all([
     prisma.project.findMany({
       where: {
         archivedAt: null,
@@ -52,9 +52,18 @@ export async function GET(req: NextRequest) {
         },
       },
     }),
+    prisma.projectContract.findMany({
+      where: { createdAt: { lt: month.end }, OR: [{ projectId: null }, { clientId: { not: null } }] },
+      select: {
+        id: true, projectId: true, standaloneTitle: true, status: true, snapshot: true,
+        createdAt: true, updatedAt: true, sentAt: true, viewedAt: true, signedAt: true, voidedAt: true, expiresAt: true,
+        client: { select: { name: true } },
+        project: { select: { id: true, name: true, value: true, createdAt: true, approvalDate: true, startDate: true, archivedAt: true, client: { select: { name: true } } } },
+      },
+    }),
   ])
 
-  const report = buildFinanceCommercialReport({ month: month.key, projects, quotes, now, query: req.nextUrl.searchParams.get('q') || '' })
+  const report = buildFinanceCommercialReport({ month: month.key, projects, quotes, contracts, now, query: req.nextUrl.searchParams.get('q') || '' })
   if (req.nextUrl.searchParams.get('format') === 'csv') {
     const rows: Array<Array<string | number>> = [
       ['Relatório comercial', report.month],
@@ -65,7 +74,7 @@ export async function GET(req: NextRequest) {
       ['Em negociação', report.negotiating.count, report.negotiating.amount.toFixed(2).replace('.', ',')],
       ['Vendido + potencial', report.sold.count + report.negotiating.count, report.potentialTotal.toFixed(2).replace('.', ',')],
       [],
-      ['Categoria', 'Cliente', 'Projeto ou proposta', 'Valor (R$)', 'Data', 'Situação', 'Motivo da perda', 'Origem', 'Identificador'],
+      ['Categoria', 'Cliente', 'Projeto, proposta ou contrato', 'Valor (R$)', 'Data', 'Situação', 'Motivo da perda', 'Origem', 'Identificador'],
     ]
     for (const [label, category] of [
       ['Vendido', report.sold], ['Perdido', report.lost], ['Em negociação', report.negotiating],

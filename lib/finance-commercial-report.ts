@@ -36,9 +36,27 @@ export type FinanceCommercialQuote = {
   revisions?: Array<{ snapshot: string; createdAt: Date | string }>
 }
 
+export type FinanceCommercialContract = {
+  id: string
+  projectId?: string | null
+  standaloneTitle?: string | null
+  status: string
+  snapshot: unknown
+  client?: { name: string } | null
+  project?: FinanceCommercialProject | null
+  createdAt: Date | string
+  updatedAt?: ReportDate
+  sentAt?: ReportDate
+  viewedAt?: ReportDate
+  signedAt?: ReportDate
+  voidedAt?: ReportDate
+  expiresAt?: ReportDate
+}
+
 export type FinanceCommercialItem = {
   id: string
-  source: 'PROJECT' | 'QUOTE'
+  source: 'PROJECT' | 'QUOTE' | 'CONTRACT'
+  contractId?: string
   projectId: string | null
   quoteId: string | null
   groupId: string | null
@@ -135,6 +153,7 @@ export function buildFinanceCommercialReport(input: {
   month: string
   projects: FinanceCommercialProject[]
   quotes: FinanceCommercialQuote[]
+  contracts?: FinanceCommercialContract[]
   now?: Date
   query?: string
 }) {
@@ -214,6 +233,52 @@ export function buildFinanceCommercialReport(input: {
     }
   }
 
+  const contractIds = new Set<string>()
+  for (const contract of input.contracts || []) {
+    if (contractIds.has(contract.id)) continue
+    contractIds.add(contract.id)
+    const createdAt = timestamp(contract.createdAt)
+    if (createdAt === null || createdAt >= cutoff) continue
+    const voidedAt = timestamp(contract.voidedAt)
+    if ((voidedAt !== null && voidedAt < cutoff) || (!voidedAt && ['VOID', 'CANCELLED'].includes(contract.status))) continue
+
+    // Once formalized, the project represents this sale, including every
+    // contract version. Before that date a historical report can use the contract.
+    if (contract.projectId) {
+      const linked = input.projects.find(project => project.id === contract.projectId) || contract.project
+      const projectDate = linked && (timestamp(linked.approvalDate) ?? timestamp(linked.startDate) ?? timestamp(linked.createdAt))
+      if (!historical || (projectDate !== null && projectDate !== undefined && projectDate < cutoff)) continue
+    }
+    let snapshot: unknown = contract.snapshot
+    if (typeof snapshot === 'string') {
+      try { snapshot = JSON.parse(snapshot) } catch { continue }
+    }
+    if (!snapshot || typeof snapshot !== 'object') continue
+    const data = snapshot as { project?: { value?: unknown; name?: unknown }; client?: { name?: unknown } }
+    const rawAmount = data.project?.value
+    if ((typeof rawAmount !== 'number' && typeof rawAmount !== 'string') || rawAmount === '' || !Number.isFinite(Number(rawAmount)) || Number(rawAmount) < 0) continue
+    const signedAt = timestamp(contract.signedAt) ?? (contract.status === 'SIGNED' ? timestamp(contract.updatedAt) : null)
+    const signed = signedAt !== null && signedAt < cutoff
+    const sentAt = timestamp(contract.sentAt) ?? timestamp(contract.viewedAt)
+    const expiresAt = timestamp(contract.expiresAt)
+    const wasSent = sentAt !== null && sentAt < cutoff
+    const open = !signed && (['SENT', 'VIEWED'].includes(contract.status) || (historical && wasSent))
+      && !(expiresAt !== null && expiresAt < cutoff)
+    if (!signed && !open) continue
+    const event = signed ? signedAt : sentAt ?? createdAt
+    if (event === null || event >= cutoff) continue
+    const item: FinanceCommercialItem = {
+      id: contract.id, source: 'CONTRACT', contractId: contract.id, projectId: null, quoteId: null, groupId: null,
+      title: contract.standaloneTitle || (typeof data.project?.name === 'string' ? data.project.name : 'Venda sem orçamento'),
+      clientName: contract.client?.name || (typeof data.client?.name === 'string' ? data.client.name : 'Cliente não informado'),
+      amount: moneyValue(Number(rawAmount)), eventDate: new Date(event).toISOString(),
+      status: signed ? 'SIGNED' : contract.viewedAt && timestamp(contract.viewedAt)! < cutoff ? 'VIEWED' : 'SENT', lossReason: null,
+    }
+    if (signed) {
+      if (isInMonth(event)) soldItems.push(item)
+    } else if (start < cutoff) negotiatingItems.push(item)
+  }
+
   const search = (input.query || '').trim().slice(0, 120).toLocaleLowerCase('pt-BR')
   const matches = (item: FinanceCommercialItem) => !search || `${item.clientName} ${item.title}`.toLocaleLowerCase('pt-BR').includes(search)
   const sold = bucket(soldItems.filter(matches))
@@ -228,11 +293,11 @@ export function buildFinanceCommercialReport(input: {
     historicalPipelineEstimated: historical,
     undatedLossCount,
     semantics: {
-      sold: 'Vendas no mês pela data de aprovação do projeto; na falta dela, início e depois criação. Orçamento convertido conta uma vez pelo projeto.',
+      sold: 'Vendas no mês pela aprovação do projeto; sem ela, início e criação. Contratos avulsos assinados ainda sem projeto contam pela assinatura. Depois da formalização, a venda conta uma vez pelo projeto.',
       lost: 'Negociações atualmente perdidas, com todas as opções encerradas, no mês da última perda registrada. Reaberturas podem remover esse registro; não representa inadimplência nem saída de caixa.',
       negotiating: historical
-        ? 'Estimativa das propostas enviadas ainda abertas ao fim do mês, pelos registros disponíveis. Alterações de status não têm histórico completo.'
-        : 'Propostas enviadas ainda abertas até agora, inclusive as iniciadas em meses anteriores. Rascunhos não entram.',
+        ? 'Estimativa dos orçamentos e contratos avulsos enviados ainda abertos ao fim do mês, pelos registros disponíveis. Alterações de status não têm histórico completo.'
+        : 'Orçamentos e vendas sem orçamento com contrato enviado ou visualizado, ainda em negociação, inclusive de meses anteriores. Rascunhos e contratos cancelados ou vencidos não entram.',
       potentialTotal: 'Vendido no mês mais propostas em negociação. Potencial comercial; não é dinheiro recebido.',
       variations: 'Cada negociação conta uma vez. Usa a opção aprovada ou em aceite; depois, a primeira opção enviada. Valores das opções não são somados.',
     },

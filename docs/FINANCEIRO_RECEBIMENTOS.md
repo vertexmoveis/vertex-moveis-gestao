@@ -25,8 +25,9 @@ Criar um projeto ou fechar uma venda não cria recebimentos automaticamente, inc
 
 - **Entrou no mês**: soma dos recebimentos registrados naquele mês, descontadas as taxas. **Caixa** mostra bruto, taxas e líquido. Usa o horário de São Paulo.
 - **Saldo a acertar**: saldo atual dos projetos, inclusive vendas de outros meses. Mudar o mês não reconstrói automaticamente o saldo bancário de uma data passada.
+- **Vendas sem orçamento**: contrato avulso enviado ou visualizado aparece em negociação; contrato assinado aparece em vendido pela data da assinatura. Ao formalizar em projeto, conta uma vez, sem duplicar o contrato. O relatório aponta o fechamento do contrato ao clicar no item.
 - **Vendido no mês**: vendas pela data de aprovação do projeto; sem ela, usa início e depois criação. Um orçamento convertido em projeto conta uma vez.
-- **Em negociação**: propostas enviadas ainda abertas, inclusive as iniciadas antes do mês escolhido. Não inclui rascunhos. As alternativas de acabamento de uma mesma proposta contam uma oportunidade, sem somar seus valores.
+- **Em negociação**: propostas e contratos avulsos enviados ou visualizados ainda abertos, inclusive os iniciados antes do mês escolhido. Não inclui rascunhos. As alternativas de acabamento de uma mesma proposta contam uma oportunidade, sem somar seus valores.
 - **Perdido no mês**: negociações atualmente encerradas sem venda, com todas as opções perdidas, pelo mês da última perda registrada. Não representa inadimplência, devolução ou saída de dinheiro.
 - **Vendido + potencial**: vendido no mês mais propostas em negociação. É uma medida comercial e não dinheiro disponível.
 
