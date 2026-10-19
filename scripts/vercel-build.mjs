@@ -27,16 +27,6 @@ async function deployProductionMigrations() {
 }
 
 await deployProductionMigrations()
-if (process.env.VERCEL_ENV === 'production' && process.env.MAINTENANCE_MODE === 'apply') {
-  if (!process.env.CONTRACT_CURRENCY_REPAIR_PLAN || !process.env.MAINTENANCE_PUBLIC_KEY || process.env.MAINTENANCE_RESULT_LOG !== '1') {
-    throw new Error('Configuração incompleta para a correção de contratos.')
-  }
-  const maintenance = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/contract-currency-maintenance.ts'], {
-    cwd: process.cwd(), env: process.env, stdio: 'inherit',
-  })
-  if (maintenance.error || maintenance.status !== 0) throw new Error('Correção de contratos interrompida. Consulte o resultado criptografado.')
-  for (const key of ['CONTRACT_CURRENCY_REPAIR_PLAN', 'MAINTENANCE_MODE', 'MAINTENANCE_PUBLIC_KEY', 'MAINTENANCE_RESULT_LOG']) delete process.env[key]
-}
 const build = runNpm('build')
 if (build.error) throw build.error
 if (build.status !== 0) process.exitCode = build.status || 1
