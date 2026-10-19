@@ -12,6 +12,7 @@ import {
   FileSignature,
   FileText,
   MessageCircle,
+  Pencil,
   Plus,
   Search,
   Send,
@@ -84,6 +85,25 @@ type StandaloneConversionData = {
   preview: StandaloneConversionPreview
 }
 
+type StandaloneEditData = {
+  id: string
+  version: number
+  updatedAt: string
+  clientName: string
+  form: {
+    clientId: string
+    title: string
+    description: string
+    value: number
+    paymentMethod: 'PIX' | 'CARD'
+    downPayment: number
+    downPaymentDate: string
+    installmentCount: number
+    firstInstallmentDate: string
+    deliveryBusinessDays: number
+  }
+}
+
 const emptyPayload: ContractsPayload = {
   items: [], standaloneItems: [], standaloneTotal: 0, total: 0, page: 1, totalPages: 1,
   counts: { all: 0, attention: 0, waiting: 0, signed: 0, legacy: 0 },
@@ -142,6 +162,11 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
   const [busyId, setBusyId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(sales && params.get('new') === '1')
   const [creating, setCreating] = useState(false)
+  const [editingContract, setEditingContract] = useState<{ id: string; updatedAt: string; clientName: string } | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
+  const [editBlocked, setEditBlocked] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [correctedContractUrl, setCorrectedContractUrl] = useState('')
   const [form, setForm] = useState(() => ({ ...initialStandaloneForm(), clientId: clientId || params.get('clientId') || '' }))
   const [saleData, setSaleData] = useState<StandaloneConversionData | null>(null)
   const [saleLoading, setSaleLoading] = useState(false)
@@ -156,7 +181,7 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     environmentNames: '',
   })
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, selectedContractId = contractId) => {
     setLoading(true)
     setError('')
     const params = new URLSearchParams({ page: String(page), pageSize: '20' })
@@ -164,7 +189,7 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     if (status) params.set('status', status)
     if (sales) params.set('standalone', '1')
     if (clientId) params.set('clientId', clientId)
-    if (contractId) params.set('contractId', contractId)
+    if (selectedContractId) params.set('contractId', selectedContractId)
     try {
       const response = await fetch(`/api/contracts?${params}`, { signal })
       const result = await response.json().catch(() => null)
@@ -209,24 +234,92 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     }
   }
 
-  const createStandalone = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setCreating(true)
-    setError('')
+  const openStandaloneCreate = () => {
+    setEditingContract(null)
+    setEditBlocked(false)
+    setFormError('')
+    setForm({ ...initialStandaloneForm(), clientId: clientId || params.get('clientId') || '' })
+    setCreateOpen(true)
+  }
+
+  const openStandaloneEdit = async (row: ContractRow) => {
+    if (editLoading || creating) return
+    setEditingContract({ id: row.id, updatedAt: '', clientName: row.clientName })
+    setForm(initialStandaloneForm())
+    setFormError('')
+    setEditLoading(true)
+    setEditBlocked(false)
+    setCreateOpen(true)
+    setBusyId(row.id)
     try {
-      const response = await fetch('/api/contracts', {
-        method: 'POST',
+      const response = await fetch(`/api/contracts/${encodeURIComponent(row.id)}`, { cache: 'no-store' })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível carregar o contrato para edição.')
+      if (result?.id !== row.id || !result?.updatedAt || !result?.form?.clientId) {
+        throw new Error('Os dados do contrato estão incompletos. Feche esta janela e tente novamente.')
+      }
+      const data = result as StandaloneEditData
+      setForm({
+        clientId: data.form.clientId,
+        title: data.form.title,
+        description: data.form.description,
+        value: String(data.form.value),
+        paymentMethod: data.form.paymentMethod,
+        downPayment: String(data.form.downPayment),
+        downPaymentDate: data.form.downPaymentDate,
+        installmentCount: String(data.form.installmentCount),
+        firstInstallmentDate: data.form.firstInstallmentDate,
+        deliveryBusinessDays: String(data.form.deliveryBusinessDays),
+      })
+      setEditingContract({ id: data.id, updatedAt: data.updatedAt, clientName: data.clientName })
+    } catch (requestError) {
+      setFormError((requestError as Error).message)
+    } finally {
+      setEditLoading(false)
+      setBusyId(null)
+    }
+  }
+
+  const saveStandalone = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (creating || editLoading || editBlocked || (editingContract && !editingContract.updatedAt)) return
+    if (!form.clientId) {
+      setFormError('Selecione o cliente do contrato.')
+      return
+    }
+    setCreating(true)
+    setFormError('')
+    try {
+      const response = await fetch(editingContract ? `/api/contracts/${encodeURIComponent(editingContract.id)}` : '/api/contracts', {
+        method: editingContract ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(editingContract ? { ...form, updatedAt: editingContract.updatedAt } : form),
       })
       const result = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(result?.error || 'Não foi possível criar o contrato avulso.')
+      if (editingContract && response.status === 409) setEditBlocked(true)
+      if (!response.ok) throw new Error(result?.error || (editingContract ? 'Não foi possível salvar as correções.' : 'Não foi possível criar o contrato avulso.'))
+      if (editingContract && (!result?.id || !result?.publicUrl)) {
+        setEditBlocked(true)
+        throw new Error('Não foi possível localizar o contrato corrigido. Atualize a lista antes de tentar novamente.')
+      }
       setCreateOpen(false)
       setForm(initialStandaloneForm())
-      await load()
-      if (result?.publicUrl) window.open(result.publicUrl, '_blank', 'noopener,noreferrer')
+      if (editingContract) {
+        setCorrectedContractUrl(result.publicUrl)
+        setEditingContract(null)
+        if (contractId) {
+          const nextParams = new URLSearchParams(params.toString())
+          nextParams.set('contractId', result.id)
+          nextParams.delete('new')
+          router.replace(`/dashboard/sales?${nextParams}`, { scroll: false })
+        }
+        await load(undefined, contractId ? result.id : undefined)
+      } else {
+        await load()
+        if (result?.publicUrl) window.open(result.publicUrl, '_blank', 'noopener,noreferrer')
+      }
     } catch (requestError) {
-      setError((requestError as Error).message)
+      setFormError((requestError as Error).message)
     } finally {
       setCreating(false)
     }
@@ -339,7 +432,13 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
           <Metric label="Assinados" value={payload.counts.signed} icon={CheckCircle2} tone="green" />
           <Metric label="Projetos antigos" value={payload.counts.legacy} icon={FileSignature} tone="gray" />
         </div>}
-        {sales && <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Vendas sem orçamento</h2><p className="text-xs text-[#777]">Contratos avulsos em formalização</p></div><Button onClick={() => setCreateOpen(true)}><Plus size={15}/> Venda sem orçamento</Button></div>}
+        {sales && <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Vendas sem orçamento</h2><p className="text-xs text-[#777]">Contratos avulsos em formalização</p></div><Button onClick={openStandaloneCreate}><Plus size={15}/> Venda sem orçamento</Button></div>}
+        {correctedContractUrl ? (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <p>Contrato corrigido. Confira e compartilhe o novo link com o cliente.</p>
+            <a href={correctedContractUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold underline">Abrir contrato corrigido <ExternalLink size={14} /></a>
+          </div>
+        ) : null}
         {contractId && <Link href="/dashboard/sales" className="text-sm text-orange-700 underline">Ver todos os fechamentos</Link>}
         {sales && <div className="flex flex-wrap gap-2"><input aria-label="Buscar contrato avulso" placeholder="Buscar cliente ou contrato" value={query} onChange={e=>{setQuery(e.target.value);setPage(1)}} className="h-10 min-w-0 flex-1 rounded-md border border-[#DDD] px-3 text-sm"/><select aria-label="Situação do contrato avulso" value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}} className="h-10 rounded-md border border-[#DDD] px-3 text-sm"><option value="">Todas as situações</option>{Object.entries(CONTRACT_CENTER_STATUS_LABELS).filter(([value]) => ['SENT','VIEWED','SIGNED','EXPIRED'].includes(value)).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>}
         {sales && error && <p role="alert" className="text-sm text-red-700">{error}</p>}
@@ -360,14 +459,14 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
                 {payload.standaloneItems.map((row) => {
                   const canRemind = reminderIsAvailable(row)
                   return (
-                    <div key={row.id} className="grid gap-3 px-4 py-4 hover:bg-[#FAFAFA] md:grid-cols-[minmax(190px,1.4fr)_minmax(130px,1fr)_150px_auto] md:items-center">
+                    <div key={row.id} className="grid gap-3 px-4 py-4 hover:bg-[#FAFAFA] md:grid-cols-[minmax(190px,1.4fr)_minmax(130px,1fr)_150px] md:items-center 2xl:grid-cols-[minmax(190px,1.4fr)_minmax(130px,1fr)_150px_auto]">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[#121212]">{row.name}</p>
                         <p className="mt-1 truncate text-xs text-[#777]">{row.clientName} · {row.managerName}</p>
                       </div>
                       <div>
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.status)}`}>{CONTRACT_CENTER_STATUS_LABELS[row.status]}</span>
-                        <p className="mt-1 text-[11px] text-[#999]">Contrato avulso</p>
+                        <p className="mt-1 text-[11px] text-[#999]">Contrato avulso{row.contract?.version ? ` · Versão ${row.contract.version}` : ''}</p>
                       </div>
                       <div className="text-xs text-[#777]">
                         {row.contract?.signedAt
@@ -377,7 +476,10 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
                             : `Enviado em ${formatDate(row.contract?.sentAt || null)}`}
                         {row.contract?.reminderCount ? <p className="mt-1">{row.contract.reminderCount} lembrete{row.contract.reminderCount !== 1 ? 's' : ''}</p> : null}
                       </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2 md:col-span-3 2xl:col-span-1">
+                        {['SENT', 'VIEWED', 'EXPIRED'].includes(row.status) && !row.contract?.signedAt ? (
+                          <button type="button" disabled={busyId === row.id || editLoading || creating} onClick={() => void openStandaloneEdit(row)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#D9D9D9] px-3 text-xs font-semibold hover:bg-[#F5F5F5] disabled:opacity-50"><Pencil size={14} /> Editar</button>
+                        ) : null}
                         <a href={`/api/contracts/${row.id}/document`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#D9D9D9] px-3 text-xs font-semibold hover:bg-[#F5F5F5]"><FileText size={14} /> PDF</a>
                         {canRemind ? (
                           <button type="button" disabled={busyId === row.id} onClick={() => void remind(row)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#FF6B00] px-3 text-xs font-semibold text-[#FF6B00] hover:bg-orange-50 disabled:opacity-50"><Send size={14} /> Lembrar</button>
@@ -639,15 +741,25 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         ) : null}
       </Modal>
 
-      <Modal open={createOpen} onClose={() => !creating && setCreateOpen(false)} title="Venda sem orçamento" size="lg">
-        <form onSubmit={createStandalone} className="space-y-5">
+      <Modal open={createOpen} onClose={() => !creating && !editLoading && setCreateOpen(false)} title={editingContract ? 'Editar contrato avulso' : 'Venda sem orçamento'} size="lg">
+        <form onSubmit={saveStandalone} className="space-y-5">
           <div className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-xs leading-5 text-[#8A3A00]">
-            Este contrato será criado diretamente para o cliente, sem orçamento e sem projeto. Ele não aparecerá na Produção.
+            {editingContract
+              ? 'Ao salvar, será criada uma nova versão. O link anterior será substituído; confira e compartilhe o novo link com o cliente.'
+              : 'Este contrato será criado diretamente para o cliente, sem orçamento e sem projeto. Ele não aparecerá na Produção.'}
           </div>
 
+          {formError ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</div> : null}
+          {editBlocked ? <p className="text-xs leading-5 text-[#777]">Feche esta janela e abra Editar novamente para carregar a situação atual do contrato.</p> : null}
+          {editLoading ? <p role="status" className="text-sm text-[#777]">Carregando os dados do contrato…</p> : null}
+
+          {(!editingContract || editingContract.updatedAt) && <fieldset disabled={creating || editLoading || editBlocked} className="space-y-5">
+
           <ClientSearchSelect
+            key={editingContract?.id || 'new-contract'}
             value={form.clientId}
             onChange={(clientId) => setForm((current) => ({ ...current, clientId }))}
+            initialOptions={editingContract ? [{ id: form.clientId, name: editingContract.clientName }] : []}
             label="Cliente *"
           />
 
@@ -748,10 +860,11 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
               required
             />
           )}
+          </fieldset>}
 
           <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</Button>
-            <Button type="submit" loading={creating}><Plus size={15} /> Criar contrato e abrir link</Button>
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating || editLoading}>Cancelar</Button>
+            <Button type="submit" loading={creating} disabled={editLoading || editBlocked || Boolean(editingContract && !editingContract.updatedAt)}>{editingContract ? <Pencil size={15} /> : <Plus size={15} />} {editingContract ? 'Salvar correções' : 'Criar contrato e abrir link'}</Button>
           </div>
         </form>
       </Modal>

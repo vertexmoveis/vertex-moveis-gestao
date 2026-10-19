@@ -12,21 +12,10 @@ import {
   projectContractUrl,
 } from '@/lib/project-contracts'
 import { buildStandaloneContractSnapshot } from '@/lib/standalone-contracts'
+import { createStandaloneSchema } from '@/lib/standalone-contract-edit'
 import { getClientIp, requireAuth, serverError, serviceUnavailable } from '@/lib/security'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 
-const createStandaloneSchema = z.object({
-  clientId: z.string().trim().min(1, 'Escolha o cliente.'),
-  title: z.string().trim().min(3, 'Informe o serviço contratado.').max(160),
-  description: z.string().trim().min(5, 'Descreva o que será contratado.').max(3000),
-  value: z.coerce.number().positive('Informe um valor maior que zero.').max(10_000_000),
-  paymentMethod: z.enum(['PIX', 'CARD']),
-  downPayment: z.coerce.number().min(0).max(10_000_000).default(0),
-  downPaymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  installmentCount: z.coerce.number().int().min(1).max(24).default(1),
-  firstInstallmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  deliveryBusinessDays: z.coerce.number().int().min(1).max(365).default(30),
-}).strict()
 const reminderSchema = z.object({ contractId: z.string().trim().min(1) }).strict()
 const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000
 
