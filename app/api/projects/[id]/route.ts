@@ -90,6 +90,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   })
   if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canAccessProject(auth.user, access.managerId)) return forbidden()
+  const canViewFinance = auth.user.role === 'ADMIN' || auth.user.role === 'MANAGER'
 
   const project = await prisma.project.findFirst({
     where: { id, archivedAt: null },
@@ -112,17 +113,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       postSaleFollowUpAt: true,
       postSaleContactedAt: true,
       warrantyEndsAt: true,
-      value: auth.user.role === 'ADMIN',
+      value: canViewFinance,
       productionCost: auth.user.role === 'ADMIN',
-      paymentMethod: auth.user.role === 'ADMIN',
-      paymentDiscount: auth.user.role === 'ADMIN',
-      cardFeePercent: auth.user.role === 'ADMIN',
-      cardFeeAmount: auth.user.role === 'ADMIN',
-      downPayment: auth.user.role === 'ADMIN',
-      downPaymentDate: auth.user.role === 'ADMIN',
-      installmentCount: auth.user.role === 'ADMIN',
-      installmentValue: auth.user.role === 'ADMIN',
-      firstInstallmentDate: auth.user.role === 'ADMIN',
+      paymentMethod: canViewFinance,
+      paymentDiscount: canViewFinance,
+      cardFeePercent: canViewFinance,
+      cardFeeAmount: canViewFinance,
+      downPayment: canViewFinance,
+      downPaymentDate: canViewFinance,
+      installmentCount: canViewFinance,
+      installmentValue: canViewFinance,
+      firstInstallmentDate: canViewFinance,
       internalNotes: auth.user.role === 'ADMIN',
       productionBlockedAt: true,
       productionBlockReason: true,
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         orderBy: { createdAt: 'desc' },
       },
       timeline: { select: { id: true, event: true, description: true, date: true, createdAt: true }, orderBy: { date: 'asc' } },
-      payments: auth.user.role === 'ADMIN'
+      payments: canViewFinance
         ? {
             select: {
               receiptAllocations: { include: { receipt: { select: { reversedAt: true } } } },
