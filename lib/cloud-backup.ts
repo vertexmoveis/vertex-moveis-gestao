@@ -40,6 +40,8 @@ const BACKUP_TABLES = [
   'ProjectDeliveryProof',
   'ProjectEnvironment',
   'ProjectPayment',
+  'FinanceReceipt',
+  'FinanceReceiptAllocation',
   'PaymentHistory',
   'WhatsAppMessage',
   'ProjectChecklistItem',

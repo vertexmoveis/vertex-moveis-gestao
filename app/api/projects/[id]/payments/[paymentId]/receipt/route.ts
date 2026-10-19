@@ -44,6 +44,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     },
   })
   if (!payment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!payment.paidAt) {
+    return NextResponse.json({ error: 'Este lançamento ainda não foi recebido por inteiro. Consulte os recebimentos parciais no Financeiro.' }, { status: 409 })
+  }
   const nonce = req.headers.get('x-nonce') || randomBytes(16).toString('base64')
 
   const html = `<!doctype html>

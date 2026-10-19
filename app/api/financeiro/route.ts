@@ -7,6 +7,8 @@ import { calculateProjectCostSummary } from '@/lib/project-costs'
 import { moneyValue, numberValue } from '@/lib/money'
 import { buildProfitabilityReport } from '@/lib/profitability'
 import { dateOnlyKeyInTimeZone, startOfDateInTimeZone } from '@/lib/date-only'
+import { paymentReceived, type ReceiptPayment } from '@/lib/finance-settlements'
+import { getFinanceSettlements } from '@/lib/finance-settlement-service'
 
 function parseMonth(value: string | null) {
   const now = new Date()
@@ -31,8 +33,8 @@ function parseMonth(value: string | null) {
   }
 }
 
-function paymentStatus(payment: { dueDate: Date; paidAt: Date | null }, today: Date) {
-  if (payment.paidAt) return 'RECEBIDO'
+function paymentStatus(payment: ReceiptPayment & { dueDate: Date }, today: Date) {
+  if (paymentReceived(payment) >= moneyValue(payment.amount)) return 'RECEBIDO'
   if (payment.dueDate < today) return 'ATRASADO'
   return 'PENDENTE'
 }
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
       { paidAt: { gte: month.paidStart, lt: month.paidEnd } },
       { dueDate: { gte: month.dueStart, lt: month.dueEnd } },
       { dueDate: { lt: today }, paidAt: null },
+      { receiptAllocations: { some: { receipt: { reversedAt: null, receivedAt: { gte: month.paidStart, lt: month.paidEnd } } } } },
     ],
   }
   const paymentSearchWhere: Prisma.ProjectPaymentWhereInput | null = q
@@ -100,7 +103,7 @@ export async function GET(req: NextRequest) {
     archivedAt: null,
     OR: [
       { approvalDate: { gte: month.dueStart, lt: month.dueEnd } },
-      { startDate: { gte: month.dueStart, lt: month.dueEnd } },
+      { approvalDate: null, startDate: { gte: month.dueStart, lt: month.dueEnd } },
       {
         approvalDate: null,
         startDate: null,
@@ -110,22 +113,14 @@ export async function GET(req: NextRequest) {
     value: { not: null },
   }
 
-  const [received, receivable, overdue, future, soldProjects, allPayments, total] = await Promise.all([
-    prisma.projectPayment.aggregate({
-      where: { paidAt: { gte: month.paidStart, lt: month.paidEnd }, project: { archivedAt: null } },
-      _sum: { amount: true },
-    }),
-    prisma.projectPayment.aggregate({
-      where: { paidAt: null, dueDate: { gte: month.dueStart, lt: month.dueEnd }, project: { archivedAt: null } },
-      _sum: { amount: true },
-    }),
-    prisma.projectPayment.aggregate({
-      where: { paidAt: null, dueDate: { lt: today }, project: { archivedAt: null } },
-      _sum: { amount: true },
-    }),
-    prisma.projectPayment.aggregate({
-      where: { dueDate: { gte: month.dueEnd }, paidAt: null, project: { archivedAt: null } },
-      _sum: { amount: true },
+  const [settlements, outstandingPayments, soldProjects, allPayments, total] = await Promise.all([
+    getFinanceSettlements(month.key),
+    prisma.projectPayment.findMany({
+      where: { paidAt: null, project: { archivedAt: null } },
+      select: {
+        id: true, amount: true, paidAt: true, dueDate: true,
+        receiptAllocations: { select: { amount: true, receipt: { select: { reversedAt: true } } } },
+      },
     }),
     prisma.project.findMany({
       where: soldProjectsWhere,
@@ -158,6 +153,7 @@ export async function GET(req: NextRequest) {
     prisma.projectPayment.findMany({
       where: paymentListWhere,
       include: {
+        receiptAllocations: { select: { amount: true, receipt: { select: { reversedAt: true } } } },
         project: {
           select: {
             id: true,
@@ -179,16 +175,23 @@ export async function GET(req: NextRequest) {
   const soldCost = soldProjects.reduce((total, project) => (
     total + calculateProjectCostSummary(project.productionCost, project.materials, project.expenses).adjustedCost
   ), 0)
+  const outstandingInWindow = (matches: (payment: typeof outstandingPayments[number]) => boolean) => moneyValue(
+    outstandingPayments.reduce((sum, payment) => matches(payment)
+      ? sum + Math.max(moneyValue(payment.amount) - paymentReceived(payment), 0)
+      : sum, 0),
+  )
   const summary = {
-    received: moneyValue(received._sum.amount),
-    receivable: moneyValue(receivable._sum.amount),
-    overdue: moneyValue(overdue._sum.amount),
+    received: settlements.summary.received,
+    receivedGross: settlements.summary.receivedGross,
+    fees: settlements.summary.fees,
+    receivable: outstandingInWindow((payment) => payment.dueDate >= month.dueStart && payment.dueDate < month.dueEnd),
+    overdue: outstandingInWindow((payment) => payment.dueDate < today),
     sold: moneyValue(soldValue),
     cost: moneyValue(soldCost),
     estimatedCost: moneyValue(estimatedCost),
     estimatedProfit: moneyValue(soldValue - estimatedCost),
     profit: moneyValue(soldValue - soldCost),
-    future: moneyValue(future._sum.amount),
+    future: outstandingInWindow((payment) => payment.dueDate >= month.dueEnd),
   }
   const profitability = buildProfitabilityReport(soldProjects)
 
@@ -201,6 +204,8 @@ export async function GET(req: NextRequest) {
       installmentNumber: payment.installmentNumber,
       type: payment.type,
       amount: moneyValue(payment.amount),
+      received: paymentReceived(payment),
+      remaining: moneyValue(Math.max(moneyValue(payment.amount) - paymentReceived(payment), 0)),
       dueDate: payment.dueDate.toISOString(),
       paidAt: payment.paidAt?.toISOString() || null,
       paymentMethod: payment.paymentMethod,

@@ -5,6 +5,7 @@ import { moneyValue, type NumericValue } from '@/lib/money'
 import { syncClientRelationshipStage } from '@/lib/client-relationship'
 import { decryptProjectContractToken, projectContractUrl } from '@/lib/project-contracts'
 import { getContractReminderSequence } from '@/lib/contract-center'
+import { paymentReceived } from '@/lib/finance-settlements'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -93,7 +94,11 @@ export async function runAutomatedWhatsAppReminders(input: {
       select: {
         id: true,
         amount: true,
+        paidAt: true,
         dueDate: true,
+        receiptAllocations: {
+          select: { amount: true, receipt: { select: { reversedAt: true } } },
+        },
         project: {
           select: {
             id: true,
@@ -224,23 +229,27 @@ export async function runAutomatedWhatsAppReminders(input: {
         await syncClientRelationshipStage(tx, request.quote.client.id, { activityAt: now })
       }),
     })),
-    ...overduePayments.map((payment) => ({
-      kind: 'payment' as const,
-      run: () => dispatchWhatsAppTemplate({
-        dedupeKey: `payment-reminder:${payment.id}:${periodKey(input.today, 7)}`,
-        kind: 'PAYMENT_REMINDER',
-        phone: payment.project.client.whatsapp || payment.project.client.phone,
-        clientName: payment.project.client.name,
-        projectId: payment.project.id,
-        paymentId: payment.id,
-        bodyParameters: [
-          payment.project.client.name,
-          payment.project.name,
-          formatMoney(payment.amount),
-          formatDateOnly(payment.dueDate),
-        ],
-      }),
-    })),
+    ...overduePayments.flatMap((payment) => {
+      const outstanding = moneyValue(Math.max(moneyValue(payment.amount) - paymentReceived(payment), 0))
+      if (outstanding === 0) return []
+      return [{
+        kind: 'payment' as const,
+        run: () => dispatchWhatsAppTemplate({
+          dedupeKey: `payment-reminder:${payment.id}:${periodKey(input.today, 7)}`,
+          kind: 'PAYMENT_REMINDER',
+          phone: payment.project.client.whatsapp || payment.project.client.phone,
+          clientName: payment.project.client.name,
+          projectId: payment.project.id,
+          paymentId: payment.id,
+          bodyParameters: [
+            payment.project.client.name,
+            payment.project.name,
+            formatMoney(outstanding),
+            formatDateOnly(payment.dueDate),
+          ],
+        }),
+      }]
+    }),
     ...installations.map((installation) => ({
       kind: 'installation' as const,
       run: () => dispatchWhatsAppTemplate({

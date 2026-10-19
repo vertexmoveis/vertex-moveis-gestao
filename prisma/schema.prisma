@@ -68,6 +68,10 @@ model UserAlertState {
 
 model Client {
   id                         String            @id @default(cuid())
+  creditStatus               String            @default("PENDING")
+  creditLimit                Decimal?          @db.Decimal(14, 2)
+  creditNotes                String?
+  creditReviewedAt           DateTime?
   managerId                  String?
   manager                    User?             @relation(fields: [managerId], references: [id], onDelete: SetNull)
   name                       String
@@ -150,6 +154,7 @@ model Project {
   value                          Decimal?               @db.Decimal(14, 2)
   productionCost                 Decimal?               @default(0) @db.Decimal(14, 2)
   paymentMethod                  String                 @default("TO_DEFINE")
+  financeReceipts                FinanceReceipt[]
   paymentDiscount                Decimal                @default(0) @db.Decimal(14, 2)
   cardFeePercent                 Float                  @default(0)
   cardFeeAmount                  Decimal                @default(0) @db.Decimal(14, 2)
@@ -878,6 +883,7 @@ model ProjectEnvironment {
 
 model ProjectPayment {
   id                String           @id @default(cuid())
+  receiptAllocations FinanceReceiptAllocation[]
   projectId         String
   project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   installmentNumber Int
@@ -895,6 +901,40 @@ model ProjectPayment {
   @@index([dueDate])
   @@index([paidAt])
   @@index([paymentMethod])
+}
+
+model FinanceReceipt {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestId    String   @unique
+  amount       Decimal  @db.Decimal(14, 2)
+  fee          Decimal  @default(0) @db.Decimal(14, 2)
+  method       String
+  source       String   @default("DIRECT")
+  receivedAt   DateTime
+  note         String?
+  recordedById String
+  reversedAt   DateTime?
+  reversedById String?
+  reversalNote String?
+  createdAt    DateTime @default(now())
+  allocations  FinanceReceiptAllocation[]
+
+  @@index([projectId, receivedAt])
+  @@index([receivedAt, reversedAt])
+}
+
+model FinanceReceiptAllocation {
+  id        String         @id @default(cuid())
+  receiptId String
+  receipt   FinanceReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  paymentId String
+  payment   ProjectPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount    Decimal        @db.Decimal(14, 2)
+
+  @@unique([receiptId, paymentId])
+  @@index([paymentId])
 }
 
 model PaymentHistory {

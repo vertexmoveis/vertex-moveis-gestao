@@ -51,6 +51,8 @@ const tableOrder = [
   'ProjectDeliveryProof',
   'ProjectEnvironment',
   'ProjectPayment',
+  'FinanceReceipt',
+  'FinanceReceiptAllocation',
   'PaymentHistory',
   'WhatsAppMessage',
   'ProjectChecklistItem',

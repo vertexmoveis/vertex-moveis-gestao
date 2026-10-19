@@ -35,11 +35,13 @@ export async function PATCH(
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${id} FOR UPDATE`
       const payment = await tx.projectPayment.findFirst({
         where: { id: paymentId, projectId: id, project: { archivedAt: null } },
-        select: { id: true, type: true },
+        select: { id: true, type: true, receiptAllocations: { select: { id: true }, take: 1 } },
       })
       if (!payment) return null
+      if (payment.receiptAllocations.length) throw new Error('FINANCE_LEDGER')
 
       const nextPayment = await tx.projectPayment.update({
         where: { id: paymentId },
@@ -94,7 +96,8 @@ export async function PATCH(
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'FINANCE_LEDGER') return NextResponse.json({ error: 'Este recebimento tem histórico financeiro. Registre ou estorne pelo Financeiro.' }, { status: 409 })
     return serverError()
   }
 }

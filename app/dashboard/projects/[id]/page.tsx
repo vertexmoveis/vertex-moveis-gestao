@@ -27,7 +27,7 @@ import { buildDeliverySchedulingWhatsAppMessage } from '@/lib/project-whatsapp'
 import { formatDate, formatCurrency, formatDateRelative } from '@/lib/utils'
 import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
-import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/payment-methods'
+import { paymentMethodLabel } from '@/lib/payment-methods'
 import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
 import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
 import {
@@ -161,6 +161,8 @@ interface ProjectDetail {
     installmentNumber: number
     type: string
     amount: number
+    received?: number
+    remaining?: number
     dueDate: string
     paidAt: string | null
     paymentMethod: string | null
@@ -205,7 +207,6 @@ export default function ProjectDetailPage() {
   const [editOptionsError, setEditOptionsError] = useState('')
   const [note, setNote] = useState('')
   const [sendingNote, setSendingNote] = useState(false)
-  const [paymentMethodsById, setPaymentMethodsById] = useState<Record<string, string>>({})
   const [postSaleSaving, setPostSaleSaving] = useState(false)
   const [actualExpensesTotal, setActualExpensesTotal] = useState(0)
   const [inspectedPhase, setInspectedPhase] = useState<ProjectMacroPhase | null>(null)
@@ -225,11 +226,6 @@ export default function ProjectDetailPage() {
       if (!response.ok || !data?.id) throw new Error(data?.error || 'Não foi possível carregar o projeto.')
       setProject(data)
       setActualExpensesTotal(data.costSummary?.actualExpenses || 0)
-      if (Array.isArray(data.payments)) {
-        setPaymentMethodsById(
-          Object.fromEntries(data.payments.map((payment: { id: string; paymentMethod?: string | null }) => [payment.id, payment.paymentMethod || 'PIX']))
-        )
-      }
     } catch (error) {
       if (!silent) setProject(null)
       setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o projeto.')
@@ -309,30 +305,6 @@ export default function ProjectDetailPage() {
     )
     setNote('')
     setSendingNote(false)
-  }
-
-  const handlePaymentToggle = async (paymentId: string, paid: boolean) => {
-    if (!project) return
-
-    const selectedMethod = paymentMethodsById[paymentId] || 'PIX'
-    const res = await fetch(`/api/projects/${id}/payments/${paymentId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paid, paymentMethod: paid ? selectedMethod : null }),
-    })
-    if (!res.ok) return
-
-    const updatedPayment = await res.json()
-    setProject((prev) =>
-      prev
-        ? {
-            ...prev,
-            payments: prev.payments.map((payment) =>
-              payment.id === paymentId ? { ...payment, ...updatedPayment } : payment
-            ),
-          }
-        : prev
-    )
   }
 
   const handleChecklistToggle = async (itemId: string, completed: boolean) => {
@@ -461,16 +433,17 @@ export default function ProjectDetailPage() {
     ? businessDaysBetween(new Date(), project.deliveryDeadlineDate)
     : null
   const paymentSummary = project.payments.reduce((summary, payment) => {
-    if (!payment.paidAt) return summary
-    summary.paidTotal += payment.amount
+    const received = payment.received ?? (payment.paidAt ? payment.amount : 0)
+    if (received <= 0) return summary
+    summary.paidTotal += received
     if (payment.type === 'INSTALLMENT') {
       summary.paidInstallmentNumbers.push(payment.installmentNumber)
-      summary.paidInstallmentTotal += payment.amount
+      summary.paidInstallmentTotal += received
     }
     return summary
   }, { paidInstallmentNumbers: [] as number[], paidInstallmentTotal: 0, paidTotal: 0 })
   const totalPaid = paymentSummary.paidTotal
-  const totalOpen = project.payments.reduce((sum, payment) => sum + (!payment.paidAt ? payment.amount : 0), 0)
+  const totalOpen = project.payments.reduce((sum, payment) => sum + (payment.remaining ?? Math.max(payment.amount - (payment.received ?? (payment.paidAt ? payment.amount : 0)), 0)), 0)
   const plannedPaymentMethod = safeQuotePaymentMethod(project.paymentMethod)
   const plannedPaymentSummary = getQuotePaymentSummary({
     total: project.value || 0,
@@ -1078,11 +1051,19 @@ export default function ProjectDetailPage() {
             {selectedPhase !== 'PRODUCTION' ? <Card id="financeiro" className="scroll-mt-28">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-[#121212]">Pagamentos</h3>
+                  <h3 className="text-sm font-semibold text-[#121212]">Condições do cliente e recebimentos</h3>
                   <span className="text-xs text-[#9E9E9E]">{project.payments.length} lançamento{project.payments.length !== 1 ? 's' : ''}</span>
                 </div>
               </CardHeader>
               <CardBody>
+                <div className="mb-4 flex flex-col justify-between gap-3 rounded-lg bg-[#F7F7F7] p-3 sm:flex-row sm:items-center">
+                  <p className="max-w-xl text-xs leading-relaxed text-[#666]">
+                    {plannedPaymentMethod === 'CARD'
+                      ? 'O repasse integral do cartão é registrado uma única vez no Financeiro. As parcelas abaixo são as condições combinadas com o cliente.'
+                      : 'Registre recebimentos parciais, pagamentos integrais e antecipações no Financeiro. Os saldos abaixo são atualizados automaticamente.'}
+                  </p>
+                  <Link href={`/dashboard/financeiro?q=${encodeURIComponent(project.name)}`} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg bg-[#FF6B00] px-3 py-2 text-xs font-semibold text-white hover:bg-[#E05A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2">Abrir financeiro</Link>
+                </div>
                 {project.payments.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-[#9E9E9E]">
                     <CreditCard size={28} className="mb-2 opacity-40" />
@@ -1091,39 +1072,30 @@ export default function ProjectDetailPage() {
                 ) : (
                   <div className="divide-y divide-[#F0F0F0] rounded-lg border border-[#E8E8E8]">
                     {project.payments.map((payment) => {
-                      const paid = !!payment.paidAt
+                      const received = payment.received ?? (payment.paidAt ? payment.amount : 0)
+                      const remaining = payment.remaining ?? Math.max(payment.amount - received, 0)
+                      const paid = remaining <= 0
                       return (
-                        <div key={payment.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <div key={payment.id} className="flex flex-col justify-between gap-3 px-4 py-3 sm:flex-row sm:items-center">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-[#121212]">
                               {payment.type === 'DOWN_PAYMENT' ? 'Entrada' : `Parcela ${payment.installmentNumber}`}
                             </p>
                             <p className="text-xs text-[#9E9E9E]">
                               Vencimento: {formatDateOnly(payment.dueDate)}
-                              {paid ? ` | Pago em ${formatDate(payment.paidAt)}` : ''}
+                              {paid && payment.paidAt ? ` | Acertado em ${formatDate(payment.paidAt)}` : ''}
                             </p>
                             <p className="mt-0.5 text-[10px] text-[#9E9E9E]">
                               Método: {paymentMethodLabel(payment.paymentMethod)}
                             </p>
+                            {received > 0 && !paid ? <p className="mt-1 text-xs text-amber-800">Recebido parcialmente: {formatCurrency(received)} · saldo {formatCurrency(remaining)}</p> : null}
                           </div>
                           <div className="flex items-center gap-3">
-                            <p className={`text-sm font-bold ${paid ? 'text-green-600' : 'text-[#121212]'}`}>
-                              {formatCurrency(payment.amount)}
-                            </p>
-                            {!paid && (
-                              <select
-                                value={paymentMethodsById[payment.id] || 'PIX'}
-                                onChange={(event) => setPaymentMethodsById((prev) => ({ ...prev, [payment.id]: event.target.value }))}
-                                className="h-8 rounded-lg border border-[#D9D9D9] bg-white px-2 text-xs text-[#121212] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
-                              >
-                                {PAYMENT_METHODS.map((method) => (
-                                  <option key={method.value} value={method.value}>
-                                    {method.label}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                            {paid && (
+                            <div className="text-right">
+                              <p className={`text-sm font-bold ${paid ? 'text-green-600' : 'text-[#121212]'}`}>{formatCurrency(payment.amount)}</p>
+                              <p className={`mt-1 text-[11px] ${paid ? 'text-green-700' : 'text-[#666]'}`}>{paid ? 'Acertado para a empresa' : received > 0 ? 'Parcial' : 'Em aberto'}</p>
+                            </div>
+                            {paid && payment.paidAt && (
                               <a
                                 href={`/api/projects/${project.id}/payments/${payment.id}/receipt`}
                                 target="_blank"
@@ -1134,14 +1106,6 @@ export default function ProjectDetailPage() {
                                 Recibo
                               </a>
                             )}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={paid ? 'outline' : 'primary'}
-                              onClick={() => handlePaymentToggle(payment.id, !paid)}
-                            >
-                              {paid ? 'Reabrir' : 'Pago'}
-                            </Button>
                           </div>
                         </div>
                       )

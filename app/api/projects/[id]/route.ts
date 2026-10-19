@@ -1,3 +1,4 @@
+import { paymentReceived } from '@/lib/finance-settlements'
 import { technicalApprovalSelect } from '@/lib/technical-approval'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
@@ -159,6 +160,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       payments: auth.user.role === 'ADMIN'
         ? {
             select: {
+              receiptAllocations: { include: { receipt: { select: { reversedAt: true } } } },
               id: true,
               installmentNumber: true,
               type: true,
@@ -337,6 +339,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? project.payments.map((payment) => ({
           ...payment,
           amount: moneyValue(payment.amount),
+          received: paymentReceived({ ...payment, receiptAllocations: 'receiptAllocations' in payment && Array.isArray(payment.receiptAllocations) ? payment.receiptAllocations : [] }),
+          remaining: moneyValue(Math.max(moneyValue(payment.amount) - paymentReceived({ ...payment, receiptAllocations: 'receiptAllocations' in payment && Array.isArray(payment.receiptAllocations) ? payment.receiptAllocations : [] }), 0)),
           dueDate: payment.dueDate.toISOString(),
           paidAt: payment.paidAt?.toISOString() || null,
           history: ('history' in payment && Array.isArray(payment.history) ? payment.history : []).map((history) => ({
@@ -391,6 +395,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const input = parsed.data
     const stage = normalizeProductionStage(input.stage as ProductionStage)
     const project = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${id} FOR UPDATE`
       const existing = await tx.project.findFirst({
         where: { id, archivedAt: null },
         include: {
@@ -412,6 +417,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
       })
       if (!existing) throw new PaymentScheduleConflictError('Projeto não encontrado.')
+      if (input.clientId !== existing.clientId && await tx.financeReceipt.count({ where: { projectId: id } })) {
+        throw new PaymentScheduleConflictError('Este projeto já tem histórico de recebimentos. Preserve o cliente para manter o controle de crédito e os registros financeiros.')
+      }
       if (existing.workflowVersion >= 2 && (stage !== existing.stage || input.status !== existing.status)) throw new PaymentScheduleConflictError('Avance o projeto pelo painel de etapas para conferir as pendências.')
       if (existing.workflowVersion >= 2 && (input.paymentConfirmedAt?.toISOString().slice(0, 10) || null) !== (existing.paymentConfirmedAt?.toISOString().slice(0, 10) || null)) throw new PaymentScheduleConflictError('Registre ou reabra recebimentos no Financeiro.')
 
@@ -454,6 +462,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         (payment) => payment.type === PAYMENT_TYPE_INSTALLMENT,
       )?.dueDate || null
       const shouldReconcilePayments = financialScheduleChanged(existing, scheduleInput)
+      if (shouldReconcilePayments && await tx.financeReceiptAllocation.count({ where: { payment: { projectId: id } } })) {
+        throw new PaymentScheduleConflictError('Este projeto tem recebimentos no Financeiro. Preserve o cronograma para manter o histórico dos valores recebidos.')
+      }
       const paymentChanges = shouldReconcilePayments
         ? reconcilePaymentSchedule(schedule, existing.payments)
         : null
