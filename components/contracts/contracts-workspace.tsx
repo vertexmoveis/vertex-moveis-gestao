@@ -28,6 +28,7 @@ import {
   CONTRACT_CENTER_STATUS_LABELS,
   type ContractCenterStatus,
 } from '@/lib/contract-center'
+import { formatBRLCurrencyInput, parseBRLCurrency } from '@/lib/currency-input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 type ContractRow = {
@@ -129,7 +130,7 @@ const initialStandaloneForm = () => ({
   description: '',
   value: '',
   paymentMethod: 'PIX',
-  downPayment: '0',
+  downPayment: '0,00',
   downPaymentDate: localDateValue(),
   installmentCount: '1',
   firstInstallmentDate: localDateValue(),
@@ -263,9 +264,9 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         clientId: data.form.clientId,
         title: data.form.title,
         description: data.form.description,
-        value: String(data.form.value),
+        value: formatBRLCurrencyInput(data.form.value),
         paymentMethod: data.form.paymentMethod,
-        downPayment: String(data.form.downPayment),
+        downPayment: formatBRLCurrencyInput(data.form.downPayment),
         downPaymentDate: data.form.downPaymentDate,
         installmentCount: String(data.form.installmentCount),
         firstInstallmentDate: data.form.firstInstallmentDate,
@@ -280,6 +281,15 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     }
   }
 
+  const normalizeStandaloneAmount = (field: 'value' | 'downPayment') => {
+    setForm((current) => {
+      const amount = parseBRLCurrency(current[field])
+      return Number.isFinite(amount) && amount >= 0
+        ? { ...current, [field]: formatBRLCurrencyInput(amount) }
+        : current
+    })
+  }
+
   const saveStandalone = async (event: React.FormEvent) => {
     event.preventDefault()
     if (creating || editLoading || editBlocked || (editingContract && !editingContract.updatedAt)) return
@@ -287,13 +297,24 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
       setFormError('Selecione o cliente do contrato.')
       return
     }
+    const value = parseBRLCurrency(form.value)
+    const downPayment = form.paymentMethod === 'PIX' ? 0 : parseBRLCurrency(form.downPayment.trim() || '0')
+    if (!Number.isFinite(value) || value < 0.01) {
+      setFormError('Informe um valor total válido. Ex.: 50.000,00 para cinquenta mil reais.')
+      return
+    }
+    if (!Number.isFinite(downPayment) || downPayment < 0 || downPayment >= value) {
+      setFormError('Informe uma entrada válida, menor que o valor total do contrato, ou zero se não houver entrada.')
+      return
+    }
     setCreating(true)
     setFormError('')
     try {
+      const contractForm = { ...form, value, downPayment }
       const response = await fetch(editingContract ? `/api/contracts/${encodeURIComponent(editingContract.id)}` : '/api/contracts', {
         method: editingContract ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingContract ? { ...form, updatedAt: editingContract.updatedAt } : form),
+        body: JSON.stringify(editingContract ? { ...contractForm, updatedAt: editingContract.updatedAt } : contractForm),
       })
       const result = await response.json().catch(() => null)
       if (editingContract && response.status === 409) setEditBlocked(true)
@@ -773,11 +794,15 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
             />
             <Input
               label="Valor total (R$) *"
-              type="number"
-              min="0.01"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={form.value}
               onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))}
+              onBlur={() => normalizeStandaloneAmount('value')}
+              placeholder="Ex.: 50.000,00"
+              helperText={Number.isFinite(parseBRLCurrency(form.value)) && parseBRLCurrency(form.value) > 0
+                ? `Valor informado: ${formatCurrency(parseBRLCurrency(form.value))}`
+                : 'Ex.: 50.000,00 = cinquenta mil reais.'}
               required
             />
           </div>
@@ -799,7 +824,7 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
                 ...current,
                 paymentMethod: event.target.value,
                 installmentCount: event.target.value === 'PIX' ? '1' : current.installmentCount,
-                downPayment: event.target.value === 'PIX' ? '0' : current.downPayment,
+                downPayment: event.target.value === 'PIX' ? '0,00' : current.downPayment,
               }))}
               options={[
                 { value: 'PIX', label: 'Pix' },
@@ -821,11 +846,15 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
             <div className="grid gap-4 rounded-lg border border-[#E8E8E8] bg-[#FAFAFA] p-4 sm:grid-cols-2">
               <Input
                 label="Entrada (R$)"
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={form.downPayment}
                 onChange={(event) => setForm((current) => ({ ...current, downPayment: event.target.value }))}
+                onBlur={() => normalizeStandaloneAmount('downPayment')}
+                placeholder="Ex.: 15.000,00"
+                helperText={Number.isFinite(parseBRLCurrency(form.downPayment)) && parseBRLCurrency(form.downPayment) >= 0
+                  ? `Entrada informada: ${formatCurrency(parseBRLCurrency(form.downPayment))}`
+                  : 'Ex.: 15.000,00 = quinze mil reais. Sem entrada, informe 0,00.'}
               />
               <Input
                 label="Data da entrada"

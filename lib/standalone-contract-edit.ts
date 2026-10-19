@@ -2,12 +2,13 @@ import { z } from 'zod'
 import { parseProjectContractSnapshot } from '@/lib/project-contracts'
 import { dateOnlyKey } from '@/lib/date-only'
 import { moneyValue } from '@/lib/money'
+import { parseBRLCurrency } from '@/lib/currency-input'
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   const parsed = new Date(`${value}T12:00:00Z`)
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }, 'Informe uma data válida.')
-const money = z.coerce.number().finite().min(0).max(10_000_000).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.0001, 'Use no máximo duas casas decimais.')
+const money = z.preprocess(parseBRLCurrency, z.number().finite().min(0).max(10_000_000).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.0001, 'Use no máximo duas casas decimais.'))
 const shape = {
   clientId: z.string().trim().min(1, 'Escolha o cliente.'),
   title: z.string().trim().min(3, 'Informe o serviço contratado.').max(160),
