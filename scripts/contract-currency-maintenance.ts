@@ -222,7 +222,12 @@ async function main() {
     console.log('Maintenance completed; encrypted result written.')
   } catch (error) {
     const code = error instanceof MaintenanceError ? error.code : 'MAINTENANCE_FAILED'
-    if (key) await writeEncrypted({ success: false, mode, completedAt: new Date().toISOString(), error: code }, key).catch(() => undefined)
+    const diagnostic = error instanceof Error ? {
+      name: error.name,
+      message: error.message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[database]'),
+      prismaCode: 'code' in error && typeof error.code === 'string' ? error.code : undefined,
+    } : undefined
+    if (key) await writeEncrypted({ success: false, mode, completedAt: new Date().toISOString(), error: code, diagnostic }, key).catch(() => undefined)
     console.error(`Maintenance failed: ${code}.`)
     process.exitCode = 1
   } finally {
