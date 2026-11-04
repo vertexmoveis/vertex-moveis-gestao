@@ -1,0 +1,44 @@
+name: Conferir registros comerciais selecionados
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        required: true
+        default: audit
+        options: [audit]
+      public_key:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Conferir e criptografar resultado
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          COMMERCIAL_RECORD_MAINTENANCE_PLAN: ${{ secrets.COMMERCIAL_RECORD_MAINTENANCE_PLAN }}
+          MAINTENANCE_MODE: ${{ inputs.mode }}
+          MAINTENANCE_PUBLIC_KEY: ${{ inputs.public_key }}
+        run: node scripts/commercial-record-maintenance.mjs
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: commercial-record-result
+          path: commercial-record-result.encrypted.json
+          if-no-files-found: ignore
+          retention-days: 1
