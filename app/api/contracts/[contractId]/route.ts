@@ -51,13 +51,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ co
       if (!contract) return null
       if (locked(contract)) throw new EditConflict('Este contrato foi assinado, substituído ou formalizado. Atualize a lista antes de continuar.')
       if (contract.updatedAt.toISOString() !== parsed.data.updatedAt) throw new EditConflict('Este contrato recebeu uma atualização. Abra a edição novamente para conferir os dados atuais.')
-      if (!standaloneContractEditForm(contract)) throw new EditConflict('Não foi possível recuperar os dados originais deste contrato.')
+      const originalForm = standaloneContractEditForm(contract)
+      if (!originalForm) throw new EditConflict('Não foi possível recuperar os dados originais deste contrato.')
       const client = await tx.client.findFirst({ where: {
         id: parsed.data.clientId, archivedAt: null, ...(auth.user.role === 'ADMIN' ? {} : { managerId: auth.user.id }),
       } })
       if (!client) throw new EditConflict('Escolha um cliente ativo ao qual você tenha acesso.')
       const company = await tx.companyProfile.findUnique({ where: { id: 'vertex' } })
-      const snapshot = buildStandaloneContractSnapshot(parsed.data, client, company || {
+      const snapshot = buildStandaloneContractSnapshot({ ...parsed.data,
+        sourceDocument: parsed.data.sourceDocument === undefined ? originalForm.sourceDocument : parsed.data.sourceDocument,
+      }, client, company || {
         tradeName: 'Vertex Móveis', legalName: 'Vertex Móveis', street: 'Rua Saturno', number: '6', city: 'Cotia', state: 'SP', zipCode: '06702-170',
       })
       const token = createProjectContractToken()

@@ -19,7 +19,7 @@ const publicMetadataHeaders = [
 const nextConfig: NextConfig = {
   distDir: process.env.VERTEX_BUILD_DIR || '.next',
   poweredByHeader: false,
-  serverExternalPackages: ['bcryptjs'],
+  serverExternalPackages: ['bcryptjs', 'unpdf'],
   async headers() {
     return [
       {

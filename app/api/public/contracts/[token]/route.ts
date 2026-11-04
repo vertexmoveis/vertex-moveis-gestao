@@ -6,6 +6,7 @@ import {
   hashProjectContractAcceptanceIp,
   hashProjectContractToken,
   parseProjectContractSnapshot,
+  publicProjectContractSnapshot,
 } from '@/lib/project-contracts'
 import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/security'
@@ -58,7 +59,7 @@ function publicContract(contract: {
     signedAt: contract.signedAt?.toISOString() || null,
     signatoryName: contract.signatoryName,
     signatureMethod: contract.signatureMethod,
-    snapshot,
+    snapshot: publicProjectContractSnapshot(snapshot),
   }
 }
 

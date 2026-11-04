@@ -3,6 +3,7 @@ import { parseProjectContractSnapshot } from '@/lib/project-contracts'
 import { dateOnlyKey } from '@/lib/date-only'
 import { moneyValue } from '@/lib/money'
 import { parseBRLCurrency } from '@/lib/currency-input'
+import { CONTRACT_DESCRIPTION_MAX_LENGTH, contractSourceDocumentSchema } from '@/lib/contract-source-document'
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   const parsed = new Date(`${value}T12:00:00Z`)
@@ -12,7 +13,8 @@ const money = z.preprocess(parseBRLCurrency, z.number().finite().min(0).max(10_0
 const shape = {
   clientId: z.string().trim().min(1, 'Escolha o cliente.'),
   title: z.string().trim().min(3, 'Informe o serviço contratado.').max(160),
-  description: z.string().trim().min(5, 'Descreva o que será contratado.').max(3000),
+  description: z.string().trim().min(5, 'Descreva o que será contratado.').max(CONTRACT_DESCRIPTION_MAX_LENGTH, 'A descrição pode ter até 20.000 caracteres.'),
+  sourceDocument: contractSourceDocumentSchema.nullable().optional(),
   value: money.refine(value => value > 0, 'Informe um valor maior que zero.'),
   paymentMethod: z.enum(['PIX', 'CARD']),
   downPayment: money.default(0),
@@ -40,5 +42,6 @@ export function standaloneContractEditForm(contract: { clientId: string | null; 
     downPayment: moneyValue(snapshot.payment.downPayment), downPaymentDate,
     installmentCount: snapshot.payment.installmentCount, firstInstallmentDate,
     deliveryBusinessDays: snapshot.project.deliveryBusinessDays,
+    ...(snapshot.sourceDocument ? { sourceDocument: snapshot.sourceDocument } : {}),
   }
 }

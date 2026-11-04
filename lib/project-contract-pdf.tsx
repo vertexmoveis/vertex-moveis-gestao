@@ -368,6 +368,20 @@ function compactText(values: string[], fallback: string, maxLength: number) {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3).trim()}...`
 }
 
+function serviceDetailParts(text: string) {
+  const parts: string[] = []
+  let remaining = text.trim()
+  while (remaining.length > 900) {
+    const lineBreak = remaining.lastIndexOf('\n', 900)
+    const wordBreak = remaining.lastIndexOf(' ', 900)
+    const end = lineBreak > 450 ? lineBreak : wordBreak > 450 ? wordBreak : 900
+    parts.push(remaining.slice(0, end).trim())
+    remaining = remaining.slice(end).trim()
+  }
+  if (remaining || parts.length === 0) parts.push(remaining)
+  return parts
+}
+
 function valueOrFallback(value?: string | null) {
   return value?.trim() || 'Não informado'
 }
@@ -611,20 +625,20 @@ function ContractDocument({ input }: { input: ProjectContractPdfInput }) {
                 item.notes,
               ].filter(Boolean).join(' · ')
 
-              return (
-                <View key={`${group.environment}-${item.itemNumber}`} style={styles.quoteRow} wrap={false}>
-                  <Text style={[styles.quoteCell, styles.quoteItemNumber]}>{item.itemNumber}</Text>
+              return serviceDetailParts(details).map((part, partIndex) => (
+                <View key={`${group.environment}-${item.itemNumber}-${partIndex}`} style={styles.quoteRow} wrap={false}>
+                  <Text style={[styles.quoteCell, styles.quoteItemNumber]}>{partIndex === 0 ? item.itemNumber : ''}</Text>
                   <View style={[styles.quoteCell, styles.quoteItemDescription]}>
                     <Text>
-                      <Text style={styles.quoteServiceName}>{item.description}</Text>
-                      <Text style={styles.quoteServiceDetail}>{details ? ` (${details})` : ''}</Text>
+                      <Text style={styles.quoteServiceName}>{partIndex === 0 ? item.description : `${item.description} (continuação)`}</Text>
+                      <Text style={styles.quoteServiceDetail}>{part ? ` (${part})` : ''}</Text>
                     </Text>
                   </View>
-                  <Text style={[styles.quoteCell, styles.quoteItemQuantity]}>{item.quantity}</Text>
-                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{optionalCurrency(displayUnitPrice)}</Text>
-                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{optionalCurrency(item.total)}</Text>
+                  <Text style={[styles.quoteCell, styles.quoteItemQuantity]}>{partIndex === 0 ? item.quantity : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{partIndex === 0 ? optionalCurrency(displayUnitPrice) : ''}</Text>
+                  <Text style={[styles.quoteCell, styles.quoteItemMoney]}>{partIndex === 0 ? optionalCurrency(item.total) : ''}</Text>
                 </View>
-              )
+              ))
             })}
           </View>
         ))}

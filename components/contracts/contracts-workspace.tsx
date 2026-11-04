@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -17,6 +17,7 @@ import {
   Search,
   Send,
   Trash2,
+  Upload,
 } from 'lucide-react'
 import { ClientSearchSelect } from '@/components/clients/client-search-select'
 import { Header } from '@/components/layout/header'
@@ -29,6 +30,7 @@ import {
   type ContractCenterStatus,
 } from '@/lib/contract-center'
 import { formatBRLCurrencyInput, parseBRLCurrency } from '@/lib/currency-input'
+import type { ContractSourceDocument } from '@/lib/contract-source-document'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 type ContractRow = {
@@ -102,6 +104,7 @@ type StandaloneEditData = {
     installmentCount: number
     firstInstallmentDate: string
     deliveryBusinessDays: number
+    sourceDocument?: ContractSourceDocument
   }
 }
 
@@ -135,6 +138,7 @@ const initialStandaloneForm = () => ({
   installmentCount: '1',
   firstInstallmentDate: localDateValue(),
   deliveryBusinessDays: '30',
+  sourceDocument: undefined as ContractSourceDocument | undefined,
 })
 
 function statusTone(status: ContractCenterStatus) {
@@ -169,6 +173,12 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
   const [formError, setFormError] = useState('')
   const [correctedContractUrl, setCorrectedContractUrl] = useState('')
   const [form, setForm] = useState(() => ({ ...initialStandaloneForm(), clientId: clientId || params.get('clientId') || '' }))
+  const [importMode, setImportMode] = useState(false)
+  const [importLoading, setImportLoading] = useState(false)
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
+  const [importConfirmed, setImportConfirmed] = useState(false)
+  const importRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null })
+  const pdfInput = useRef<HTMLInputElement>(null)
   const [saleData, setSaleData] = useState<StandaloneConversionData | null>(null)
   const [saleLoading, setSaleLoading] = useState(false)
   const [saleSubmitting, setSaleSubmitting] = useState(false)
@@ -214,6 +224,16 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     }
   }, [load])
 
+  useEffect(() => () => { importRequest.current.controller?.abort() }, [])
+
+  const clearPendingImport = () => {
+    importRequest.current.controller?.abort()
+    importRequest.current = { id: importRequest.current.id + 1, controller: null }
+    setImportLoading(false)
+    setImportWarnings([])
+    setImportConfirmed(false)
+  }
+
   const remind = async (row: ContractRow) => {
     if (!row.contract || !row.clientPhone || !row.contract.publicUrl) return
     setBusyId(row.id)
@@ -235,7 +255,9 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     }
   }
 
-  const openStandaloneCreate = () => {
+  const startStandaloneCreate = (fromPDF: boolean) => {
+    clearPendingImport()
+    setImportMode(fromPDF)
     setEditingContract(null)
     setEditBlocked(false)
     setFormError('')
@@ -243,8 +265,79 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
     setCreateOpen(true)
   }
 
+  const openStandaloneCreate = () => startStandaloneCreate(false)
+
+  const closeStandalone = () => {
+    if (creating || editLoading) return
+    clearPendingImport()
+    setCreateOpen(false)
+  }
+
+  const changeStandaloneClient = (nextClientId: string) => {
+    if (nextClientId === form.clientId) return
+    clearPendingImport()
+    setFormError('')
+    if (importMode || form.sourceDocument) {
+      setForm({ ...initialStandaloneForm(), clientId: nextClientId })
+      if (pdfInput.current) pdfInput.current.value = ''
+    } else {
+      setForm((current) => ({ ...current, clientId: nextClientId }))
+    }
+  }
+
+  const importQuotePDF = async (file: File | undefined) => {
+    clearPendingImport()
+    setFormError('')
+    setForm((current) => ({ ...current, title: '', description: '', value: '', sourceDocument: undefined }))
+    if (!file) return
+    if (!form.clientId) {
+      setFormError('Selecione um cliente cadastrado antes de enviar o PDF.')
+      return
+    }
+    if (!/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf')) {
+      setFormError('Escolha um arquivo PDF de orçamento.')
+      return
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setFormError('O PDF deve ter até 4 MB.')
+      return
+    }
+    const controller = new AbortController()
+    const requestId = importRequest.current.id + 1
+    importRequest.current = { id: requestId, controller }
+    setImportLoading(true)
+    try {
+      const body = new FormData()
+      body.set('clientId', form.clientId)
+      body.set('file', file)
+      const response = await fetch('/api/contracts/import-pdf', { method: 'POST', body, signal: controller.signal })
+      const result = await response.json().catch(() => null)
+      if (controller.signal.aborted || importRequest.current.id !== requestId) return
+      if (!response.ok) throw new Error(result?.error || 'Não foi possível ler este PDF. Tente outro arquivo.')
+      if (result?.sourceDocument?.type !== 'PDF_QUOTE' || typeof result?.sourceDocument?.text !== 'string' || !result?.suggested) {
+        throw new Error('A leitura do orçamento está incompleta. Envie o PDF novamente.')
+      }
+      setForm((current) => ({
+        ...current,
+        title: typeof result.suggested.title === 'string' ? result.suggested.title : '',
+        description: typeof result.suggested.description === 'string' ? result.suggested.description : '',
+        value: typeof result.suggested.value === 'number' && Number.isFinite(result.suggested.value)
+          ? formatBRLCurrencyInput(result.suggested.value)
+          : '',
+        sourceDocument: result.sourceDocument,
+      }))
+      setImportWarnings(Array.isArray(result.warnings) ? result.warnings.filter((warning: unknown) => typeof warning === 'string') : [])
+    } catch (requestError) {
+      if (!controller.signal.aborted && importRequest.current.id === requestId) setFormError((requestError as Error).message)
+    } finally {
+      if (!controller.signal.aborted && importRequest.current.id === requestId) setImportLoading(false)
+    }
+  }
+
   const openStandaloneEdit = async (row: ContractRow) => {
     if (editLoading || creating) return
+    clearPendingImport()
+    setImportMode(false)
     setEditingContract({ id: row.id, updatedAt: '', clientName: row.clientName })
     setForm(initialStandaloneForm())
     setFormError('')
@@ -271,7 +364,9 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         installmentCount: String(data.form.installmentCount),
         firstInstallmentDate: data.form.firstInstallmentDate,
         deliveryBusinessDays: String(data.form.deliveryBusinessDays),
+        sourceDocument: data.form.sourceDocument,
       })
+      setImportMode(Boolean(data.form.sourceDocument))
       setEditingContract({ id: data.id, updatedAt: data.updatedAt, clientName: data.clientName })
     } catch (requestError) {
       setFormError((requestError as Error).message)
@@ -292,9 +387,17 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
 
   const saveStandalone = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (creating || editLoading || editBlocked || (editingContract && !editingContract.updatedAt)) return
+    if (creating || editLoading || editBlocked || importLoading || (editingContract && !editingContract.updatedAt)) return
     if (!form.clientId) {
       setFormError('Selecione o cliente do contrato.')
+      return
+    }
+    if (importMode && (!form.sourceDocument || !importConfirmed)) {
+      setFormError('Leia o PDF e confirme a revisão dos dados antes de criar o contrato.')
+      return
+    }
+    if (form.description.trim().length < 5 || form.description.length > 20_000) {
+      setFormError('A descrição deve ter entre 5 e 20.000 caracteres. Revise o conteúdo antes de salvar.')
       return
     }
     const value = parseBRLCurrency(form.value)
@@ -324,6 +427,7 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         throw new Error('Não foi possível localizar o contrato corrigido. Atualize a lista antes de tentar novamente.')
       }
       setCreateOpen(false)
+      clearPendingImport()
       setForm(initialStandaloneForm())
       if (editingContract) {
         setCorrectedContractUrl(result.publicUrl)
@@ -447,13 +551,27 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         action={{ label: 'Venda sem orçamento', onClick: () => router.push('/dashboard/sales?new=1') }}
       />}
       <div className={sales ? "space-y-3" : "flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"}>
+        {!sales && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-[#777]">Crie o contrato manualmente ou aproveite um orçamento em PDF.</p>
+            <Button variant="outline" onClick={() => startStandaloneCreate(true)}><Upload size={15} /> Importar PDF</Button>
+          </div>
+        )}
         {!sales && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="Precisam de atenção" value={payload.counts.attention} icon={AlertTriangle} tone="amber" />
           <Metric label="Aguardando cliente" value={payload.counts.waiting} icon={MessageCircle} tone="blue" />
           <Metric label="Assinados" value={payload.counts.signed} icon={CheckCircle2} tone="green" />
           <Metric label="Projetos antigos" value={payload.counts.legacy} icon={FileSignature} tone="gray" />
         </div>}
-        {sales && <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Vendas sem orçamento</h2><p className="text-xs text-[#777]">Contratos avulsos em formalização</p></div><Button onClick={openStandaloneCreate}><Plus size={15}/> Venda sem orçamento</Button></div>}
+        {sales && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="font-semibold">Vendas sem orçamento</h2><p className="text-xs text-[#777]">Contratos avulsos em formalização</p></div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => startStandaloneCreate(true)}><Upload size={15} /> Importar PDF</Button>
+              <Button onClick={openStandaloneCreate}><Plus size={15} /> Venda sem orçamento</Button>
+            </div>
+          </div>
+        )}
         {correctedContractUrl ? (
           <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             <p>Contrato corrigido. Confira e compartilhe o novo link com o cliente.</p>
@@ -762,11 +880,13 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
         ) : null}
       </Modal>
 
-      <Modal open={createOpen} onClose={() => !creating && !editLoading && setCreateOpen(false)} title={editingContract ? 'Editar contrato avulso' : 'Venda sem orçamento'} size="lg">
+      <Modal open={createOpen} onClose={closeStandalone} title={editingContract ? 'Editar contrato avulso' : importMode ? 'Criar contrato a partir de PDF' : 'Venda sem orçamento'} size="lg">
         <form onSubmit={saveStandalone} className="space-y-5">
           <div className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-xs leading-5 text-[#8A3A00]">
             {editingContract
               ? 'Ao salvar, será criada uma nova versão. O link anterior será substituído; confira e compartilhe o novo link com o cliente.'
+              : importMode
+                ? 'Selecione um cliente cadastrado e envie o PDF do orçamento, por exemplo do GestãoClick. Confira os dados extraídos e defina o pagamento antes de criar o contrato. A criação manual continua disponível em Venda sem orçamento.'
               : 'Este contrato será criado diretamente para o cliente, sem orçamento e sem projeto. Ele não aparecerá na Produção.'}
           </div>
 
@@ -779,10 +899,42 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
           <ClientSearchSelect
             key={editingContract?.id || 'new-contract'}
             value={form.clientId}
-            onChange={(clientId) => setForm((current) => ({ ...current, clientId }))}
+            onChange={changeStandaloneClient}
             initialOptions={editingContract ? [{ id: form.clientId, name: editingContract.clientName }] : []}
             label="Cliente *"
           />
+
+          {importMode && (
+            <div className="space-y-3 rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] p-4">
+              <Input
+                ref={pdfInput}
+                label={form.sourceDocument ? 'Trocar PDF do orçamento' : 'PDF do orçamento *'}
+                type="file"
+                accept="application/pdf,.pdf"
+                disabled={!form.clientId}
+                onChange={(event) => void importQuotePDF(event.target.files?.[0])}
+                helperText={form.clientId ? 'Até 4 MB. A leitura preenche uma sugestão para você revisar; o contrato só será criado ao salvar.' : 'Primeiro selecione o cliente cadastrado acima. Se ele ainda não existe, cadastre-o em Clientes.'}
+              />
+              {importLoading ? <p role="status" className="text-sm text-[#777]">Lendo o orçamento em PDF…</p> : null}
+              {form.sourceDocument ? (
+                <>
+                  <p role="status" className="break-words text-xs text-[#555]">Orçamento lido: <strong>{form.sourceDocument.fileName}</strong> · {form.sourceDocument.pageCount} página{form.sourceDocument.pageCount !== 1 ? 's' : ''}. Confira abaixo os itens, medidas e valores.</p>
+                  {importWarnings.length > 0 ? (
+                    <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                      <p className="font-semibold">Pontos para conferir</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-4">{importWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+                    </div>
+                  ) : null}
+                  <details className="text-xs text-[#666]">
+                    <summary className="cursor-pointer font-medium">Ver texto completo extraído do PDF</summary>
+                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[#E5E5E5] bg-white p-3 font-sans leading-5">{form.sourceDocument.text}</pre>
+                  </details>
+                </>
+              ) : null}
+            </div>
+          )}
+
+          {(!importMode || form.sourceDocument) && <fieldset disabled={importLoading} className="space-y-5">
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
@@ -812,9 +964,11 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             placeholder="Descreva os móveis, ambientes, materiais, acabamentos e o que está incluído."
-            rows={4}
+            rows={importMode ? 8 : 4}
+            error={form.description.length > 20_000 ? 'A descrição ultrapassa 20.000 caracteres. Reduza o conteúdo sem remover os itens necessários.' : undefined}
             required
           />
+          <p className={`-mt-3 text-right text-xs ${form.description.length > 20_000 ? 'text-red-600' : 'text-[#777]'}`}>{form.description.length.toLocaleString('pt-BR')} / 20.000 caracteres</p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Select
@@ -889,11 +1043,18 @@ export function ContractsWorkspace({ sales = false, clientId = '' }: { sales?: b
               required
             />
           )}
+          {importMode && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#E3E3E3] p-4 text-sm leading-5 text-[#222]">
+              <input type="checkbox" checked={importConfirmed} onChange={(event) => setImportConfirmed(event.target.checked)} required className="mt-0.5 h-4 w-4 shrink-0 accent-[#FF6B00]" />
+              <span>Conferi os itens, medidas, materiais, valores e condições de pagamento do contrato.</span>
+            </label>
+          )}
+          </fieldset>}
           </fieldset>}
 
           <div className="flex justify-end gap-2 border-t border-[#ECECEC] pt-4">
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating || editLoading}>Cancelar</Button>
-            <Button type="submit" loading={creating} disabled={editLoading || editBlocked || Boolean(editingContract && !editingContract.updatedAt)}>{editingContract ? <Pencil size={15} /> : <Plus size={15} />} {editingContract ? 'Salvar correções' : 'Criar contrato e abrir link'}</Button>
+            <Button type="button" variant="outline" onClick={closeStandalone} disabled={creating || editLoading}>Cancelar</Button>
+            <Button type="submit" loading={creating} disabled={editLoading || editBlocked || importLoading || Boolean(editingContract && !editingContract.updatedAt) || form.description.length > 20_000 || Boolean(importMode && (!form.sourceDocument || !importConfirmed))}>{editingContract ? <Pencil size={15} /> : <Plus size={15} />} {editingContract ? 'Salvar correções' : 'Criar contrato e abrir link'}</Button>
           </div>
         </form>
       </Modal>

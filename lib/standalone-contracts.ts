@@ -3,10 +3,12 @@ import { addBusinessDays } from '@/lib/business-days'
 import { toDateOnlyUtc } from '@/lib/date-only'
 import { buildPaymentSchedule } from '@/lib/payments'
 import { buildProjectContractSnapshot } from '@/lib/project-contracts'
+import type { ContractSourceDocument } from '@/lib/contract-source-document'
 
 export type StandaloneContractInput = {
   title: string
   description: string
+  sourceDocument?: ContractSourceDocument | null
   value: number
   paymentMethod: 'PIX' | 'CARD'
   downPayment: number
@@ -71,7 +73,7 @@ export function buildStandaloneContractSnapshot(
   })
   const deliveryDeadlineDate = addBusinessDays(now, input.deliveryBusinessDays)
 
-  return buildProjectContractSnapshot({
+  const snapshot = buildProjectContractSnapshot({
     id: `standalone-${randomUUID()}`,
     name: input.title,
     room: 'Serviço contratado',
@@ -109,4 +111,5 @@ export function buildStandaloneContractSnapshot(
     },
     payments: schedule.payments.map((payment) => ({ ...payment, paidAt: null })),
   }, company)
+  return { ...snapshot, ...(input.sourceDocument ? { sourceDocument: input.sourceDocument } : {}) }
 }

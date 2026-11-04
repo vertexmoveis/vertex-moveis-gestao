@@ -6,6 +6,7 @@ import {
   randomBytes,
 } from 'node:crypto'
 import { moneyValue, type NumericValue } from './money'
+import type { ContractSourceDocument } from './contract-source-document'
 import {
   getQuotePaymentSummary,
   QUOTE_PAYMENT_METHOD_LABELS,
@@ -93,6 +94,7 @@ type CompanySource = AddressSource & {
 }
 
 export type ProjectContractSnapshot = {
+  sourceDocument?: ContractSourceDocument
   version: typeof PROJECT_CONTRACT_SNAPSHOT_VERSION
   generatedAt: string
   company: {
@@ -437,6 +439,12 @@ export function buildProjectContractSnapshot(
       },
     ],
   }
+}
+
+export function publicProjectContractSnapshot(snapshot: ProjectContractSnapshot) {
+  const visible = { ...snapshot }
+  delete visible.sourceDocument
+  return visible
 }
 
 export function parseProjectContractSnapshot(value: unknown): ProjectContractSnapshot | null {
