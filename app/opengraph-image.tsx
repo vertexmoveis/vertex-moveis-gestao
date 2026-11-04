@@ -1,10 +1,13 @@
 import { ImageResponse } from 'next/og'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 export const alt = 'Vertex Móveis - Móveis planejados'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
+export const runtime = 'nodejs'
 
-const appOrigin = process.env.NEXTAUTH_URL?.trim() || 'https://vertex-moveis-gestao.vercel.app'
+const logoDataUrl = `data:image/png;base64,${(await readFile(join(process.cwd(), 'public', 'vertex-symbol.png'))).toString('base64')}`
 
 export default function OpenGraphImage() {
   return new ImageResponse(
@@ -36,7 +39,7 @@ export default function OpenGraphImage() {
           {/* ImageResponse requires a native image element. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={`${appOrigin}/vertex-symbol.png`}
+            src={logoDataUrl}
             width={245}
             height={170}
             alt=""
