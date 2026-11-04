@@ -69,7 +69,18 @@ const checks = [];
       assert.deepEqual(await tx.quoteApprovalRequest.findMany({where:{quoteId:quote.id}}),proofBefore);
       const updatedClient = await tx.client.findUniqueOrThrow({where:{id:client.id}}); assert.equal(updatedClient.relationshipStage,'CUSTOMER'); assert.equal(updatedClient.lastCommercialActivityAt.toISOString(),soldAt.toISOString());
       checks.push('approved BOLETO creates complete project, SOLD link/date, unpaid schedule, environments/checklist/costs, capped reservation, timeline/activity/client stage; proof untouched; no receipts/signatures');
-      async function rejected(q, user, expected) { const before = await tx.project.count({where:{name:prefix}}); await assert.rejects(convertApprovedQuote(tx,{quoteId:q.id,user,soldAt}),new RegExp('^Error: '+expected+'$')); assert.equal(await tx.project.count({where:{name:prefix}}),before); assert.equal((await tx.quote.findUniqueOrThrow({where:{id:q.id}})).convertedProjectId,q.convertedProjectId); checks.push(expected); }
+      async function rejected(q, user, expected) {
+        const projectCountBefore = await tx.project.count({where:{name:prefix}});
+        const quoteStateQuery = {
+          where: { id: q.id },
+          select: { status: true, convertedProjectId: true, approvedAt: true, soldAt: true },
+        };
+        const quoteBefore = await tx.quote.findUniqueOrThrow(quoteStateQuery);
+        await assert.rejects(convertApprovedQuote(tx,{quoteId:q.id,user,soldAt}),new RegExp('^Error: '+expected+'$'));
+        assert.equal(await tx.project.count({where:{name:prefix}}),projectCountBefore);
+        assert.deepEqual(await tx.quote.findUniqueOrThrow(quoteStateQuery),quoteBefore);
+        checks.push(expected);
+      }
       await rejected(quote,owner,'ALREADY_CONVERTED');
       await rejected(await fixture({groupId:quote.groupId,variationOrder:1}),owner,'ALREADY_CONVERTED');
       await rejected(await fixture(),other,'FORBIDDEN');
