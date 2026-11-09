@@ -5,6 +5,7 @@ import {
   getProjectNextAction,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
+  getProjectTransitionBlockers,
   type ProjectPhaseInput,
 } from '../lib/project-phases'
 import { getProjectFinancialReadiness } from '../lib/project-workflow'
@@ -32,7 +33,7 @@ test('agrupa os status técnicos nas quatro fases do projeto', () => {
   assert.equal(getProjectMacroPhase('COMPLETED'), 'COMPLETED')
 })
 
-test('preparação só libera quando os dados essenciais estão completos', () => {
+test('preparação mantém a conferência dos dados completos', () => {
   const tasks = getProjectPhaseTasks(input({
     environments: [{ status: 'PENDING' }],
     files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
@@ -58,7 +59,7 @@ test('projeto antigo pode avançar com contrato ainda aguardando assinatura', ()
   assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Projeto antigo: contrato em aberto')
 })
 
-test('projeto novo exige contrato assinado antes da produção', () => {
+test('contrato enviado permanece pendente sem impedir avanço manual', () => {
   const tasks = getProjectPhaseTasks(input({
     environments: [{ status: 'PENDING' }],
     files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
@@ -67,10 +68,12 @@ test('projeto novo exige contrato assinado antes da produção', () => {
     contractStatus: 'SENT',
   }), 'PREPARATION')
 
-  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Contrato enviado'])
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'contract')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Contrato enviado')
 })
 
-test('alteração comercial em projeto novo exige nova versão assinada', () => {
+test('revisão contratual permanece indicada sem impedir avanço manual', () => {
   const tasks = getProjectPhaseTasks(input({
     environments: [{ status: 'PENDING' }],
     files: [{ category: 'MEASUREMENT' }, { category: 'TECHNICAL_PROJECT' }],
@@ -80,7 +83,9 @@ test('alteração comercial em projeto novo exige nova versão assinada', () => 
     contractRevisionRequiredAt: '2026-08-05T12:00:00.000Z',
   }), 'PREPARATION')
 
-  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Nova versão do contrato necessária'])
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'contract')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Nova versão do contrato necessária')
 })
 
 test('entrada recebida libera produção sem exigir parcelas futuras', () => {
@@ -99,7 +104,7 @@ test('entrada recebida libera produção sem exigir parcelas futuras', () => {
   assert.deepEqual(getProjectPhaseBlockers(tasks), [])
 })
 
-test('política explícita torna o contrato obrigatório mesmo em projeto antigo', () => {
+test('política contratual explícita continua visível em projeto antigo', () => {
   const tasks = getProjectPhaseTasks(input({
     createdAt: '2026-06-17T12:00:00.000Z',
     contractRequirement: 'REQUIRED',
@@ -110,7 +115,9 @@ test('política explícita torna o contrato obrigatório mesmo em projeto antigo
     approvalDate: '2026-07-30',
   }), 'PREPARATION')
 
-  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Contrato enviado'])
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'contract')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Contrato enviado')
 })
 
 test('dispensa administrativa libera o contrato e preserva a justificativa', () => {
@@ -127,7 +134,7 @@ test('dispensa administrativa libera o contrato e preserva a justificativa', () 
   assert.equal(tasks.find((task) => task.key === 'contract')?.label, 'Contrato dispensado')
 })
 
-test('entrada parcial não libera a produção e informa a prioridade correta', () => {
+test('entrada parcial continua pendente e permite avançar a etapa manualmente', () => {
   const tasks = getProjectPhaseTasks(input({
     downPayment: 15000,
     contractStatus: 'SIGNED',
@@ -137,8 +144,10 @@ test('entrada parcial não libera a produção e informa a prioridade correta', 
     payments: [{ type: 'DOWN_PAYMENT', amount: 5000, paidAt: '2026-08-03' }],
   }), 'PREPARATION')
 
-  assert.equal(getProjectNextAction(tasks, 'PREPARATION').action, 'OPEN_FINANCE')
-  assert.deepEqual(getProjectPhaseBlockers(tasks), ['Entrada recebida parcialmente'])
+  assert.equal(getProjectNextAction(tasks, 'PREPARATION').action, 'ADVANCE_PHASE')
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'payment')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'payment')?.label, 'Entrada recebida parcialmente')
 })
 
 test('parcela que vence hoje não é tratada como atrasada', () => {
@@ -152,20 +161,19 @@ test('parcela que vence hoje não é tratada como atrasada', () => {
   assert.equal(readiness.hasOverdueInstallments, false)
 })
 
-test('produção exige todos os ambientes prontos e respeita bloqueios', () => {
+test('produção informa ambientes pendentes e impedimento sem bloquear a troca de etapa', () => {
   const tasks = getProjectPhaseTasks(input({
     stage: 'PRODUCTION',
     productionBlockedAt: '2026-07-30',
     environments: [{ status: 'READY' }, { status: 'IN_PROGRESS' }],
   }), 'PRODUCTION')
 
-  assert.deepEqual(getProjectPhaseBlockers(tasks), [
-    'Produção sem impedimentos',
-    'Todos os ambientes prontos para instalar',
-  ])
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find((task) => task.key === 'ready')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'unblocked')?.completed, false)
 })
 
-test('projeto em produção pede a pendência atual sem repetir a medição', () => {
+test('projeto em produção pode avançar com progresso do ambiente ainda pendente', () => {
   const tasks = getProjectPhaseTasks(input({
     stage: 'PRODUCTION',
     environments: [{ status: 'IN_PROGRESS' }],
@@ -173,8 +181,8 @@ test('projeto em produção pede a pendência atual sem repetir a medição', ()
 
   const nextAction = getProjectNextAction(tasks, 'PRODUCTION')
 
-  assert.equal(nextAction.key, 'ready')
-  assert.equal(nextAction.label, 'Todos os ambientes prontos para instalar')
+  assert.equal(nextAction.key, 'advance')
+  assert.equal(nextAction.action, 'ADVANCE_PHASE')
 })
 
 test('entrega aceita ambientes instalados ou finalizados', () => {
@@ -185,4 +193,56 @@ test('entrega aceita ambientes instalados ou finalizados', () => {
   }), 'DELIVERY')
 
   assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+})
+
+test('todos os itens de acompanhamento são opcionais e não inventam conclusão', () => {
+  const incomplete = input({ workflowVersion: 2, contractStatus: 'NONE', productionBlockedAt: '2026-08-04' })
+  const before = structuredClone(incomplete)
+
+  for (const phase of ['PREPARATION', 'PRODUCTION', 'DELIVERY', 'COMPLETED'] as const) {
+    const tasks = getProjectPhaseTasks(incomplete, phase)
+    assert.ok(tasks.length > 0)
+    assert.ok(tasks.every((task) => !task.required), `${phase}: itens devem ser opcionais`)
+    assert.ok(tasks.every((task) => !task.completed), `${phase}: pendências não devem virar concluídas`)
+    assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  }
+
+  assert.deepEqual(incomplete, before)
+})
+
+test('projeto pronto sem entrada, contrato assinado, arquivos ou progresso pode avançar', () => {
+  const project = input({
+    workflowVersion: 2,
+    stage: 'PROJECT_READY',
+    contractStatus: 'SENT',
+    contractViewedAt: '2026-08-04T12:00:00.000Z',
+    contractRequirement: 'REQUIRED',
+    downPayment: 1000,
+    payments: [{ type: 'DOWN_PAYMENT', amount: 1000, paidAt: null }],
+    environments: [{ status: 'PENDING' }],
+  })
+  const before = structuredClone(project)
+
+  for (const target of ['PRODUCTION', 'DELIVERY', 'COMPLETED'] as const) {
+    assert.deepEqual(getProjectTransitionBlockers(project, target), [])
+  }
+
+  const tasks = getProjectPhaseTasks(project, 'PREPARATION')
+  assert.equal(tasks.find((task) => task.key === 'payment')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'contract')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'measurement')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'technical-project')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'approval')?.completed, false)
+  assert.equal(getProjectNextAction(tasks, 'PREPARATION').action, 'ADVANCE_PHASE')
+  assert.deepEqual(project, before)
+})
+
+test('instalação pode ser finalizada sem WhatsApp nem ambientes instalados', () => {
+  const project = input({ stage: 'INSTALLATION', environments: [{ status: 'PENDING' }] })
+  const tasks = getProjectPhaseTasks(project, 'DELIVERY')
+
+  assert.deepEqual(getProjectTransitionBlockers(project, 'COMPLETED'), [])
+  assert.equal(tasks.find((task) => task.key === 'contact')?.completed, false)
+  assert.equal(tasks.find((task) => task.key === 'installed')?.completed, false)
+  assert.equal(getProjectNextAction(tasks, 'DELIVERY').action, 'ADVANCE_PHASE')
 })

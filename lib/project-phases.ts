@@ -119,6 +119,8 @@ function allEnvironmentsMatch(input: ProjectPhaseInput, statuses: ProjectEnviron
 }
 
 export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMacroPhase): ProjectPhaseTask[] {
+  // Stage changes are manual decisions. Keep the checklist informative without
+  // treating missing records as completed or creating payments/approvals.
   if (phase === 'PREPARATION') {
     const financial = getProjectFinancialReadiness({
       workflowVersion: input.workflowVersion,
@@ -141,7 +143,7 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
         key: 'payment',
         label: financial.label,
         completed: input.financialReady ?? financial.ready,
-        required: true,
+        required: false,
         group: 'COMMERCIAL',
         action: 'OPEN_FINANCE',
       },
@@ -149,27 +151,27 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
         key: 'contract',
         label: contract.label,
         completed: contract.ready,
-        required: contract.required,
+        required: false,
         group: 'COMMERCIAL',
         action: 'OPEN_CONTRACT',
       },
-      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true, group: 'TECHNICAL', action: 'EDIT_PROJECT' },
-      { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
-      { key: 'technical-project', label: 'Projeto técnico anexado', completed: hasFile(input, 'TECHNICAL_PROJECT'), required: true, group: 'TECHNICAL', action: 'OPEN_FILES' },
-      { key: 'approval', label: 'Aprovação técnica do cliente registrada', completed: technicalApprovalReady(input), required: true, group: 'TECHNICAL', action: 'REQUEST_APPROVAL' },
-      { key: 'unblocked', label: 'Projeto sem impedimentos', completed: !input.productionBlockedAt, required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
+      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: false, group: 'TECHNICAL', action: 'EDIT_PROJECT' },
+      { key: 'measurement', label: 'Medição anexada', completed: hasFile(input, 'MEASUREMENT'), required: false, group: 'TECHNICAL', action: 'OPEN_FILES' },
+      { key: 'technical-project', label: 'Projeto técnico anexado', completed: hasFile(input, 'TECHNICAL_PROJECT'), required: false, group: 'TECHNICAL', action: 'OPEN_FILES' },
+      { key: 'approval', label: 'Aprovação técnica do cliente registrada', completed: technicalApprovalReady(input), required: false, group: 'TECHNICAL', action: 'REQUEST_APPROVAL' },
+      { key: 'unblocked', label: 'Projeto sem impedimentos', completed: !input.productionBlockedAt, required: false, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
     ]
   }
 
   if (phase === 'PRODUCTION') {
     return [
-      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
-      { key: 'unblocked', label: 'Produção sem impedimentos', completed: !input.productionBlockedAt, required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
+      { key: 'environments', label: 'Ambientes cadastrados', completed: hasEnvironments(input), required: false, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
+      { key: 'unblocked', label: 'Produção sem impedimentos', completed: !input.productionBlockedAt, required: false, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
       {
         key: 'ready',
         label: 'Todos os ambientes prontos para instalar',
         completed: allEnvironmentsMatch(input, READY_FOR_INSTALLATION),
-        required: true,
+        required: false,
         group: 'OPERATIONAL',
         action: 'EDIT_PROJECT',
       },
@@ -179,12 +181,12 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
 
   if (phase === 'DELIVERY') {
     return [
-      { key: 'contact', label: 'WhatsApp do cliente disponível', completed: Boolean(input.clientPhone), required: true, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
+      { key: 'contact', label: 'WhatsApp do cliente disponível', completed: Boolean(input.clientPhone), required: false, group: 'OPERATIONAL', action: 'EDIT_PROJECT' },
       {
         key: 'installed',
         label: 'Todos os ambientes instalados e conferidos',
         completed: allEnvironmentsMatch(input, INSTALLED_ENVIRONMENTS),
-        required: true,
+        required: false,
         group: 'OPERATIONAL',
         action: 'EDIT_PROJECT',
       },
@@ -200,7 +202,7 @@ export function getProjectPhaseTasks(input: ProjectPhaseInput, phase: ProjectMac
   }
 
   return [
-    { key: 'completed', label: 'Projeto concluído', completed: input.stage === 'COMPLETED', required: true, group: 'OPERATIONAL', action: 'ADVANCE_PHASE' },
+    { key: 'completed', label: 'Projeto concluído', completed: input.stage === 'COMPLETED', required: false, group: 'OPERATIONAL', action: 'ADVANCE_PHASE' },
     {
       key: 'final-files',
       label: 'Fotos finais arquivadas',
@@ -243,7 +245,7 @@ export function getProjectNextAction(tasks: ProjectPhaseTask[], phase: ProjectMa
     label: phase === 'COMPLETED' ? 'Acompanhar garantia e pós-venda' : 'Etapa pronta para avançar',
     detail: phase === 'COMPLETED'
       ? 'O projeto foi finalizado e permanece disponível para o acompanhamento pós-venda.'
-      : 'Todos os requisitos obrigatórios desta etapa estão concluídos.',
+      : 'Você pode avançar a etapa mesmo com registros pendentes na lista de acompanhamento.',
     action: 'ADVANCE_PHASE',
   }
 }

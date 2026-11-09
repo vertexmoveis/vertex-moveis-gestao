@@ -149,6 +149,10 @@ export function ProjectPhaseWorkspace({
             </div>
           </div>
 
+          <p className="mt-3 text-xs leading-5 text-[#777]">
+            A lista é de acompanhamento. Os registros são opcionais para mudar a etapa ou concluir o pedido.
+          </p>
+
           <div className="mt-4 space-y-4">
             {taskGroups.map((group) => (
               <div key={group.key}>
@@ -199,7 +203,7 @@ export function ProjectPhaseWorkspace({
           </dl>
 
           <div className="mt-4 border-t border-[#EEEEEE] pt-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Aprovações e liberação</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Registros e aprovações</p>
             <div className="mt-2 space-y-2">
               {workflowStatuses.map((status) => (
                 <div key={status.key} className="flex items-start gap-2">

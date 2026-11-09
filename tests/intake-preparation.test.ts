@@ -44,16 +44,21 @@ test('trocar arquivos exige nova aprovação, fotos operacionais não invalidam 
   assert.equal(technicalApprovalReady({ ...approved, files: [{ ...files[0], securityStatus: 'REJECTED' }] }), false)
   assert.equal(technicalApprovalReady({ ...approved, files: [{ ...files[0], expiresAt: '2000-01-01' }] }), false)
 })
-test('preparação exige aprovação técnica separada mesmo com contrato e entrada conferidos', () => {
+test('aprovação técnica separada continua pendente sem bloquear avanço manual', () => {
   const tasks = getProjectPhaseTasks({ workflowVersion: 2, stage: 'PENDING_START', createdAt: '2026-09-09', approvalDate: '2026-09-09', contractStatus: 'SIGNED', downPayment: 1000, payments: [{ type: 'DOWN_PAYMENT', amount: 1000, paidAt: '2026-09-09' }], environments: [{ status: 'PENDING' }], files }, 'PREPARATION')
-  assert.ok(getProjectPhaseBlockers(tasks).includes('Aprovação técnica do cliente registrada'))
+  assert.deepEqual(getProjectPhaseBlockers(tasks), [])
+  assert.equal(tasks.find(task => task.key === 'approval')?.completed, false)
+  assert.equal(tasks.find(task => task.key === 'approval')?.required, false)
 })
 
-test('saltar da preparação para concluído também confere fabricação e instalação', () => {
-  const blockers = getProjectTransitionBlockers({ workflowVersion: 2, stage: 'PENDING_START', createdAt: '2026-09-09', contractStatus: 'NONE', payments: [], environments: [{ status: 'PENDING' }], files }, 'COMPLETED')
-  assert.ok(blockers.includes('Aprovação técnica do cliente registrada'))
-  assert.ok(blockers.includes('Todos os ambientes prontos para instalar'))
-  assert.ok(blockers.includes('Todos os ambientes instalados e conferidos'))
+test('salto manual para concluído não depende da lista de conferência nem altera seus dados', () => {
+  const project = { workflowVersion: 2, stage: 'PENDING_START' as const, createdAt: '2026-09-09', contractStatus: 'NONE' as const, payments: [], environments: [{ status: 'PENDING' as const }], files }
+  const before = structuredClone(project)
+  assert.deepEqual(getProjectTransitionBlockers(project, 'COMPLETED'), [])
+  assert.equal(getProjectPhaseTasks(project, 'PREPARATION').find(task => task.key === 'approval')?.completed, false)
+  assert.equal(getProjectPhaseTasks(project, 'PRODUCTION').find(task => task.key === 'ready')?.completed, false)
+  assert.equal(getProjectPhaseTasks(project, 'DELIVERY').find(task => task.key === 'installed')?.completed, false)
+  assert.deepEqual(project, before)
 })
 test('solicitação requer responsável, briefing, prazo válido e links seguros', () => {
   const data = { clientId: 'client', assignedToId: 'user', title: 'Cozinha', briefing: 'Cozinha com ilha e lavanderia.', environments: 'Cozinha', commercialOwner: 'Comercial', dueDate: '2026-09-12' }

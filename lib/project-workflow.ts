@@ -87,8 +87,8 @@ export function getProjectFinancialReadiness(input: {
       ready: false,
       label: paidEntranceAmount > 0 ? 'Entrada recebida parcialmente' : 'Entrada pendente',
       detail: paidEntranceAmount > 0
-        ? `Ainda faltam R$ ${(downPayment - paidEntranceAmount).toFixed(2).replace('.', ',')} da entrada para liberar a produção.`
-        : 'Confirme o recebimento da entrada para liberar a produção.',
+        ? `Ainda faltam R$ ${(downPayment - paidEntranceAmount).toFixed(2).replace('.', ',')} da entrada no Financeiro.`
+        : 'O recebimento da entrada ainda não foi registrado no Financeiro.',
       hasOverdueInstallments,
       expectedInitialAmount: downPayment,
       paidInitialAmount: paidEntranceAmount,
@@ -161,7 +161,7 @@ export function getProjectContractReadiness(input: {
         ? 'A versão atualizada foi enviada e ainda aguarda o aceite do cliente.'
         : legacy
           ? 'O projeto pode continuar, mas gere uma nova versão com os dados atualizados.'
-          : 'Os dados comerciais mudaram. Gere e envie uma nova versão antes da produção.',
+          : 'Os dados comerciais mudaram. Gere e envie uma nova versão com os dados atualizados.',
     }
   }
 
@@ -206,6 +206,6 @@ export function getProjectContractReadiness(input: {
     legacy: false,
     waived: false,
     label: 'Contrato pendente',
-    detail: 'Crie e envie o contrato antes de liberar a produção.',
+    detail: 'O contrato ainda não foi criado e enviado para o cliente.',
   }
 }
