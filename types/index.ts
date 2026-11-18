@@ -147,6 +147,7 @@ export interface ProjectEnvironmentData {
   id: string
   name: string
   status: ProjectEnvironmentStatus
+  workflowStage?: ProductionStage | null
   position: number
   notes: string | null
   mdfSpecifications: ProjectMdfSpecification[]

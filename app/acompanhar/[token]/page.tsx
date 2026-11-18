@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, Clock3, MapPin, PackageCheck } from 'lucide
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
 import { deliveryForecastMonthLabel } from '@/lib/delivery-forecast'
+import { environmentWorkflowLabel, environmentWorkflowTone } from '@/lib/environment-workflow'
 import { hashProjectPortalToken } from '@/lib/project-portal'
 import { PublicInstallationActions } from '@/components/projects/public-installation-actions'
 import { PublicProjectSupport } from '@/components/projects/public-project-support'
@@ -13,9 +14,7 @@ import {
   normalizeProductionStage,
   PRODUCTION_STAGE_FLOW,
   PRODUCTION_STAGE_LABELS,
-  PROJECT_ENVIRONMENT_STATUS_LABELS,
   type ProductionStage,
-  type ProjectEnvironmentStatus,
 } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -29,13 +28,6 @@ function safeStage(value: string): ProductionStage {
   return PRODUCTION_STAGE_FLOW.includes(value as ProductionStage)
     ? normalizeProductionStage(value as ProductionStage)
     : 'PENDING_START'
-}
-
-function statusTone(status: ProjectEnvironmentStatus) {
-  if (status === 'COMPLETED' || status === 'INSTALLED') return 'bg-emerald-50 text-emerald-700'
-  if (status === 'READY') return 'bg-blue-50 text-blue-700'
-  if (status === 'IN_PROGRESS') return 'bg-orange-50 text-orange-700'
-  return 'bg-[#F5F5F5] text-[#666]'
 }
 
 export default async function ProjectTrackingPage({ params }: { params: Promise<{ token: string }> }) {
@@ -66,7 +58,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
           client: { select: { name: true } },
           environments: {
             orderBy: { position: 'asc' },
-            select: { id: true, name: true, status: true },
+            select: { id: true, name: true, status: true, workflowStage: true },
           },
           installationSchedules: {
             where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'ON_ROUTE', 'IN_PROGRESS'] } },
@@ -174,12 +166,11 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             <h2 className="text-base font-extrabold">Ambientes</h2>
             <div className="mt-4 divide-y divide-[#ECECEC] border border-[#E8E8E8]">
               {project.environments.map((environment) => {
-                const status = environment.status as ProjectEnvironmentStatus
                 return (
                   <div key={environment.id} className="flex items-center justify-between gap-4 px-4 py-3">
                     <p className="min-w-0 truncate text-sm font-semibold">{environment.name}</p>
-                    <span className={`shrink-0 px-2 py-1 text-xs font-semibold ${statusTone(status)}`}>
-                      {PROJECT_ENVIRONMENT_STATUS_LABELS[status] || 'Em andamento'}
+                    <span className={`shrink-0 px-2 py-1 text-xs font-semibold ${environmentWorkflowTone(environment)}`}>
+                      {environmentWorkflowLabel(environment)}
                     </span>
                   </div>
                 )

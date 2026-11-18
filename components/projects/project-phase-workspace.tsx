@@ -198,7 +198,7 @@ export function ProjectPhaseWorkspace({
         <aside className="border-l-0 border-[#EEEEEE] lg:border-l lg:pl-5">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Resumo desta etapa</p>
           <dl className="mt-3 space-y-2 text-xs">
-            <div className="flex justify-between gap-3"><dt className="text-[#888]">Etapa atual</dt><dd className="text-right font-semibold text-[#222]">{PRODUCTION_STAGE_LABELS[stage]}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-[#888]">Etapa geral do pedido</dt><dd className="text-right font-semibold text-[#222]">{PRODUCTION_STAGE_LABELS[stage]}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-[#888]">Ambientes</dt><dd className="font-semibold text-[#222]">{environmentProgress}%</dd></div>
             {deadlineLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Prazo</dt><dd className="text-right font-semibold text-[#222]">{deadlineLabel}</dd></div> : null}
             {financialLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Financeiro</dt><dd className="text-right font-semibold text-[#222]">{financialLabel}</dd></div> : null}

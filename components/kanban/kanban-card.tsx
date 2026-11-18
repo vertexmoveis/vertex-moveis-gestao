@@ -1,5 +1,6 @@
 'use client'
 import { deliveryForecastMonthLabel, formatDeliveryForecastMonth } from '@/lib/delivery-forecast'
+import { environmentWorkflowLabel, environmentWorkflowSummary, environmentWorkflowTone } from '@/lib/environment-workflow'
 
 import { useState, type PointerEvent } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -28,8 +29,6 @@ import {
   productionDeadlineLabel,
 } from '@/lib/production-board'
 import {
-  PROJECT_ENVIRONMENT_STATUS_BG,
-  PROJECT_ENVIRONMENT_STATUS_LABELS,
   PRODUCTION_STAGE_LABELS,
   type ProjectData,
 } from '@/types'
@@ -187,18 +186,20 @@ export function KanbanCard({
                 style={{ width: `${Math.round((environmentSummary.completed / environmentSummary.total) * 100)}%` }}
               />
             </div>
+            {project.environments?.some((environment) => environment.workflowStage) ? <p className="mt-1 line-clamp-2 text-[10px] text-[#777]">{environmentWorkflowSummary(project.environments)}</p> : null}
             {environmentsOpen && project.environments ? (
               <div className="mt-1 divide-y divide-[#EFEFEF] rounded-md border border-[#EFEFEF] bg-white">
                 {project.environments.map((environment) => (
                   <div key={environment.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
                     <span className="truncate text-[10px] font-medium text-[#333]">{environment.name}</span>
-                    <span className={cn('shrink-0 px-1.5 py-0.5 text-[9px] font-semibold', PROJECT_ENVIRONMENT_STATUS_BG[environment.status])}>
-                      {PROJECT_ENVIRONMENT_STATUS_LABELS[environment.status]}
+                    <span className={cn('shrink-0 px-1.5 py-0.5 text-[9px] font-semibold', environmentWorkflowTone(environment))}>
+                      {environmentWorkflowLabel(environment)}
                     </span>
                   </div>
                 ))}
               </div>
             ) : null}
+            <Link href={`/dashboard/projects/${project.id}#ambientes`} onPointerDown={stopPointer} className="mt-1 inline-block text-[10px] font-semibold text-[#FF6B00]">Atualizar etapas dos ambientes</Link>
           </div>
         ) : null}
 

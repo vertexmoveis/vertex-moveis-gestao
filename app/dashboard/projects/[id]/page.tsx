@@ -31,7 +31,8 @@ import { formatDateOnly } from '@/lib/date-only'
 import { businessDaysBetween } from '@/lib/business-days'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
-import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
+import { isEnvironmentCompleted } from '@/lib/project-environments'
+import { ProjectEnvironmentWorkflow } from '@/components/projects/project-environment-workflow'
 import { getAdjacentProductionStage } from '@/lib/production-board'
 import {
   getProjectMacroPhase,
@@ -41,12 +42,9 @@ import {
   type ProjectWorkflowAction,
 } from '@/lib/project-phases'
 import {
-  PROJECT_ENVIRONMENT_STATUS_BG,
-  PROJECT_ENVIRONMENT_STATUS_LABELS,
   PRODUCTION_STAGE_LABELS,
   type ProductionStage,
   type ProjectEnvironmentData,
-  type ProjectEnvironmentStatus,
   type ProjectStatus,
 } from '@/types'
 import Link from 'next/link'
@@ -329,23 +327,14 @@ export default function ProjectDetailPage() {
     )
   }
 
-  const handleEnvironmentStatus = async (environmentId: string, status: ProjectEnvironmentStatus) => {
-    const res = await fetch(`/api/projects/${id}/environments/${environmentId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-    if (!res.ok) return
-
-    const updatedEnvironment = await res.json()
+  const handleEnvironmentUpdated = (updatedEnvironment: ProjectEnvironmentData) => {
     setProject((prev) => {
       if (!prev) return prev
-      const environments = prev.environments.map((environment) =>
-        environment.id === environmentId ? { ...environment, ...updatedEnvironment } : environment
-      )
+      const environments = prev.environments.some(environment => environment.id === updatedEnvironment.id) ? prev.environments.map((environment) =>
+        environment.id === updatedEnvironment.id ? { ...environment, ...updatedEnvironment } : environment
+      ) : [...prev.environments, updatedEnvironment]
       return {
         ...prev,
-        room: environments.map((environment) => environment.name).join(', '),
         environments,
         environmentSummary: {
           total: environments.length,
@@ -463,10 +452,6 @@ export default function ProjectDetailPage() {
   const environments = project.environments || []
   const environmentsDone = environments.filter((environment) => isEnvironmentCompleted(environment.status)).length
   const environmentsProgress = environments.length > 0 ? Math.round((environmentsDone / environments.length) * 100) : 0
-  const environmentStatusOptions = PROJECT_ENVIRONMENT_WORKFLOW_STATUSES.map((status) => [
-    status,
-    PROJECT_ENVIRONMENT_STATUS_LABELS[status],
-  ] as [ProjectEnvironmentStatus, string])
   const clientWhatsAppNumber = buildWhatsAppNumber(project.client.whatsapp || project.client.phone)
   const projectRoomLabel = project.room?.trim()
   const projectLabel =
@@ -618,9 +603,11 @@ export default function ProjectDetailPage() {
           onEdit={() => void openEdit()}
         />
 
+        <div id="producao" className="scroll-mt-28"><ProjectEnvironmentWorkflow projectId={project.id} environments={environments} canWrite={project.canWrite} onUpdated={handleEnvironmentUpdated} /></div>
+
         <nav aria-label="Áreas do projeto" className="flex gap-1 overflow-x-auto rounded-lg border border-[#E5E5E5] bg-white px-2 py-1.5 shadow-sm">
           <a href="#resumo" className="shrink-0 border-b-2 border-[#FF6B00] px-3 py-2 text-sm font-semibold text-[#121212]">Resumo</a>
-          {selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY' ? <a href="#producao" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Produção</a> : null}
+          <a href="#ambientes" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Ambientes</a>
           {selectedPhase !== 'PRODUCTION' ? <a href="#prazos" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Prazos</a> : null}
           {selectedPhase !== 'PRODUCTION' ? <a href="#financeiro" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Financeiro</a> : null}
           {selectedPhase === 'PRODUCTION' ? <a href="#materiais" className="shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-[#777] hover:text-[#121212]">Materiais</a> : null}
@@ -727,72 +714,6 @@ export default function ProjectDetailPage() {
                 </div>
               </CardBody>
             </Card>
-
-            {/* Environments */}
-            {(selectedPhase === 'PRODUCTION' || selectedPhase === 'DELIVERY') ? <Card id="producao" className="scroll-mt-28">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#9E9E9E] uppercase tracking-wide">Ambientes do projeto</p>
-                    {environments.length > 0 && (
-                      <p className="mt-1 text-[11px] text-[#9E9E9E]">
-                        {environmentsDone}/{environments.length} concluídos
-                      </p>
-                    )}
-                  </div>
-                  {environments.length > 0 && (
-                    <span className="text-xs font-semibold text-[#121212]">{environmentsProgress}%</span>
-                  )}
-                </div>
-              </CardHeader>
-              <CardBody>
-                {environments.length === 0 ? (
-                  <p className="text-sm text-[#9E9E9E]">Edite o projeto para cadastrar ambientes separados.</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
-                      <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${environmentsProgress}%` }} />
-                    </div>
-                    <div className="space-y-2">
-                      {environments.map((environment) => (
-                        <div key={environment.id} className="rounded-lg border border-[#E8E8E8] bg-white p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-[#121212]">{environment.name}</p>
-                              {environment.completedAt && (
-                                <p className="mt-0.5 text-[10px] text-green-600">
-                                  Concluído em {formatDate(environment.completedAt)}
-                                </p>
-                              )}
-                            </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${PROJECT_ENVIRONMENT_STATUS_BG[environment.status]}`}>
-                              {PROJECT_ENVIRONMENT_STATUS_LABELS[environment.status]}
-                            </span>
-                          </div>
-                          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-[#F7F7F7] p-1 xl:grid-cols-4">
-                            {environmentStatusOptions.map(([status, label]) => (
-                              <button
-                                key={status}
-                                type="button"
-                                aria-pressed={environment.status === status}
-                                onClick={() => handleEnvironmentStatus(environment.id, status)}
-                                className={`min-h-9 rounded-md px-2 py-1 text-[10px] font-semibold leading-tight transition-colors ${
-                                  environment.status === status
-                                    ? 'bg-white text-[#FF6B00] shadow-sm ring-1 ring-[#FF6B00]/30'
-                                    : 'text-[#6B7280] hover:bg-white hover:text-[#121212]'
-                                }`}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardBody>
-            </Card> : null}
 
             {/* Dates */}
             {selectedPhase !== 'PRODUCTION' ? <Card id="prazos" className="scroll-mt-28">

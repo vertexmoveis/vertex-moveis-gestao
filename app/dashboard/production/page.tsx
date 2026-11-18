@@ -69,7 +69,7 @@ async function getProjects(user: DashboardUser): Promise<{ projects: ProjectData
         },
       },
       environments: {
-        select: { id: true, name: true, status: true, position: true, notes: true, startedAt: true, completedAt: true },
+        select: { id: true, name: true, status: true, workflowStage: true, position: true, notes: true, startedAt: true, completedAt: true },
         orderBy: { position: 'asc' },
       },
       createdAt: true,
