@@ -150,6 +150,7 @@ model Project {
   productionStartReminderDate    DateTime?
   startDate                      DateTime?
   estimatedEndDate               DateTime?
+  deliveryForecastMonth          String?
   actualEndDate                  DateTime?
   value                          Decimal?               @db.Decimal(14, 2)
   productionCost                 Decimal?               @default(0) @db.Decimal(14, 2)

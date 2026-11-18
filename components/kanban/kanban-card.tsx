@@ -1,4 +1,5 @@
 'use client'
+import { deliveryForecastMonthLabel, formatDeliveryForecastMonth } from '@/lib/delivery-forecast'
 
 import { useState, type PointerEvent } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -161,8 +162,9 @@ export function KanbanCard({
             </span>
             {attention.deadline ? (
               <span className="shrink-0">{productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}</span>
-            ) : null}
+            ) : attention.forecastMonth ? <span className="text-right">{formatDeliveryForecastMonth(attention.forecastMonth)}</span> : null}
           </div>
+          {attention.forecastMonth && attention.deadline ? <p className="text-[10px] text-[#666]">Entrega: {deliveryForecastMonthLabel(attention.forecastMonth)}</p> : null}
         </div>
 
         {environmentSummary && environmentSummary.total > 0 ? (

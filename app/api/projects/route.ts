@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       paymentConfirmedAt: true,
       deliveryBusinessDays: true,
       deliveryDeadlineDate: true,
+      deliveryForecastMonth: true,
       productionReminderBusinessDays: true,
       productionStartReminderDate: true,
       startDate: true,

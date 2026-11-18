@@ -221,6 +221,7 @@ export interface ProjectData {
   productionStartReminderDate: string | null
   startDate: string | null
   estimatedEndDate: string | null
+  deliveryForecastMonth?: string | null
   actualEndDate: string | null
   value: number | null
   productionCost: number | null

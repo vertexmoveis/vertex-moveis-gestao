@@ -1,4 +1,6 @@
 'use client'
+import { deliveryForecastMonthLabel, isDeliveryForecastMonthOverdue } from '@/lib/delivery-forecast'
+import { ProjectDeliveryForecast } from '@/components/projects/project-delivery-forecast'
 import { ProjectTechnicalApproval } from '@/components/projects/project-technical-approval'
 import { technicalApprovalReady } from '@/lib/technical-approval'
 
@@ -66,6 +68,7 @@ interface ProjectDetail {
   paymentConfirmedAt: string | null
   deliveryBusinessDays: number
   deliveryDeadlineDate: string | null
+  deliveryForecastMonth: string | null
   productionReminderBusinessDays: number
   productionStartReminderDate: string | null
   startDate: string | null
@@ -426,8 +429,9 @@ export default function ProjectDetailPage() {
   }
 
   const nowTime = new Date().getTime()
-  const isDelayed = project.estimatedEndDate && new Date(project.estimatedEndDate) < new Date() && project.stage !== 'COMPLETED'
-  const daysLeft = project.estimatedEndDate
+  const monthForecast = deliveryForecastMonthLabel(project.deliveryForecastMonth)
+  const isDelayed = project.stage !== 'COMPLETED' && (monthForecast ? isDeliveryForecastMonthOverdue(project.deliveryForecastMonth) : project.estimatedEndDate && new Date(project.estimatedEndDate) < new Date())
+  const daysLeft = !monthForecast && project.estimatedEndDate
     ? Math.ceil((new Date(project.estimatedEndDate).getTime() - nowTime) / 86400000)
     : null
   const businessDaysLeft = project.deliveryDeadlineDate
@@ -485,11 +489,11 @@ export default function ProjectDetailPage() {
   const deliverySchedulingMessage = buildDeliverySchedulingWhatsAppMessage({
     clientName: project.client.name,
     projectName: projectLabel,
-    suggestedDate: project.deliveryDeadlineDate
+    suggestedDate: monthForecast || (project.deliveryDeadlineDate
       ? formatDateOnly(project.deliveryDeadlineDate)
       : project.estimatedEndDate
         ? formatDateOnly(project.estimatedEndDate)
-        : null,
+        : null),
   })
   const postSaleMessage = [
     `Olá, ${project.client.name}! Tudo bem?`,
@@ -592,6 +596,7 @@ export default function ProjectDetailPage() {
         </div>
 
         <ProjectTechnicalApproval {...project} projectId={project.id} onUpdated={() => void loadProject(true)} />
+        <ProjectDeliveryForecast key={`${project.id}:${project.deliveryForecastMonth || ''}`} projectId={project.id} month={project.deliveryForecastMonth} canWrite={project.canWrite} onUpdated={() => void loadProject(true)} />
 
         <ProjectPhaseWorkspace
           currentPhase={currentPhase}
@@ -599,7 +604,7 @@ export default function ProjectDetailPage() {
           tasks={phaseTasks}
           blockers={phaseBlockers}
           stage={project.stage}
-          deadlineLabel={project.deliveryDeadlineDate ? formatDateOnly(project.deliveryDeadlineDate) : null}
+          deadlineLabel={monthForecast || (project.deliveryDeadlineDate ? formatDateOnly(project.deliveryDeadlineDate) : null)}
           environmentProgress={environmentsProgress}
           financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
           workflowStatuses={workflowStatuses}
@@ -821,7 +826,8 @@ export default function ProjectDetailPage() {
                       </div>
                     </div>
                   )}
-                  {project.deliveryDeadlineDate && (
+                  {monthForecast ? <div className="flex items-center gap-3"><Calendar size={14} className="shrink-0 text-[#9E9E9E]" /><div><p className="text-[10px] text-[#9E9E9E]">Previsão de entrega</p><p className="text-sm font-medium">{monthForecast}</p></div></div> : null}
+                  {!monthForecast && project.deliveryDeadlineDate && (
                     <div className="flex items-center gap-3">
                       <Calendar size={14} className="text-[#9E9E9E] flex-shrink-0" />
                       <div>
@@ -846,7 +852,7 @@ export default function ProjectDetailPage() {
                       </div>
                     </div>
                   )}
-                  {project.estimatedEndDate && (
+                  {!monthForecast && project.estimatedEndDate && (
                     <div className="flex items-center gap-3">
                       <Clock size={14} className={isDelayed ? 'text-red-500 flex-shrink-0' : 'text-[#9E9E9E] flex-shrink-0'} />
                       <div>

@@ -1,4 +1,5 @@
 'use client'
+import { deliveryForecastMonthLabel, isDeliveryForecastMonthOverdue } from '@/lib/delivery-forecast'
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
@@ -227,7 +228,8 @@ export default function ProjectsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#F5F5F5]">
                   {projects.map((project, i) => {
-                    const deliveryDate = project.deliveryDeadlineDate || project.estimatedEndDate
+                    const monthForecast = deliveryForecastMonthLabel(project.deliveryForecastMonth)
+                    const deliveryDate = monthForecast ? null : project.deliveryDeadlineDate || project.estimatedEndDate
                     const isDelayed =
                       deliveryDate &&
                       new Date(deliveryDate) < new Date() &&
@@ -270,7 +272,7 @@ export default function ProjectsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5">
-                          {deliveryDate ? (
+                          {monthForecast ? <span className={`text-xs ${project.stage !== 'COMPLETED' && isDeliveryForecastMonthOverdue(project.deliveryForecastMonth) ? 'text-red-500' : 'text-[#666]'}`}>{monthForecast}</span> : deliveryDate ? (
                             <span className={`text-xs ${isDelayed ? 'font-medium text-red-500' : 'text-[#9E9E9E]'}`}>
                               {formatDate(deliveryDate)}
                               {businessDaysLeft !== null && (

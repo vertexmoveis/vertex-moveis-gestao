@@ -12,6 +12,7 @@ import {
   reconcilePaymentSchedule,
 } from '@/lib/payments'
 import { calculateProjectProductionDates } from '@/lib/business-days'
+import { deliveryForecastMonthLabel } from '@/lib/delivery-forecast'
 import { ensureProjectChecklist } from '@/lib/checklist'
 import {
   ensureProjectEnvironmentsFromRoom,
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       paymentConfirmedAt: true,
       deliveryBusinessDays: true,
       deliveryDeadlineDate: true,
+      deliveryForecastMonth: true,
       productionReminderBusinessDays: true,
       productionStartReminderDate: true,
       startDate: true,
@@ -297,6 +299,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     technicalApprovalEvidence: project.technicalApprovalEvidence,
     paymentConfirmedAt: project.paymentConfirmedAt?.toISOString() || null,
     deliveryDeadlineDate: project.deliveryDeadlineDate?.toISOString() || null,
+    deliveryForecastMonth: project.deliveryForecastMonth,
     productionStartReminderDate: project.productionStartReminderDate?.toISOString() || null,
     startDate: project.startDate?.toISOString() || null,
     estimatedEndDate: project.estimatedEndDate?.toISOString() || null,
@@ -689,6 +692,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         paymentConfirmedAt: true,
         downPayment: true,
         actualEndDate: true,
+        deliveryForecastMonth: true,
         postSaleFollowUpAt: true,
         warrantyEndsAt: true,
         productionBlockedAt: true,
@@ -713,6 +717,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!canAccessProject(auth.user, existing.managerId)) return forbidden()
 
+    const forecastChanged = parsed.data.deliveryForecastMonth !== undefined
+      && parsed.data.deliveryForecastMonth !== existing.deliveryForecastMonth
     const nextStage = parsed.data.stage
       ? normalizeProductionStage(parsed.data.stage as ProductionStage)
       : undefined
@@ -840,6 +846,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           productionBlockedAt: true,
           productionBlockReason: true,
           stageDeadlineDate: true,
+          deliveryForecastMonth: true,
           contractRequirement: true,
           contractWaivedAt: true,
           contractWaivedReason: true,
@@ -880,12 +887,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
       }
 
+      if (forecastChanged) {
+        const forecast = deliveryForecastMonthLabel(updatedProject.deliveryForecastMonth)
+        await tx.timelineEvent.create({
+          data: {
+            projectId: id,
+            event: 'Previsão de entrega atualizada',
+            description: forecast
+              ? `Previsão operacional: ${forecast}.`
+              : 'Previsão operacional por mês removida.',
+          },
+        })
+      }
+
       await tx.activityLog.create({
         data: {
           userId: auth.user.id,
           projectId: id,
           action: 'Projeto atualizado',
-          details: `Status: ${updatedProject.status} | Etapa: ${PRODUCTION_STAGE_LABELS[updatedProject.stage as ProductionStage]}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
+          details: `Status: ${updatedProject.status} | Etapa: ${PRODUCTION_STAGE_LABELS[updatedProject.stage as ProductionStage]}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}${forecastChanged ? ` | Previsão: ${deliveryForecastMonthLabel(updatedProject.deliveryForecastMonth) || 'sem previsão mensal'}` : ''}`,
         },
       })
       return updatedProject
@@ -902,6 +922,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       productionBlockedAt: project.productionBlockedAt?.toISOString() || null,
       productionBlockReason: project.productionBlockReason,
       stageDeadlineDate: project.stageDeadlineDate?.toISOString() || null,
+      deliveryForecastMonth: project.deliveryForecastMonth,
       contractRequirement: project.contractRequirement,
       contractWaivedAt: project.contractWaivedAt?.toISOString() || null,
       contractWaivedReason: project.contractWaivedReason,

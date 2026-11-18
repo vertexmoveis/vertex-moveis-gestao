@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { toDateOnlyUtc } from '@/lib/date-only'
+import { isDeliveryForecastMonth } from '@/lib/delivery-forecast'
 
 const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 const nullableString = (max: number) =>
@@ -146,6 +147,7 @@ export const projectPatchSchema = z.object({
   productionBlocked: z.boolean().optional(),
   productionBlockReason: nullableString(500).optional(),
   stageDeadlineDate: dateField.optional(),
+  deliveryForecastMonth: z.string().refine(isDeliveryForecastMonth, 'Invalid delivery forecast month').nullable().optional(),
   contractRequirement: z.enum(['REQUIRED', 'OPTIONAL_LEGACY', 'WAIVED']).optional(),
   contractWaiverReason: nullableString(500).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, 'No fields to update')

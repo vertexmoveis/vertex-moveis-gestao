@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { CalendarDays, CheckCircle2, Clock3, MapPin, PackageCheck } from 'lucide-react'
 import { prisma } from '@/lib/db'
 import { formatDateOnly } from '@/lib/date-only'
+import { deliveryForecastMonthLabel } from '@/lib/delivery-forecast'
 import { hashProjectPortalToken } from '@/lib/project-portal'
 import { PublicInstallationActions } from '@/components/projects/public-installation-actions'
 import { PublicProjectSupport } from '@/components/projects/public-project-support'
@@ -56,6 +57,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
           room: true,
           stage: true,
           deliveryDeadlineDate: true,
+          deliveryForecastMonth: true,
           estimatedEndDate: true,
           actualEndDate: true,
           warrantyEndsAt: true,
@@ -134,7 +136,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
           </div>
           <div className="bg-white p-4">
             <div className="flex items-center gap-2 text-[#777]"><CalendarDays size={16} /><span className="text-xs font-semibold">Previsão</span></div>
-            <p className="mt-3 text-base font-extrabold">{deadline ? formatDateOnly(deadline) : 'A confirmar'}</p>
+            <p className="mt-3 text-base font-extrabold">{deliveryForecastMonthLabel(project.deliveryForecastMonth) || (deadline ? formatDateOnly(deadline) : 'A confirmar')}</p>
           </div>
           <div className="bg-white p-4">
             <div className="flex items-center gap-2 text-[#777]"><PackageCheck size={16} /><span className="text-xs font-semibold">Progresso</span></div>

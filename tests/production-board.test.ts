@@ -20,6 +20,20 @@ import {
 } from '../types'
 import { projectPatchSchema } from '../lib/schemas'
 
+test('previsão mensal não reutiliza o dia antigo nem inventa contagem de dias', () => {
+  const monthly = project({ deliveryForecastMonth: '2027-01', deliveryDeadlineDate: '2026-12-16', estimatedEndDate: '2026-12-16' })
+  const state = getProductionProjectState(monthly, new Date('2027-01-31T15:00:00Z'))
+  assert.equal(state.deadline, null)
+  assert.equal(state.daysRemaining, null)
+  assert.equal(state.noDeadline, false)
+  assert.equal(state.overdue, false)
+  assert.equal(productionDeadlineLabel(state), 'Dia a definir')
+  assert.equal(getProductionProjectState(monthly, new Date('2027-02-01T03:00:00Z')).overdue, true)
+  const staged = getProductionProjectState({ ...monthly, stageDeadlineDate: '2027-01-20' }, new Date('2027-01-19T15:00:00Z'))
+  assert.equal(staged.deadlineKind, 'STAGE')
+  assert.equal(staged.daysRemaining, 1)
+})
+
 function project(overrides: Partial<ProjectData> = {}): ProjectData {
   return {
     id: 'project-1',

@@ -4,6 +4,7 @@ import {
   type ProductionStage,
   type ProjectData,
 } from '@/types'
+import { isDeliveryForecastMonth, isDeliveryForecastMonthOverdue } from '@/lib/delivery-forecast'
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 const DUE_SOON_DAYS = 7
@@ -29,6 +30,7 @@ export type ProductionProjectState = {
   dueSoon: boolean
   noDeadline: boolean
   needsAttention: boolean
+  forecastMonth: string | null
 }
 
 function dateOnlyTimestamp(value: Date | string) {
@@ -53,7 +55,7 @@ export function getProductionDeadlineDetails(project: ProjectData): {
   kind: ProductionDeadlineKind | null
 } {
   const stageDeadline = project.stageDeadlineDate || null
-  const deliveryDeadline = project.deliveryDeadlineDate || project.estimatedEndDate || null
+  const deliveryDeadline = isDeliveryForecastMonth(project.deliveryForecastMonth) ? null : project.deliveryDeadlineDate || project.estimatedEndDate || null
 
   if (!stageDeadline && !deliveryDeadline) return { deadline: null, kind: null }
   if (!stageDeadline) return { deadline: deliveryDeadline, kind: 'DELIVERY' }
@@ -71,16 +73,17 @@ export function getProductionProjectState(
   const completed = normalizeProductionStage(project.stage) === 'COMPLETED'
   const deadlineDetails = getProductionDeadlineDetails(project)
   const deadline = deadlineDetails.deadline
+  const forecastMonth = isDeliveryForecastMonth(project.deliveryForecastMonth) ? project.deliveryForecastMonth : null
   const daysRemaining = deadline
     ? Math.round((dateOnlyTimestamp(deadline) - dateOnlyTimestamp(now)) / DAY_IN_MS)
     : null
-  const overdue = !completed && daysRemaining !== null && daysRemaining < 0
+  const overdue = !completed && (daysRemaining !== null ? daysRemaining < 0 : isDeliveryForecastMonthOverdue(forecastMonth, now))
   const dueSoon =
     !completed &&
     daysRemaining !== null &&
     daysRemaining >= 0 &&
     daysRemaining <= DUE_SOON_DAYS
-  const noDeadline = !completed && !deadline
+  const noDeadline = !completed && !deadline && !forecastMonth
   const blocked = !completed && Boolean(project.productionBlockedAt)
 
   return {
@@ -93,6 +96,7 @@ export function getProductionProjectState(
     dueSoon,
     noDeadline,
     needsAttention: blocked || overdue || dueSoon || noDeadline,
+    forecastMonth,
   }
 }
 
@@ -160,6 +164,7 @@ export function isProductionStageSkip(from: ProductionStage, to: ProductionStage
 
 export function productionDeadlineLabel(state: ProductionProjectState) {
   if (state.completed) return 'Concluído'
+  if (state.forecastMonth && !state.deadline) return state.overdue ? 'Mês previsto ultrapassado' : 'Dia a definir'
   if (state.daysRemaining === null) return 'Sem prazo'
   if (state.daysRemaining < 0) {
     const lateDays = Math.abs(state.daysRemaining)

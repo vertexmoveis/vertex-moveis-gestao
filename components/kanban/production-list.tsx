@@ -1,4 +1,5 @@
 'use client'
+import { deliveryForecastMonthLabel } from '@/lib/delivery-forecast'
 
 import Link from 'next/link'
 import {
@@ -102,6 +103,7 @@ export function ProductionList({
                 )}
               >
                 {productionDeadlineLabel(attention)}
+                {attention.forecastMonth ? <span className="block text-[10px] font-normal text-[#666]">{deliveryForecastMonthLabel(attention.forecastMonth)}</span> : null}
                 {attention.deadline ? (
                   <span className="block text-[10px] font-normal text-[#888]">
                     {productionDeadlineDateLabel(attention)}: {formatDate(attention.deadline)}
