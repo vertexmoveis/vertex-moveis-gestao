@@ -17,7 +17,7 @@ const evidence = new URL('../../finance-verification/project-portal/', import.me
 const run = `project-portal-${Date.now().toString(36)}`
 const password = 'Portal-Fictional-2026!'
 const ids = {}, contexts = [], results = []
-const labels = ['Aguardando início', 'Medição', 'Projetando', 'Projeto pronto', 'Colocando as cotas', 'Projeto aprovado', 'Enviando para produção', 'Em produção', 'Produção pronta', 'Transportando', 'Instalando', 'Pronto']
+const labels = ['Aguardando medição', 'Em medição', 'Aguardando projeto', 'Projetando', 'Desenho pronto', 'Detalhamento e cotas', 'Projeto aprovado', 'Preparando produção', 'Em produção', 'Pronto para transporte', 'Em transporte', 'Em instalação', 'Concluído']
 
 async function call(api, method, path, expected = 200) {
   const response = await api.fetch(path, { method, timeout: 120000 })
@@ -47,10 +47,10 @@ async function verifyPublic(anonymous, url) {
   const html = await response.text()
   assert.ok(html.includes(`${run} cozinha para cliente fictício`))
   assert.ok(html.includes('Kelly fictícia do teste'))
-  assert.ok(html.includes('Colocando as cotas'))
+  assert.ok(html.includes('Detalhamento e cotas'))
   const timeline = html.match(/<ol\b[\s\S]*?<\/ol>/)?.[0]
   assert.ok(timeline)
-  assert.equal((timeline.match(/<li\b/g) || []).length, 12)
+  assert.equal((timeline.match(/<li\b/g) || []).length, labels.length)
   for (const label of labels) assert.ok(timeline.includes(label), `missing public stage ${label}`)
   assert.ok(!html.includes(`${run}-PRIVATE-INTERNAL-NOTE`))
   assert.ok(!html.includes('124567.89'))
@@ -100,7 +100,7 @@ try {
   await verifyPublic(anonymous, first.url)
   assert.ok((await db.projectPortalAccess.findUniqueOrThrow({ where: { id: firstAccess.id } })).lastViewedAt)
   assert.equal(await db.activityLog.count({ where: { projectId: ids.project, action: 'Link de acompanhamento criado' } }), 1)
-  pass('Actual POST creates encrypted access, GET recovers the same link, anonymous client sees the correct twelve-stage project')
+  pass('Actual POST creates encrypted access, GET recovers the same link, anonymous client sees the correct thirteen-stage project')
 
   const second = await call(manager, 'POST', path, 201)
   const secondToken = portalToken(second.url)

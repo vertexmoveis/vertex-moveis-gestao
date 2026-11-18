@@ -105,44 +105,45 @@ export function PublicProjectSupport({
   return (
     <div className="space-y-5">
       {(canOpenWarranty || tickets.length > 0) ? (
-        <section className="bg-white p-5 sm:p-7">
+        <section className="rounded-3xl border border-[#E8E5E0] bg-white p-5 shadow-[0_4px_24px_rgba(25,27,24,0.025)] sm:p-7">
           <div className="flex items-start gap-3">
-            <ShieldCheck size={20} className="mt-0.5 text-[#FF6B00]" />
-            <div>
-              <h2 className="text-base font-extrabold">Assistência e garantia</h2>
-              <p className="mt-1 text-xs text-[#777]">{warrantyLabel || 'Acompanhe seus pedidos de assistência.'}</p>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#FFF1E6] text-[#B84A00]"><ShieldCheck size={21} aria-hidden="true" /></span>
+            <div className="min-w-0 pt-0.5">
+              <h2 className="text-lg font-bold tracking-tight text-[#191B18]">Assistência e garantia</h2>
+              <p className="mt-1 text-sm leading-6 text-[#6C7067]">{warrantyLabel || 'Acompanhe seus pedidos de assistência.'}</p>
             </div>
           </div>
 
           {tickets.length > 0 ? (
-            <div className="mt-5 divide-y divide-[#ECECEC] border border-[#E8E8E8]">
+            <div className="mt-6 space-y-3">
               {tickets.map((ticket) => (
-                <div key={ticket.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold">{ticket.title}</p>
-                    <span className="text-xs font-semibold text-[#B84A00]">{WARRANTY_STATUS_LABELS[ticket.status] || ticket.status}</span>
+                <div key={ticket.id} className="rounded-2xl border border-[#E8E5E0] bg-[#FAF9F6] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm font-semibold leading-6 text-[#191B18]">{ticket.title}</p>
+                    <span className="max-w-full rounded-full bg-[#FFF1E6] px-3 py-1 text-xs font-semibold leading-5 text-[#9A3E00]">{WARRANTY_STATUS_LABELS[ticket.status] || ticket.status}</span>
                   </div>
-                  {ticket.resolution ? <p className="mt-2 text-xs leading-5 text-[#666]">Solução: {ticket.resolution}</p> : null}
+                  {ticket.resolution ? <p className="mt-3 break-words border-t border-[#E8E5E0] pt-3 text-sm leading-6 text-[#6C7067]">Solução: {ticket.resolution}</p> : null}
                 </div>
               ))}
             </div>
           ) : null}
 
           {canOpenWarranty ? (
-            <div className="mt-5 border-t border-[#ECECEC] pt-5">
-              <h3 className="flex items-center gap-2 text-sm font-extrabold"><Wrench size={16} /> Abrir novo pedido</h3>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="mt-6 rounded-2xl bg-[#FAF9F6] p-4 sm:p-5">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-[#191B18]"><Wrench size={17} aria-hidden="true" /> Abrir novo pedido</h3>
+              <div className="mt-5 grid gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
                 <Select
                   label="Assunto"
                   value={category}
+                  className="min-h-12 rounded-xl border-[#E2DED7] text-base focus:ring-[#C75200] sm:text-sm"
                   onChange={(event) => setCategory(event.target.value as PublicWarrantyCategory)}
                   options={PUBLIC_WARRANTY_CATEGORIES.map((value) => ({ value, label: PUBLIC_WARRANTY_CATEGORY_LABELS[value] }))}
                 />
-                <Textarea label="Descreva o que aconteceu" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
+                <Textarea label="Descreva o que aconteceu" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} className="rounded-xl border-[#E2DED7] text-base focus:ring-[#C75200] sm:text-sm" />
               </div>
-              <div className="mt-3 border border-dashed border-[#D9D9D9] p-3">
-                <button type="button" onClick={() => photoInputRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-semibold text-[#555]">
-                  <Camera size={16} /> Adicionar fotos ({photos.length}/3)
+              <div className="mt-4 rounded-xl border border-dashed border-[#D5CFC5] bg-white px-4 py-3">
+                <button type="button" onClick={() => photoInputRef.current?.click()} className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-[#484D43] outline-none transition-colors hover:text-[#B84A00] focus-visible:ring-2 focus-visible:ring-[#C75200] focus-visible:ring-offset-2">
+                  <Camera size={18} aria-hidden="true" /> Adicionar fotos ({photos.length}/3)
                 </button>
                 <input
                   ref={photoInputRef}
@@ -152,10 +153,10 @@ export function PublicProjectSupport({
                   className="sr-only"
                   onChange={(event) => setPhotos(Array.from(event.target.files || []).filter((file) => file.size <= 8 * 1024 * 1024).slice(0, 3))}
                 />
-                <p className="mt-1 text-xs text-[#888]">Até 3 fotos, com no máximo 8 MB cada.</p>
+                <p className="text-xs leading-5 text-[#6C7067]">Até 3 fotos, com no máximo 8 MB cada.</p>
               </div>
-              <Button type="button" className="mt-3 w-full sm:w-auto" onClick={() => void sendWarranty()} disabled={busy === 'warranty' || description.trim().length < 10}>
-                {busy === 'warranty' ? <Loader2 size={15} className="animate-spin" /> : <Wrench size={15} />} Enviar pedido de assistência
+              <Button type="button" className="mt-4 h-auto min-h-12 w-full whitespace-normal rounded-xl px-5 py-3 text-center font-semibold text-[#1C211B] hover:bg-[#F57821] active:bg-[#EE6A0C] focus-visible:ring-[#C75200] sm:w-auto" onClick={() => void sendWarranty()} disabled={busy === 'warranty' || description.trim().length < 10}>
+                {busy === 'warranty' ? <Loader2 size={17} className="shrink-0 animate-spin" aria-hidden="true" /> : <Wrench size={17} className="shrink-0" aria-hidden="true" />} Enviar pedido de assistência
               </Button>
             </div>
           ) : null}
@@ -163,26 +164,27 @@ export function PublicProjectSupport({
       ) : null}
 
       {canRate ? (
-        <section className="bg-white p-5 sm:p-7">
+        <section className="rounded-3xl border border-[#E8E5E0] bg-white p-5 shadow-[0_4px_24px_rgba(25,27,24,0.025)] sm:p-7">
           <div className="flex items-start gap-3">
-            <Star size={20} className="mt-0.5 text-[#FF6B00]" />
-            <div><h2 className="text-base font-extrabold">Como foi sua experiência?</h2><p className="mt-1 text-xs text-[#777]">Sua resposta ajuda a Vertex a melhorar.</p></div>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#FFF1E6] text-[#B84A00]"><Star size={21} aria-hidden="true" /></span>
+            <div className="min-w-0 pt-0.5"><h2 className="text-lg font-bold tracking-tight text-[#191B18]">Como foi sua experiência?</h2><p className="mt-1 text-sm leading-6 text-[#6C7067]">Sua resposta ajuda a Vertex a melhorar.</p></div>
           </div>
-          <div className="mt-5 flex gap-2" role="radiogroup" aria-label="Nota do atendimento">
+          <div className="mt-6 flex flex-wrap gap-1 sm:gap-2" role="radiogroup" aria-label="Nota do atendimento">
             {[1, 2, 3, 4, 5].map((value) => (
-              <button key={value} type="button" aria-label={`Nota ${value}`} onClick={() => setRating(value)} className={`grid h-11 w-11 place-items-center border ${value <= rating ? 'border-[#FF6B00] bg-[#FFF3E9] text-[#FF6B00]' : 'border-[#D9D9D9] text-[#AAA]'}`}>
-                <Star size={20} fill={value <= rating ? 'currentColor' : 'none'} />
-              </button>
+              <label key={value} className={`grid h-11 w-11 cursor-pointer place-items-center rounded-xl border transition-colors focus-within:ring-2 focus-within:ring-[#C75200] focus-within:ring-offset-2 ${value <= rating ? 'border-[#FF6B00] bg-[#FFF1E6] text-[#C75200]' : 'border-[#E2DED7] text-[#858A7F] hover:border-[#FF6B00]'}`}>
+                <input type="radio" name="public-satisfaction-rating" value={value} checked={rating === value} aria-label={`Nota ${value}`} onChange={() => setRating(value)} className="sr-only" />
+                <Star size={21} fill={value <= rating ? 'currentColor' : 'none'} aria-hidden="true" />
+              </label>
             ))}
           </div>
-          <Textarea label="Comentário (opcional)" rows={3} value={ratingComment} onChange={(event) => setRatingComment(event.target.value)} className="mt-4" />
-          <Button type="button" className="mt-3" disabled={rating < 1 || busy === 'rating'} onClick={() => void sendRating()}>
-            {busy === 'rating' ? <Loader2 size={15} className="animate-spin" /> : <Star size={15} />} Enviar avaliação
+          <div className="mt-5"><Textarea label="Comentário (opcional)" rows={3} value={ratingComment} onChange={(event) => setRatingComment(event.target.value)} className="rounded-xl border-[#E2DED7] text-base focus:ring-[#C75200] sm:text-sm" /></div>
+          <Button type="button" className="mt-4 h-auto min-h-12 w-full rounded-xl px-5 py-3 font-semibold text-[#1C211B] hover:bg-[#F57821] active:bg-[#EE6A0C] focus-visible:ring-[#C75200] sm:w-auto" disabled={rating < 1 || busy === 'rating'} onClick={() => void sendRating()}>
+            {busy === 'rating' ? <Loader2 size={17} className="animate-spin" aria-hidden="true" /> : <Star size={17} aria-hidden="true" />} Enviar avaliação
           </Button>
         </section>
       ) : null}
 
-      {message ? <p className="border border-[#FFD7BA] bg-[#FFF7F1] px-4 py-3 text-sm font-semibold text-[#9A3E00]">{message}</p> : null}
+      {message ? <p role="status" aria-live="polite" className="rounded-2xl border border-[#FFD7BA] bg-[#FFF7F1] px-5 py-4 text-sm font-medium leading-6 text-[#9A3E00]">{message}</p> : null}
     </div>
   )
 }
