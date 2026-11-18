@@ -10,7 +10,15 @@ import {
   matchesProductionAttention,
   productionDeadlineLabel,
 } from '../lib/production-board'
-import type { ProjectData } from '../types'
+import {
+  normalizeProductionStage,
+  PRODUCTION_STAGE_DESCRIPTIONS,
+  PRODUCTION_STAGE_FLOW,
+  PRODUCTION_STAGE_LABELS,
+  PRODUCTION_STAGE_STATUS,
+  type ProjectData,
+} from '../types'
+import { projectPatchSchema } from '../lib/schemas'
 
 function project(overrides: Partial<ProjectData> = {}): ProjectData {
   return {
@@ -106,4 +114,38 @@ test('calcula avanço e detecta salto de etapa', () => {
   assert.equal(getAdjacentProductionStage('PENDING_START', -1), null)
   assert.equal(isProductionStageSkip('DESIGN', 'PRODUCTION'), true)
   assert.equal(isProductionStageSkip('DESIGN', 'PROJECT_READY'), false)
+})
+
+test('fluxo acompanha desenho, cotas, aprovação, fabricação, transporte e instalação sem mesclar etapas', () => {
+  const stages = [
+    'PENDING_START', 'MEASUREMENT', 'DESIGN', 'PROJECT_READY', 'DIMENSIONING',
+    'PROJECT_APPROVED', 'SENDING_TO_PRODUCTION', 'PRODUCTION', 'PRODUCTION_READY',
+    'TRANSPORTATION', 'INSTALLATION', 'COMPLETED',
+  ] as const
+  assert.deepEqual(PRODUCTION_STAGE_FLOW, [...stages])
+  for (const [index, stage] of stages.entries()) {
+    assert.equal(normalizeProductionStage(stage), stage)
+    assert.equal(getAdjacentProductionStage(stage, 1), stages[index + 1] || null)
+    assert.equal(getAdjacentProductionStage(stage, -1), stages[index - 1] || null)
+    assert.ok(PRODUCTION_STAGE_LABELS[stage])
+    assert.ok(PRODUCTION_STAGE_DESCRIPTIONS[stage])
+    assert.equal(projectPatchSchema.safeParse({ stage }).success, true)
+  }
+  assert.equal(getAdjacentProductionStage('PROJECT_READY', 1), 'DIMENSIONING')
+  assert.equal(getAdjacentProductionStage('PRODUCTION_READY', 1), 'TRANSPORTATION')
+  assert.equal(getAdjacentProductionStage('TRANSPORTATION', 1), 'INSTALLATION')
+  assert.equal(isProductionStageSkip('PRODUCTION', 'INSTALLATION'), true)
+  assert.equal(isProductionStageSkip('TRANSPORTATION', 'INSTALLATION'), false)
+})
+
+test('produção pronta continua ativa até a entrega e instalação serem finalizadas', () => {
+  for (const stage of ['PROJECT_APPROVED', 'PRODUCTION_READY', 'TRANSPORTATION', 'INSTALLATION'] as const) {
+    const state = getProductionProjectState(project({ stage, stageDeadlineDate: '2026-07-27' }), now)
+    assert.equal(state.completed, false)
+    assert.equal(state.overdue, true)
+    assert.notEqual(PRODUCTION_STAGE_STATUS[stage], 'COMPLETED')
+  }
+  assert.equal(PRODUCTION_STAGE_STATUS.PROJECT_APPROVED, 'PROJECT_READY')
+  assert.equal(PRODUCTION_STAGE_STATUS.PRODUCTION_READY, 'IN_PRODUCTION')
+  assert.equal(projectPatchSchema.safeParse({ stage: 'COTACAO' }).success, false)
 })

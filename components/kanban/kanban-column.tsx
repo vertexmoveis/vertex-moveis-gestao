@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { AlertTriangle, LockKeyhole } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KanbanCard } from './kanban-card'
-import { type ProductionStage, type ProjectData } from '@/types'
+import { PRODUCTION_STAGE_DESCRIPTIONS, type ProductionStage, type ProjectData } from '@/types'
 
 interface KanbanColumnProps {
   stage: ProductionStage
@@ -38,12 +38,13 @@ export function KanbanColumn({
 
   return (
     <section className="flex h-full min-h-0 w-[300px] shrink-0 flex-col">
-      <header className="flex min-h-16 shrink-0 items-center justify-between gap-2 rounded-md border border-[#E7E7E7] bg-white px-3.5 py-2">
+      <header className="flex min-h-28 shrink-0 items-start justify-between gap-2 rounded-md border border-[#E7E7E7] bg-white px-3.5 py-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-            <h2 className="truncate text-[13px] font-semibold text-[#121212]">{label}</h2>
+            <h2 className="text-[13px] font-semibold leading-5 text-[#121212]">{label}</h2>
           </div>
+          <p className="mt-1 pl-4 text-[10px] leading-4 text-[#888]">{PRODUCTION_STAGE_DESCRIPTIONS[stage]}</p>
           {overdueCount > 0 || blockedCount > 0 ? (
             <div className="mt-1 flex items-center gap-2.5 pl-4 text-[10px] font-medium">
               {overdueCount > 0 ? (

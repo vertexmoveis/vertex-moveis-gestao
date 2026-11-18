@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
-import { badRequest, canAccessProject, forbidden, requireAuth } from '@/lib/security'
+import { badRequest, canAccessProject, forbidden, requireAuth, requireRole } from '@/lib/security'
 import { ACTIVE_INSTALLATION_SCHEDULE_STATUSES, INSTALLATION_SCHEDULE_STATUSES } from '@/lib/installation-schedule'
 import { PRODUCTION_STAGE_STATUS } from '@/types'
 import { DELIVERY_CHECKS } from '@/lib/operational-toolkit'
@@ -70,7 +70,7 @@ const INSTALLATION_EVENT = {
 } as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   let body: unknown
@@ -180,12 +180,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
 
     if (existing.status !== updated.status) {
+      const progressStage = updated.status === 'ON_ROUTE'
+        ? 'TRANSPORTATION'
+        : updated.status === 'IN_PROGRESS'
+          ? 'INSTALLATION'
+          : null
       if (existing.status === 'COMPLETED' && updated.status !== 'COMPLETED') {
         await tx.project.update({
           where: { id: targetProject.id },
           data: {
-            stage: 'INSTALLATION',
-            status: PRODUCTION_STAGE_STATUS.INSTALLATION,
+            stage: progressStage || 'INSTALLATION',
+            status: PRODUCTION_STAGE_STATUS[progressStage || 'INSTALLATION'],
             actualEndDate: null,
             postSaleFollowUpAt: null,
             warrantyEndsAt: null,
@@ -193,10 +198,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })
         await tx.projectDeliveryProof.deleteMany({ where: { installationScheduleId: updated.id } })
       }
-      if (updated.status === 'CONFIRMED' || updated.status === 'ON_ROUTE' || updated.status === 'IN_PROGRESS') {
+      if (progressStage) {
         await tx.project.update({
           where: { id: targetProject.id },
-          data: { stage: 'INSTALLATION', status: PRODUCTION_STAGE_STATUS.INSTALLATION },
+          data: { stage: progressStage, status: PRODUCTION_STAGE_STATUS[progressStage] },
         })
       }
 

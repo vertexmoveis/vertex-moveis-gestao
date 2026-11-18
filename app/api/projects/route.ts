@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   }
   if (status) where.status = status
   if (stage) {
-    where.stage = stage === 'INSTALLATION' ? { in: ['INSTALLATION', 'TRANSPORTATION'] } : stage
+    where.stage = stage
   }
   if (warranty === 'open') {
     where.warrantyTickets = { some: { status: { notIn: ['RESOLVED', 'CANCELED'] } } }

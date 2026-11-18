@@ -67,8 +67,12 @@ const STAGE_COLORS: Record<ProductionStage, string> = {
   MEASUREMENT: '#2563EB',
   DESIGN: '#9333EA',
   PROJECT_READY: '#7C3AED',
+  DIMENSIONING: '#A855F7',
+  PROJECT_APPROVED: '#059669',
+  SENDING_TO_PRODUCTION: '#D97706',
   PRODUCTION: '#F05A00',
-  TRANSPORTATION: '#4F46E5',
+  PRODUCTION_READY: '#0D9488',
+  TRANSPORTATION: '#2563EB',
   INSTALLATION: '#4F46E5',
   COMPLETED: '#16A34A',
 }
@@ -483,6 +487,7 @@ export function KanbanBoard({ initialProjects, referenceDate, capacityWeeks }: K
     if (visibleStages.length === 0) return null
     return (
       <DndContext
+        id="production-board"
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}

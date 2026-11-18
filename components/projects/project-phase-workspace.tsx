@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { ArrowRight, Check, CheckCircle2, Circle, Factory, LockKeyhole, PackageCheck, Ruler, Truck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getAdjacentProductionStage } from '@/lib/production-board'
+import { PRODUCTION_STAGE_DESCRIPTIONS, PRODUCTION_STAGE_LABELS, type ProductionStage } from '@/types'
 import {
   PROJECT_MACRO_PHASE_DESCRIPTIONS,
   PROJECT_MACRO_PHASE_LABELS,
@@ -21,18 +23,12 @@ const PHASE_ICONS = {
   COMPLETED: PackageCheck,
 } satisfies Record<ProjectMacroPhase, typeof Ruler>
 
-const ACTION_LABELS: Partial<Record<ProjectMacroPhase, string>> = {
-  PREPARATION: 'Liberar para produção',
-  PRODUCTION: 'Pronto para instalar',
-  DELIVERY: 'Finalizar projeto',
-}
-
 type ProjectPhaseWorkspaceProps = {
   currentPhase: ProjectMacroPhase
   selectedPhase: ProjectMacroPhase
   tasks: ProjectPhaseTask[]
   blockers: string[]
-  stageLabel: string
+  stage: ProductionStage
   deadlineLabel: string | null
   environmentProgress: number
   financialLabel: string | null
@@ -44,6 +40,7 @@ type ProjectPhaseWorkspaceProps = {
     warning?: boolean
   }[]
   canOverridePhase: boolean
+  canAdvance: boolean
   advancing: boolean
   advanceError: string
   onSelect: (phase: ProjectMacroPhase) => void
@@ -57,12 +54,13 @@ export function ProjectPhaseWorkspace({
   selectedPhase,
   tasks,
   blockers,
-  stageLabel,
+  stage,
   deadlineLabel,
   environmentProgress,
   financialLabel,
   workflowStatuses,
   canOverridePhase,
+  canAdvance,
   advancing,
   advanceError,
   onSelect,
@@ -79,6 +77,10 @@ export function ProjectPhaseWorkspace({
   const completedTasks = tasks.filter((task) => task.completed).length
   const nextTask = tasks.find((task) => task.required && !task.completed)
   const nextAction = getProjectNextAction(tasks, selectedPhase)
+  const nextStage = getAdjacentProductionStage(stage, 1)
+  const advanceLabel = nextStage === 'COMPLETED'
+    ? 'Finalizar projeto'
+    : nextStage ? `Avançar para ${PRODUCTION_STAGE_LABELS[nextStage]}` : null
   const taskGroups = [
     { key: 'COMMERCIAL', label: 'Comercial' },
     { key: 'TECHNICAL', label: 'Técnico' },
@@ -140,8 +142,8 @@ export function ProjectPhaseWorkspace({
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#FF6B00]">
                 {isCurrent ? 'O que fazer agora' : 'Consulta da etapa'}
               </p>
-              <h2 className="mt-1 text-lg font-bold text-[#121212]">{PROJECT_MACRO_PHASE_LABELS[selectedPhase]}</h2>
-              <p className="mt-1 text-sm text-[#777]">{PROJECT_MACRO_PHASE_DESCRIPTIONS[selectedPhase]}</p>
+              <h2 className="mt-1 text-lg font-bold text-[#121212]">{isCurrent ? PRODUCTION_STAGE_LABELS[stage] : PROJECT_MACRO_PHASE_LABELS[selectedPhase]}</h2>
+              <p className="mt-1 text-sm text-[#777]">{isCurrent ? PRODUCTION_STAGE_DESCRIPTIONS[stage] : PROJECT_MACRO_PHASE_DESCRIPTIONS[selectedPhase]}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-xs text-[#777]">
               <span className="font-semibold text-[#121212]">{completedTasks}/{tasks.length}</span>
@@ -178,12 +180,12 @@ export function ProjectPhaseWorkspace({
             <div className={`mt-4 border-l-2 px-3 py-2.5 ${nextTask ? 'border-amber-500 bg-amber-50/70' : 'border-emerald-500 bg-emerald-50/70'}`}>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#777]">Próxima ação</p>
               <p className="mt-1 text-sm font-semibold text-[#121212]">
-                {nextAction.label}
+                {nextAction.action === 'ADVANCE_PHASE' && nextStage ? PRODUCTION_STAGE_LABELS[nextStage] : nextAction.label}
               </p>
               <p className="mt-1 text-xs leading-5 text-[#666]">
-                {nextAction.detail}
+                {nextAction.action === 'ADVANCE_PHASE' && nextStage ? PRODUCTION_STAGE_DESCRIPTIONS[nextStage] : nextAction.detail}
               </p>
-              {!isCompleted ? (
+              {!isCompleted && nextAction.action !== 'ADVANCE_PHASE' ? (
                 <Button type="button" size="sm" className="mt-3" loading={advancing && !nextTask} onClick={() => onNextAction(nextAction.action)}>
                   {nextAction.label}
                   <ArrowRight size={14} />
@@ -196,7 +198,7 @@ export function ProjectPhaseWorkspace({
         <aside className="border-l-0 border-[#EEEEEE] lg:border-l lg:pl-5">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Resumo desta etapa</p>
           <dl className="mt-3 space-y-2 text-xs">
-            <div className="flex justify-between gap-3"><dt className="text-[#888]">Status interno</dt><dd className="text-right font-semibold text-[#222]">{stageLabel}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-[#888]">Etapa atual</dt><dd className="text-right font-semibold text-[#222]">{PRODUCTION_STAGE_LABELS[stage]}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-[#888]">Ambientes</dt><dd className="font-semibold text-[#222]">{environmentProgress}%</dd></div>
             {deadlineLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Prazo</dt><dd className="text-right font-semibold text-[#222]">{deadlineLabel}</dd></div> : null}
             {financialLabel ? <div className="flex justify-between gap-3"><dt className="text-[#888]">Financeiro</dt><dd className="text-right font-semibold text-[#222]">{financialLabel}</dd></div> : null}
@@ -226,11 +228,11 @@ export function ProjectPhaseWorkspace({
             </div>
           ) : null}
 
-          {isCurrent && !isCompleted ? (
+          {isCurrent && !isCompleted && nextStage ? (
             <div className="mt-4 space-y-2">
-              <Button type="button" className="w-full" loading={advancing} disabled={blockers.length > 0} onClick={() => void onAdvance()}>
-                <CheckCircle2 size={15} />
-                {ACTION_LABELS[selectedPhase]}
+              <Button type="button" className="h-auto min-h-10 w-full whitespace-normal py-2 text-center" loading={advancing} disabled={blockers.length > 0 || !canAdvance} onClick={() => void onAdvance()}>
+                {nextStage === 'COMPLETED' ? <CheckCircle2 size={15} className="shrink-0" /> : <ArrowRight size={15} className="shrink-0" />}
+                {advanceLabel}
               </Button>
               {blockers.length > 0 && canOverridePhase ? (
                 <button type="button" onClick={() => setShowOverride((value) => !value)} className="w-full text-center text-[11px] font-semibold text-[#777] hover:text-[#FF6B00]">

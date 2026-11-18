@@ -33,7 +33,7 @@ export const PROJECT_MACRO_PHASE_DESCRIPTIONS: Record<ProjectMacroPhase, string>
 
 export const PROJECT_MACRO_PHASE_TARGET_STAGE: Partial<Record<ProjectMacroPhase, ProductionStage>> = {
   PREPARATION: 'PRODUCTION',
-  PRODUCTION: 'INSTALLATION',
+  PRODUCTION: 'TRANSPORTATION',
   DELIVERY: 'COMPLETED',
 }
 
@@ -85,11 +85,14 @@ export type ProjectPhaseInput = {
   postSaleContactedAt?: string | null
 }
 
-const PREPARATION_STAGES: ProductionStage[] = [
+export const PREPARATION_STAGES: ProductionStage[] = [
   'PENDING_START',
   'MEASUREMENT',
   'DESIGN',
   'PROJECT_READY',
+  'DIMENSIONING',
+  'PROJECT_APPROVED',
+  'SENDING_TO_PRODUCTION',
 ]
 
 const READY_FOR_INSTALLATION: ProjectEnvironmentStatus[] = ['READY', 'INSTALLED', 'COMPLETED']
@@ -97,7 +100,7 @@ const INSTALLED_ENVIRONMENTS: ProjectEnvironmentStatus[] = ['INSTALLED', 'COMPLE
 
 export function getProjectMacroPhase(stage: ProductionStage): ProjectMacroPhase {
   if (PREPARATION_STAGES.includes(stage)) return 'PREPARATION'
-  if (stage === 'PRODUCTION') return 'PRODUCTION'
+  if (stage === 'PRODUCTION' || stage === 'PRODUCTION_READY') return 'PRODUCTION'
   if (stage === 'COMPLETED') return 'COMPLETED'
   return 'DELIVERY'
 }

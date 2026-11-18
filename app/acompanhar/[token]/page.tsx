@@ -67,7 +67,7 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
             select: { id: true, name: true, status: true },
           },
           installationSchedules: {
-            where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] } },
+            where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'ON_ROUTE', 'IN_PROGRESS'] } },
             orderBy: { scheduledStart: 'asc' },
             take: 1,
             select: { id: true, scheduledStart: true, status: true },
@@ -94,9 +94,11 @@ export default async function ProjectTrackingPage({ params }: { params: Promise<
   const completedEnvironments = project.environments.filter((environment) => (
     environment.status === 'COMPLETED' || environment.status === 'INSTALLED'
   )).length
-  const progress = project.environments.length > 0
-    ? Math.round((completedEnvironments / project.environments.length) * 100)
-    : Math.round((Math.max(stageIndex, 0) / (PRODUCTION_STAGE_FLOW.length - 1)) * 100)
+  const progress = stage === 'COMPLETED'
+    ? 100
+    : project.environments.length > 0
+      ? Math.round((completedEnvironments / project.environments.length) * 100)
+      : Math.round((Math.max(stageIndex, 0) / (PRODUCTION_STAGE_FLOW.length - 1)) * 100)
   const deadline = project.deliveryDeadlineDate || project.estimatedEndDate
   const installation = project.installationSchedules[0]
   const warrantyEnd = warrantyDeadline(project)

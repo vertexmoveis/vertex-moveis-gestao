@@ -15,7 +15,11 @@ export type ProductionStage =
   | 'MEASUREMENT'
   | 'DESIGN'
   | 'PROJECT_READY'
+  | 'DIMENSIONING'
+  | 'PROJECT_APPROVED'
+  | 'SENDING_TO_PRODUCTION'
   | 'PRODUCTION'
+  | 'PRODUCTION_READY'
   | 'TRANSPORTATION'
   | 'INSTALLATION'
   | 'COMPLETED'
@@ -61,14 +65,33 @@ export const PROJECT_STATUS_BG: Record<ProjectStatus, string> = {
 }
 
 export const PRODUCTION_STAGE_LABELS: Record<ProductionStage, string> = {
-  PENDING_START: 'Aguardando Início',
+  PENDING_START: 'Aguardando início',
   MEASUREMENT: 'Medição',
-  DESIGN: 'Projeto',
+  DESIGN: 'Projetando',
   PROJECT_READY: 'Projeto pronto',
-  PRODUCTION: 'Produção',
-  TRANSPORTATION: 'Transporte e Instalação',
-  INSTALLATION: 'Transporte e Instalação',
+  DIMENSIONING: 'Colocando as cotas',
+  PROJECT_APPROVED: 'Projeto aprovado',
+  SENDING_TO_PRODUCTION: 'Enviando para produção',
+  PRODUCTION: 'Em produção',
+  PRODUCTION_READY: 'Produção pronta',
+  TRANSPORTATION: 'Transportando',
+  INSTALLATION: 'Instalando',
   COMPLETED: 'Pronto',
+}
+
+export const PRODUCTION_STAGE_DESCRIPTIONS: Record<ProductionStage, string> = {
+  PENDING_START: 'Aguardando o início do trabalho no projeto.',
+  MEASUREMENT: 'Conferindo as medidas do ambiente.',
+  DESIGN: 'Desenvolvendo o desenho e a solução dos móveis.',
+  PROJECT_READY: 'Desenho pronto para receber as cotas e a conferência.',
+  DIMENSIONING: 'Adicionando as cotas e medidas para o cliente e a produção conferirem.',
+  PROJECT_APPROVED: 'Projeto aprovado para preparar o envio à produção.',
+  SENDING_TO_PRODUCTION: 'Preparando e enviando os arquivos e as orientações para fabricar.',
+  PRODUCTION: 'Fabricando os móveis.',
+  PRODUCTION_READY: 'Móveis fabricados, aguardando transporte.',
+  TRANSPORTATION: 'Transportando os móveis até o local.',
+  INSTALLATION: 'Instalando e conferindo os móveis.',
+  COMPLETED: 'Serviço finalizado e entregue ao cliente.',
 }
 
 export const PRODUCTION_STAGE_STATUS: Record<ProductionStage, ProjectStatus> = {
@@ -76,7 +99,11 @@ export const PRODUCTION_STAGE_STATUS: Record<ProductionStage, ProjectStatus> = {
   MEASUREMENT: 'MEASUREMENT_SCHEDULED',
   DESIGN: 'DESIGN_ENGINEERING',
   PROJECT_READY: 'PROJECT_READY',
+  DIMENSIONING: 'PROJECT_READY',
+  PROJECT_APPROVED: 'PROJECT_READY',
+  SENDING_TO_PRODUCTION: 'PROJECT_READY',
   PRODUCTION: 'IN_PRODUCTION',
+  PRODUCTION_READY: 'IN_PRODUCTION',
   TRANSPORTATION: 'INSTALLATION_SCHEDULED',
   INSTALLATION: 'INSTALLATION_SCHEDULED',
   COMPLETED: 'COMPLETED',
@@ -87,13 +114,18 @@ export const PRODUCTION_STAGE_FLOW: ProductionStage[] = [
   'MEASUREMENT',
   'DESIGN',
   'PROJECT_READY',
+  'DIMENSIONING',
+  'PROJECT_APPROVED',
+  'SENDING_TO_PRODUCTION',
   'PRODUCTION',
+  'PRODUCTION_READY',
+  'TRANSPORTATION',
   'INSTALLATION',
   'COMPLETED',
 ]
 
 export const normalizeProductionStage = (stage: ProductionStage): ProductionStage =>
-  stage === 'TRANSPORTATION' ? 'INSTALLATION' : stage
+  stage
 
 export const PROJECT_ENVIRONMENT_STATUS_LABELS: Record<ProjectEnvironmentStatus, string> = {
   PENDING: 'A iniciar',

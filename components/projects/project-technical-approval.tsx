@@ -28,9 +28,9 @@ export function ProjectTechnicalApproval(props: Props) {
   }
   return <section id="aprovacao-tecnica" className="space-y-3 rounded-xl border bg-white p-5">
     <h2 className="font-bold">Aprovação técnica</h2>
-    <p className={`text-sm ${ready ? 'text-emerald-700' : 'text-amber-800'}`}>{props.workflowVersion < 2 ? 'Projeto anterior: regra de aprovação preservada.' : ready ? `Versão técnica aprovada por ${props.technicalApprovalCustomer}.` : props.technicalApprovedAt ? 'Os arquivos foram alterados ou estão indisponíveis. Confira a nova versão e registre novo aceite.' : 'Aguardando o aceite dos desenhos e medidas pelo cliente.'}</p>
+    <p className={`text-sm ${ready ? 'text-emerald-700' : 'text-amber-800'}`}>{props.workflowVersion < 2 ? 'Projeto anterior: regra de aprovação preservada.' : ready ? `Versão técnica aprovada por ${props.technicalApprovalCustomer}.` : props.technicalApprovedAt ? 'Os arquivos foram alterados ou estão indisponíveis. Confira a nova versão e registre novo aceite.' : 'O aceite dos desenhos e medidas pelo cliente ainda não foi registrado.'}</p>
     <p className="text-xs text-[#666]">O aceite comercial do orçamento fica separado. Este registro identifica os arquivos técnicos aprovados e quem confirmou o aceite do cliente.</p>
-    {files.length > 0 ? <ul className="space-y-1 text-sm">{files.map(file => <li key={file.id}>{file.name || file.id}</li>)}</ul> : <p className="text-sm">Anexe o projeto técnico na área de arquivos.</p>}
+    {files.length > 0 ? <ul className="space-y-1 text-sm">{files.map(file => <li key={file.id}>{file.name || file.id}</li>)}</ul> : <p className="text-sm">Para documentar o aceite, anexe o projeto técnico na área de arquivos.</p>}
     {props.technicalApprovalEvidence && <p className="whitespace-pre-wrap text-sm text-[#555]">Registro anterior: {props.technicalApprovalEvidence}</p>}
     {props.canWrite && !editing && <Button variant="outline" disabled={!files.length} onClick={() => setEditing(true)}>{ready ? 'Registrar novo aceite' : 'Registrar aceite do cliente'}</Button>}
     {editing && <form onSubmit={submit} className="space-y-3 border-t pt-3">

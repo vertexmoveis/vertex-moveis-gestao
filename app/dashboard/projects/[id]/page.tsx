@@ -30,8 +30,8 @@ import { businessDaysBetween } from '@/lib/business-days'
 import { paymentMethodLabel } from '@/lib/payment-methods'
 import { getQuotePaymentSummary, QUOTE_PAYMENT_METHOD_LABELS, safeQuotePaymentMethod } from '@/lib/quotes'
 import { isEnvironmentCompleted, PROJECT_ENVIRONMENT_WORKFLOW_STATUSES } from '@/lib/project-environments'
+import { getAdjacentProductionStage } from '@/lib/production-board'
 import {
-  PROJECT_MACRO_PHASE_TARGET_STAGE,
   getProjectMacroPhase,
   getProjectPhaseBlockers,
   getProjectPhaseTasks,
@@ -353,7 +353,8 @@ export default function ProjectDetailPage() {
   }
 
   const handlePhaseAdvance = async (overrideReason?: string) => {
-    const targetStage = PROJECT_MACRO_PHASE_TARGET_STAGE[selectedPhase]
+    if (!project || phaseAdvancing || !project.canWrite) return
+    const targetStage = getAdjacentProductionStage(project.stage, 1)
     if (!targetStage) return
 
     setPhaseAdvancing(true)
@@ -544,10 +545,10 @@ export default function ProjectDetailPage() {
   const workflowStatuses = [
     {
       key: 'approval',
-      label: technicalApprovalReady(project) ? 'Projeto técnico aprovado' : 'Projeto técnico aguardando aprovação',
+      label: technicalApprovalReady(project) ? 'Projeto técnico aprovado' : 'Registro da aprovação técnica pendente',
       detail: technicalApprovalReady(project)
         ? `Aprovação registrada em ${formatDateOnly(project.technicalApprovedAt || project.approvalDate)}.`
-        : 'Envie o projeto com as medidas para o cliente aprovar.',
+        : 'Você pode registrar o aceite do cliente com o projeto e as medidas na seção de aprovação técnica.',
       completed: technicalApprovalReady(project),
     },
     {
@@ -597,12 +598,13 @@ export default function ProjectDetailPage() {
           selectedPhase={selectedPhase}
           tasks={phaseTasks}
           blockers={phaseBlockers}
-          stageLabel={PRODUCTION_STAGE_LABELS[project.stage]}
+          stage={project.stage}
           deadlineLabel={project.deliveryDeadlineDate ? formatDateOnly(project.deliveryDeadlineDate) : null}
           environmentProgress={environmentsProgress}
           financialLabel={project.value === null ? null : totalOpen > 0 ? `${formatCurrency(totalOpen)} em aberto` : 'Tudo recebido'}
           workflowStatuses={workflowStatuses}
           canOverridePhase={project.canOverridePhase}
+          canAdvance={project.canWrite}
           advancing={phaseAdvancing}
           advanceError={phaseAdvanceError}
           onSelect={setInspectedPhase}

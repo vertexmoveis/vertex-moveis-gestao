@@ -21,6 +21,7 @@ import {
 } from '@/lib/project-environments'
 import {
   normalizeProductionStage,
+  PRODUCTION_STAGE_LABELS,
   PRODUCTION_STAGE_STATUS,
   type ProductionStage,
   type ProjectEnvironmentStatus,
@@ -655,7 +656,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['ADMIN', 'MANAGER'])
   if (!auth.ok) return auth.response
 
   const { id } = await params
@@ -853,8 +854,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             description: nextStage === 'COMPLETED'
               ? 'Pós-venda agendado automaticamente para 30 dias após a conclusão.'
               : stageOverrideReason
-                ? `Avanço manual para ${nextStage}. Justificativa: ${stageOverrideReason}`
-                : `Projeto avançou para ${nextStage}.`,
+                ? `Avanço manual para ${PRODUCTION_STAGE_LABELS[nextStage]}. Justificativa: ${stageOverrideReason}`
+                : `Projeto avançou para ${PRODUCTION_STAGE_LABELS[nextStage]}.`,
           },
         })
         if (nextStage === 'PRODUCTION' || nextStage === 'COMPLETED') {
@@ -884,7 +885,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           userId: auth.user.id,
           projectId: id,
           action: 'Projeto atualizado',
-          details: `Status: ${updatedProject.status} | Etapa: ${updatedProject.stage}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
+          details: `Status: ${updatedProject.status} | Etapa: ${PRODUCTION_STAGE_LABELS[updatedProject.stage as ProductionStage]}${stageOverrideReason ? ` | Avanço manual: ${stageOverrideReason}` : ''}`,
         },
       })
       return updatedProject

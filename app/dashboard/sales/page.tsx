@@ -8,6 +8,7 @@ import { prisma } from '@/lib/db'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getProjectFinancialReadiness, getProjectContractReadiness } from '@/lib/project-workflow'
 import { technicalApprovalReady } from '@/lib/technical-approval'
+import { PREPARATION_STAGES } from '@/lib/project-phases'
 
 export default async function ClosingsPage({ searchParams }: { searchParams: Promise<{ page?: string; quoteId?: string; clientId?: string; new?: string; contractId?: string; origin?: string; situation?: string }> }) {
   const [session, params] = await Promise.all([getServerSession(authOptions), searchParams])
@@ -21,7 +22,7 @@ export default async function ClosingsPage({ searchParams }: { searchParams: Pro
   const showProjects = situation !== 'formalization'
   const pageHref = (nextPage: number) => { const next = new URLSearchParams(); for (const [key,value] of Object.entries(params)) if (value) next.set(key,value); next.set('page',String(nextPage)); return `/dashboard/sales?${next}` }
   const quoteScope = { ...(params.quoteId ? { id: params.quoteId } : {}), ...(params.clientId ? { clientId: params.clientId } : {}), archivedAt: null, status: 'APPROVED', convertedProjectId: null, ...(user.role === 'ADMIN' ? {} : { createdById: user.id }) }
-  const projectScope: Prisma.ProjectWhereInput = { ...(origin === 'quote' ? { sourceQuote: { isNot: null } } : origin === 'direct' ? { sourceQuote: { is: null } } : {}), ...(params.clientId ? { clientId: params.clientId } : {}), archivedAt: null, stage: { in: ['PENDING_START', 'MEASUREMENT', 'DESIGN', 'PROJECT_READY'] }, ...(user.role === 'ADMIN' ? {} : { managerId: user.id }) }
+  const projectScope: Prisma.ProjectWhereInput = { ...(origin === 'quote' ? { sourceQuote: { isNot: null } } : origin === 'direct' ? { sourceQuote: { is: null } } : {}), ...(params.clientId ? { clientId: params.clientId } : {}), archivedAt: null, stage: { in: PREPARATION_STAGES }, ...(user.role === 'ADMIN' ? {} : { managerId: user.id }) }
   const [quotes, projects, quoteCount, projectCount] = await Promise.all([
     prisma.quote.findMany({ where: quoteScope, orderBy: [{ approvedAt: 'asc' }, { id: 'asc' }], skip: (page - 1) * 20, take: 20,
       select: { id: true, title: true, variationName: true, total: true, approvedAt: true, client: { select: { name: true } } },
@@ -59,7 +60,7 @@ export default async function ClosingsPage({ searchParams }: { searchParams: Pro
           const contractStatus = latest?.expiresAt && latest.expiresAt < new Date() && !latest.signedAt ? 'EXPIRED' : latest?.status || 'NONE'
           const contract = getProjectContractReadiness({ createdAt: project.createdAt, requirement: project.contractRequirement as 'REQUIRED' | 'OPTIONAL_LEGACY' | 'WAIVED', contractStatus: contractStatus as 'NONE' | 'DRAFT' | 'SENT' | 'SIGNED' | 'VOID' | 'EXPIRED', revisionRequiredAt: project.contractRevisionRequiredAt, waivedReason: project.contractWaivedReason })
           const technical = technicalApprovalReady(project)
-          const pending = [!financial.ready && financial.label, !contract.ready && contract.label, !technical && 'Aprovação técnica pendente', project.productionBlockedAt && project.productionBlockReason].filter(Boolean)
+          const pending = [!financial.ready && financial.label, !contract.ready && contract.label, !technical && 'Registro da aprovação técnica pendente', project.productionBlockedAt && project.productionBlockReason].filter(Boolean)
           return <Link href={`/dashboard/projects/${project.id}`} key={project.id} className="block space-y-2 rounded-xl border bg-white p-5 hover:border-orange-400"><p className="font-semibold">{project.name}</p><p className="text-sm text-[#666]">{project.client.name} · {project.sourceQuote ? "Orçamento aprovado" : "Venda sem orçamento"}</p><p className="text-xs text-[#777]">{project.manager?.name || 'Responsável a definir'}</p><div className="flex flex-wrap gap-2">{pending.map((label, index) => <span className="rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-900" key={index}>{label}</span>)}</div><p className="text-xs text-[#666]">{project.deliveryDeadlineDate ? `Prazo registrado: ${formatDate(project.deliveryDeadlineDate)}` : 'Prazo aguardando o marco de início'}</p><p className="text-sm font-semibold text-orange-700">{pending.length ? 'Resolver pendências' : 'Conferir preparação e liberar produção'} →</p></Link>
         })}</section>
       </div>

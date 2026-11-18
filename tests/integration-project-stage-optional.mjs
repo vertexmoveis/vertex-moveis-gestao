@@ -118,24 +118,31 @@ try {
     card.getByRole('button', { name: 'Avançar etapa', exact: true }).click(),
   ])
   assert.equal(uiMove.status(), 200)
-  await expect.poll(async () => (await db.project.findUniqueOrThrow({ where: { id: uiProject.id } })).stage).toBe('PRODUCTION')
+  await expect.poll(async () => (await db.project.findUniqueOrThrow({ where: { id: uiProject.id } })).stage).toBe('DIMENSIONING')
   await card.scrollIntoViewIfNeeded()
   await page.screenshot({ path: fileURLToPath(new URL('kanban-after-advance.png', evidence)), fullPage: true })
   await page.goto(`${baseURL}/dashboard/projects/${uiProject.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
   await expect(page.getByText('A lista é de acompanhamento. Os registros são opcionais para mudar a etapa ou concluir o pedido.', { exact: true })).toBeVisible({ timeout: 60_000 })
   const workspace = page.getByLabel('Fluxo do projeto')
   await workspace.screenshot({ path: fileURLToPath(new URL('workspace-before-completion.png', evidence)) })
-  const [installMove] = await Promise.all([
-    page.waitForResponse(r => r.url().endsWith(`/api/projects/${uiProject.id}`) && r.request().method() === 'PATCH'),
-    workspace.getByRole('button', { name: 'Pronto para instalar', exact: true }).click(),
-  ])
-  assert.equal(installMove.status(), 200)
-  await expect(workspace.getByRole('button', { name: 'Finalizar projeto', exact: true })).toBeEnabled({ timeout: 30_000 })
-  const [finishMove] = await Promise.all([
-    page.waitForResponse(r => r.url().endsWith(`/api/projects/${uiProject.id}`) && r.request().method() === 'PATCH'),
-    workspace.getByRole('button', { name: 'Finalizar projeto', exact: true }).click(),
-  ])
-  assert.equal(finishMove.status(), 200)
+  for (const [stage, name] of [
+    ['PROJECT_APPROVED', 'Avançar para Projeto aprovado'],
+    ['SENDING_TO_PRODUCTION', 'Avançar para Enviando para produção'],
+    ['PRODUCTION', 'Avançar para Em produção'],
+    ['PRODUCTION_READY', 'Avançar para Produção pronta'],
+    ['TRANSPORTATION', 'Avançar para Transportando'],
+    ['INSTALLATION', 'Avançar para Instalando'],
+    ['COMPLETED', 'Finalizar projeto'],
+  ]) {
+    const button = workspace.getByRole('button', { name, exact: true })
+    await expect(button).toBeEnabled({ timeout: 30_000 })
+    const [response] = await Promise.all([
+      page.waitForResponse(r => r.url().endsWith(`/api/projects/${uiProject.id}`) && r.request().method() === 'PATCH'),
+      button.click(),
+    ])
+    assert.equal(response.status(), 200)
+    await expect.poll(async () => (await db.project.findUniqueOrThrow({ where: { id: uiProject.id } })).stage).toBe(stage)
+  }
   await expect.poll(async () => (await db.project.findUniqueOrThrow({ where: { id: uiProject.id } })).stage).toBe('COMPLETED')
   await page.screenshot({ path: fileURLToPath(new URL('project-completed.png', evidence)), fullPage: true })
   await unchangedCommercial(uiProject.id)

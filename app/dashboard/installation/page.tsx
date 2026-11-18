@@ -62,7 +62,7 @@ export default async function InstallationPage() {
       where: {
         archivedAt: null,
         ...projectAccess,
-        stage: 'INSTALLATION',
+        stage: { in: ['PRODUCTION_READY', 'TRANSPORTATION', 'INSTALLATION'] },
         installationSchedules: {
           none: { status: { in: ACTIVE_INSTALLATION_SCHEDULE_STATUSES } },
         },
