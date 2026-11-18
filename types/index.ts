@@ -13,6 +13,7 @@ export type ProjectStatus =
 export type ProductionStage =
   | 'PENDING_START'
   | 'MEASUREMENT'
+  | 'DESIGN_PENDING'
   | 'DESIGN'
   | 'PROJECT_READY'
   | 'DIMENSIONING'
@@ -65,23 +66,25 @@ export const PROJECT_STATUS_BG: Record<ProjectStatus, string> = {
 }
 
 export const PRODUCTION_STAGE_LABELS: Record<ProductionStage, string> = {
-  PENDING_START: 'Aguardando início',
-  MEASUREMENT: 'Medição',
+  PENDING_START: 'Aguardando medição',
+  MEASUREMENT: 'Em medição',
+  DESIGN_PENDING: 'Aguardando projeto',
   DESIGN: 'Projetando',
-  PROJECT_READY: 'Projeto pronto',
-  DIMENSIONING: 'Colocando as cotas',
+  PROJECT_READY: 'Desenho pronto',
+  DIMENSIONING: 'Detalhamento e cotas',
   PROJECT_APPROVED: 'Projeto aprovado',
-  SENDING_TO_PRODUCTION: 'Enviando para produção',
+  SENDING_TO_PRODUCTION: 'Preparando produção',
   PRODUCTION: 'Em produção',
-  PRODUCTION_READY: 'Produção pronta',
-  TRANSPORTATION: 'Transportando',
-  INSTALLATION: 'Instalando',
-  COMPLETED: 'Pronto',
+  PRODUCTION_READY: 'Pronto para transporte',
+  TRANSPORTATION: 'Em transporte',
+  INSTALLATION: 'Em instalação',
+  COMPLETED: 'Concluído',
 }
 
 export const PRODUCTION_STAGE_DESCRIPTIONS: Record<ProductionStage, string> = {
-  PENDING_START: 'Aguardando o início do trabalho no projeto.',
+  PENDING_START: 'Aguardando a medição dos ambientes para iniciar o projeto.',
   MEASUREMENT: 'Conferindo as medidas do ambiente.',
+  DESIGN_PENDING: 'Medição concluída; aguardando o início do desenho.',
   DESIGN: 'Desenvolvendo o desenho e a solução dos móveis.',
   PROJECT_READY: 'Desenho pronto para receber as cotas e a conferência.',
   DIMENSIONING: 'Adicionando as cotas e medidas para o cliente e a produção conferirem.',
@@ -97,6 +100,7 @@ export const PRODUCTION_STAGE_DESCRIPTIONS: Record<ProductionStage, string> = {
 export const PRODUCTION_STAGE_STATUS: Record<ProductionStage, ProjectStatus> = {
   PENDING_START: 'APPROVED',
   MEASUREMENT: 'MEASUREMENT_SCHEDULED',
+  DESIGN_PENDING: 'DESIGN_ENGINEERING',
   DESIGN: 'DESIGN_ENGINEERING',
   PROJECT_READY: 'PROJECT_READY',
   DIMENSIONING: 'PROJECT_READY',
@@ -112,6 +116,7 @@ export const PRODUCTION_STAGE_STATUS: Record<ProductionStage, ProjectStatus> = {
 export const PRODUCTION_STAGE_FLOW: ProductionStage[] = [
   'PENDING_START',
   'MEASUREMENT',
+  'DESIGN_PENDING',
   'DESIGN',
   'PROJECT_READY',
   'DIMENSIONING',

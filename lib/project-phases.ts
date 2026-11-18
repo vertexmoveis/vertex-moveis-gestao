@@ -88,6 +88,7 @@ export type ProjectPhaseInput = {
 export const PREPARATION_STAGES: ProductionStage[] = [
   'PENDING_START',
   'MEASUREMENT',
+  'DESIGN_PENDING',
   'DESIGN',
   'PROJECT_READY',
   'DIMENSIONING',

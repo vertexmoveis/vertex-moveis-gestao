@@ -26,6 +26,7 @@ const input = (overrides: Partial<ProjectPhaseInput> = {}): ProjectPhaseInput =>
 
 test('agrupa os status técnicos nas quatro fases do projeto', () => {
   assert.equal(getProjectMacroPhase('PENDING_START'), 'PREPARATION')
+  assert.equal(getProjectMacroPhase('DESIGN_PENDING'), 'PREPARATION')
   assert.equal(getProjectMacroPhase('PROJECT_READY'), 'PREPARATION')
   assert.equal(getProjectMacroPhase('DIMENSIONING'), 'PREPARATION')
   assert.equal(getProjectMacroPhase('PROJECT_APPROVED'), 'PREPARATION')

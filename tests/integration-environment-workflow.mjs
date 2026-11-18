@@ -81,9 +81,15 @@ try {
   assert.equal((await db.projectEnvironment.findUniqueOrThrow({ where: { id: bedroom.id } })).workflowStage, 'DESIGN')
   assert.equal((await db.projectEnvironment.findUniqueOrThrow({ where: { id: kitchen.id } })).workflowStage, 'DIMENSIONING')
   await call(manager, 'PATCH', path, { stage: 'DESIGN' })
+  await call(manager, 'PATCH', bedroomPath, { workflowStage: 'DESIGN_PENDING' })
+  const waitingBedroom = await db.projectEnvironment.findUniqueOrThrow({ where: { id: bedroom.id } })
+  assert.equal(waitingBedroom.status, 'PENDING')
+  assert.equal(waitingBedroom.startedAt, null)
+  assert.equal(waitingBedroom.completedAt, null)
+  assert.equal((await db.project.findUniqueOrThrow({ where: { id: project.id } })).stage, 'DESIGN')
   const portal = await call(manager, 'POST', `${path}/portal`, undefined, 201)
   const html = await (await anonymous.get(portal.url)).text()
-  assert.ok(html.includes('Colocando as cotas') && html.includes('Dormitório') && html.includes('janeiro de 2027'))
+  assert.ok(html.includes('Detalhamento e cotas') && html.includes('Aguardando projeto') && html.includes('Dormitório') && html.includes('janeiro de 2027'))
   assert.ok(!html.includes('private fixture note'))
   console.log('PASS reopening, metadata, naming and public tracking keep each environment distinct')
   const executablePath = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(existsSync)
@@ -100,8 +106,15 @@ try {
     ])
     assert.equal(response.status(), 200)
     await expect(panel.getByRole('combobox', { name: 'Etapa de Cozinha', exact: true })).toHaveValue(stage)
-    await expect(panel.getByRole('combobox', { name: 'Etapa de Dormitório', exact: true })).toHaveValue('DESIGN')
+    await expect(panel.getByRole('combobox', { name: 'Etapa de Dormitório', exact: true })).toHaveValue('DESIGN_PENDING')
   }
+  const [startedDesign] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith(`/environments/${bedroom.id}`) && r.request().method() === 'PATCH'),
+    panel.getByRole('combobox', { name: 'Etapa de Dormitório', exact: true }).selectOption('DESIGN'),
+  ])
+  assert.equal(startedDesign.status(), 200)
+  await expect(panel.getByRole('combobox', { name: 'Etapa de Dormitório', exact: true })).toHaveValue('DESIGN')
+  await expect(panel.getByRole('combobox', { name: 'Etapa de Cozinha', exact: true })).toHaveValue('DIMENSIONING')
   await panel.getByLabel('Novo ambiente', { exact: true }).fill('Lavanderia')
   await panel.getByRole('button', { name: 'Adicionar ambiente', exact: true }).click()
   await expect(panel.getByRole('combobox', { name: 'Etapa de Lavanderia', exact: true })).toBeVisible()
@@ -120,6 +133,15 @@ try {
   await panel.scrollIntoViewIfNeeded()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2), true)
   await page.screenshot({ path: fileURLToPath(new URL('mobile-rooms.png', evidence)), fullPage: true })
+  await call(manager, 'PATCH', path, { stage: 'DESIGN_PENDING' })
+  await page.reload({ waitUntil: 'networkidle', timeout: 60000 })
+  const [designStarted] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith(path) && r.request().method() === 'PATCH'),
+    page.getByRole('button', { name: 'Iniciar projeto', exact: true }).click(),
+  ])
+  assert.equal(designStarted.status(), 200)
+  assert.equal((await db.project.findUniqueOrThrow({ where: { id: project.id } })).stage, 'DESIGN')
+  assert.equal((await db.projectEnvironment.findUniqueOrThrow({ where: { id: kitchen.id } })).workflowStage, 'DIMENSIONING')
   await context.close()
   console.log('PASS desktop and mobile controls update one room and add another without advancing the order')
 } finally {

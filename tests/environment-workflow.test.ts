@@ -4,11 +4,13 @@ import { environmentStatusForStage, environmentWorkflowLabel, environmentWorkflo
 
 test('ambientes podem estar em etapas técnicas diferentes sem fingir fabricação concluída', () => {
   const rooms = [{ status: 'PENDING', workflowStage: 'DIMENSIONING' }, { status: 'PENDING', workflowStage: 'DESIGN' }]
-  assert.equal(environmentWorkflowLabel(rooms[0]), 'Colocando as cotas')
+  assert.equal(environmentWorkflowLabel(rooms[0]), 'Detalhamento e cotas')
   assert.equal(environmentWorkflowLabel(rooms[1]), 'Projetando')
   assert.equal(environmentStatusForStage('DIMENSIONING'), 'PENDING')
   assert.equal(environmentStatusForStage('PROJECT_APPROVED'), 'PENDING')
-  assert.equal(environmentWorkflowSummary(rooms), '1 Colocando as cotas · 1 Projetando')
+  assert.equal(environmentStatusForStage('DESIGN_PENDING'), 'PENDING')
+  assert.equal(environmentWorkflowLabel({ status: 'PENDING', workflowStage: 'DESIGN_PENDING' }), 'Aguardando projeto')
+  assert.equal(environmentWorkflowSummary(rooms), '1 Detalhamento e cotas · 1 Projetando')
 })
 test('registros antigos mantêm seu progresso e ambiente sem etapa fica a definir', () => {
   assert.equal(getEnvironmentWorkflowStage({ status: 'PENDING' }), null)

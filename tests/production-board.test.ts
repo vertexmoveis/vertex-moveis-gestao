@@ -124,6 +124,9 @@ test('ordena bloqueados antes de atrasados e dos demais', () => {
 })
 
 test('calcula avanço e detecta salto de etapa', () => {
+  assert.equal(getAdjacentProductionStage('MEASUREMENT', 1), 'DESIGN_PENDING')
+  assert.equal(getAdjacentProductionStage('DESIGN_PENDING', 1), 'DESIGN')
+  assert.equal(isProductionStageSkip('MEASUREMENT', 'DESIGN'), true)
   assert.equal(getAdjacentProductionStage('DESIGN', 1), 'PROJECT_READY')
   assert.equal(getAdjacentProductionStage('PENDING_START', -1), null)
   assert.equal(isProductionStageSkip('DESIGN', 'PRODUCTION'), true)
@@ -132,11 +135,13 @@ test('calcula avanço e detecta salto de etapa', () => {
 
 test('fluxo acompanha desenho, cotas, aprovação, fabricação, transporte e instalação sem mesclar etapas', () => {
   const stages = [
-    'PENDING_START', 'MEASUREMENT', 'DESIGN', 'PROJECT_READY', 'DIMENSIONING',
+    'PENDING_START', 'MEASUREMENT', 'DESIGN_PENDING', 'DESIGN', 'PROJECT_READY', 'DIMENSIONING',
     'PROJECT_APPROVED', 'SENDING_TO_PRODUCTION', 'PRODUCTION', 'PRODUCTION_READY',
     'TRANSPORTATION', 'INSTALLATION', 'COMPLETED',
   ] as const
   assert.deepEqual(PRODUCTION_STAGE_FLOW, [...stages])
+  assert.equal(PRODUCTION_STAGE_LABELS.DESIGN_PENDING, 'Aguardando projeto')
+  assert.equal(PRODUCTION_STAGE_STATUS.DESIGN_PENDING, 'DESIGN_ENGINEERING')
   for (const [index, stage] of stages.entries()) {
     assert.equal(normalizeProductionStage(stage), stage)
     assert.equal(getAdjacentProductionStage(stage, 1), stages[index + 1] || null)

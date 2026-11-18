@@ -20,6 +20,7 @@ const projectStatuses = [
 const productionStages = [
   'PENDING_START',
   'MEASUREMENT',
+  'DESIGN_PENDING',
   'DESIGN',
   'PROJECT_READY',
   'DIMENSIONING',

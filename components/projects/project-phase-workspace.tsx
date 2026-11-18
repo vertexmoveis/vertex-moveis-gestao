@@ -80,7 +80,8 @@ export function ProjectPhaseWorkspace({
   const nextStage = getAdjacentProductionStage(stage, 1)
   const advanceLabel = nextStage === 'COMPLETED'
     ? 'Finalizar projeto'
-    : nextStage ? `Avançar para ${PRODUCTION_STAGE_LABELS[nextStage]}` : null
+    : nextStage === 'DESIGN' ? 'Iniciar projeto'
+      : nextStage ? `Avançar para ${PRODUCTION_STAGE_LABELS[nextStage]}` : null
   const taskGroups = [
     { key: 'COMMERCIAL', label: 'Comercial' },
     { key: 'TECHNICAL', label: 'Técnico' },

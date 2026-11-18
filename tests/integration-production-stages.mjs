@@ -16,12 +16,12 @@ assert.equal(new URL(databaseURL).hostname, '127.0.0.1')
 assert.equal(new URL(databaseURL).port, '55449')
 const db = new PrismaClient({ datasources: { db: { url: databaseURL } } })
 const stages = [
-  ['PENDING_START', 'Aguardando início'], ['MEASUREMENT', 'Medição'],
-  ['DESIGN', 'Projetando'], ['PROJECT_READY', 'Projeto pronto'],
-  ['DIMENSIONING', 'Colocando as cotas'], ['PROJECT_APPROVED', 'Projeto aprovado'],
-  ['SENDING_TO_PRODUCTION', 'Enviando para produção'], ['PRODUCTION', 'Em produção'],
-  ['PRODUCTION_READY', 'Produção pronta'], ['TRANSPORTATION', 'Transportando'],
-  ['INSTALLATION', 'Instalando'], ['COMPLETED', 'Pronto'],
+  ['PENDING_START', 'Aguardando medição'], ['MEASUREMENT', 'Em medição'],
+  ['DESIGN_PENDING', 'Aguardando projeto'], ['DESIGN', 'Projetando'], ['PROJECT_READY', 'Desenho pronto'],
+  ['DIMENSIONING', 'Detalhamento e cotas'], ['PROJECT_APPROVED', 'Projeto aprovado'],
+  ['SENDING_TO_PRODUCTION', 'Preparando produção'], ['PRODUCTION', 'Em produção'],
+  ['PRODUCTION_READY', 'Pronto para transporte'], ['TRANSPORTATION', 'Em transporte'],
+  ['INSTALLATION', 'Em instalação'], ['COMPLETED', 'Concluído'],
 ]
 const evidence = new URL('../../finance-verification/production-stages/', import.meta.url)
 const run = `production-stages-${Date.now().toString(36)}`
@@ -110,7 +110,7 @@ try {
     await db.user.create({ data: { id: ids[label], name: `Pessoa fictícia ${label}`, email: `${run}-${label}@example.local`, password: hash, role } })
   }
   ids.client = `${run}-client`
-  await db.client.create({ data: { id: ids.client, managerId: ids.manager, name: 'Cliente fictício: doze etapas' } })
+  await db.client.create({ data: { id: ids.client, managerId: ids.manager, name: 'Cliente fictício: etapas de produção' } })
   const manager = await login('manager'), other = await login('other'), viewer = await login('viewer')
   const anonymous = await request.newContext({ baseURL }); contexts.push(anonymous)
   const apiProject = await project('api')
@@ -148,9 +148,9 @@ try {
       assert.ok(row.warrantyEndsAt > row.postSaleFollowUpAt)
     }
   }
-  assert.equal(await db.timelineEvent.count({ where: { projectId: apiProject.id, event: 'Etapa atualizada' } }), 10)
+  assert.equal(await db.timelineEvent.count({ where: { projectId: apiProject.id, event: 'Etapa atualizada' } }), stages.length - 2)
   assert.equal(await db.timelineEvent.count({ where: { projectId: apiProject.id, event: 'Projeto concluído' } }), 1)
-  pass('Doze etapas persistem sem fabricar aceites, recebimentos ou conclusão antecipada', { stages: stages.map(([stage]) => stage) })
+  pass('Etapas persistem sem fabricar aceites, recebimentos ou conclusão antecipada', { stages: stages.map(([stage]) => stage) })
 
   const transport = await project('filtro-transporte', 'TRANSPORTATION')
   const install = await project('filtro-instalacao', 'INSTALLATION')
@@ -208,12 +208,12 @@ try {
   await moveCard(page, uiProject, -1, 'PROJECT_READY')
   await moveCard(page, uiProject, 1, 'DIMENSIONING')
   await page.screenshot({ path: fileURLToPath(new URL('desktop-board.png', evidence)), fullPage: true })
-  pass('Navegador desktop: doze colunas, rolagem interna, voltar/avançar e salto com confirmação')
+  pass('Navegador desktop: treze colunas, rolagem interna, voltar/avançar e salto com confirmação')
 
   await page.goto(`${baseURL}/dashboard/projects/${uiProject.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
   const workspace = page.getByLabel('Fluxo do projeto')
   await expect(workspace).toBeVisible({ timeout: 60_000 })
-  for (const [stage, label] of stages.slice(5)) {
+  for (const [stage, label] of stages.slice(stages.findIndex(([stage]) => stage === 'PROJECT_APPROVED'))) {
     const name = stage === 'COMPLETED' ? 'Finalizar projeto' : `Avançar para ${label}`
     const button = workspace.getByRole('button', { name, exact: true })
     await expect(button).toBeEnabled({ timeout: 30_000 })
@@ -236,7 +236,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2), true)
   assert.equal(await board.evaluate(el => el.scrollWidth > el.clientWidth), true)
   await board.evaluate(el => { el.scrollLeft = el.scrollWidth })
-  await expect(board.getByRole('heading', { level: 2, name: 'Pronto', exact: true })).toBeVisible()
+  await expect(board.getByRole('heading', { level: 2, name: 'Concluído', exact: true })).toBeVisible()
   await page.screenshot({ path: fileURLToPath(new URL('mobile-board.png', evidence)), fullPage: true })
   assert.deepEqual(pageErrors, [])
   assert.deepEqual(hydrationErrors, [])
@@ -247,15 +247,15 @@ try {
   await page.goto(`${baseURL}/acompanhar/${portalToken}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
   await expect(page.getByRole('heading', { name: 'Andamento geral', exact: true })).toBeVisible({ timeout: 60_000 })
   const timeline = page.locator('ol')
-  await expect(timeline.locator('li')).toHaveCount(12)
+  await expect(timeline.locator('li')).toHaveCount(stages.length)
   for (const [, label] of stages) await expect(timeline.getByText(label, { exact: true })).toHaveCount(1)
-  await expect(page.getByText('Transportando', { exact: true })).toHaveCount(2)
+  await expect(page.getByText('Em transporte', { exact: true })).toHaveCount(2)
   const completedToken = randomBytes(32).toString('base64url')
   await db.projectPortalAccess.create({ data: { projectId: uiProject.id, tokenHash: createHash('sha256').update(completedToken).digest('hex'), tokenEncrypted: 'fictional-fixture-not-used-for-public-lookup' } })
   await page.goto(`${baseURL}/acompanhar/${completedToken}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
   await expect(page.getByText('100%', { exact: true })).toHaveCount(2)
   await honestRecords(uiProject.id, true)
-  pass('Acompanhamento do cliente mostra as doze etapas, transporte separado e conclusão em 100%')
+  pass('Acompanhamento do cliente mostra as treze etapas, transporte separado e conclusão em 100%')
   await context.close()
   await writeFile(new URL('results.json', evidence), JSON.stringify({ run, status: 'passed', results }, null, 2))
 } catch (error) {
