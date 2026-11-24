@@ -12,6 +12,8 @@ const BACKUP_TABLES = [
   'CompanyPresentationImage',
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
+  'WorkshopStockItem',
+  'WorkshopStockReceipt',
   'QuotePriceRule',
   'OperationalResource',
   'PurchaseOrder',

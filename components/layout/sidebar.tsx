@@ -23,18 +23,20 @@ import {
   Truck,
   Users,
   Wallet,
+  Warehouse,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { cn } from '@/lib/utils'
+import { workshopStockRoles } from '@/lib/workshop-stock'
+import type { Role } from '@/types'
 
 type SidebarNavItem = {
   href: string
   label: string
   icon: LucideIcon
-  adminOnly?: boolean
-  financeOnly?: boolean
+  allowedRoles?: readonly Role[]
 }
 
 const SIDEBAR_STORAGE_KEY = 'vertex:sidebar-collapsed'
@@ -67,8 +69,9 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
   {
     label: 'Gestão',
     items: [
-      { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, financeOnly: true },
-      { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
+      { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, allowedRoles: ['ADMIN', 'MANAGER'] },
+      { href: '/dashboard/stock', label: 'Estoque', icon: Warehouse, allowedRoles: workshopStockRoles },
+      { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, allowedRoles: ['ADMIN'] },
       { href: '/dashboard/contracts', label: 'Contratos', icon: FileSignature },
       { href: '/dashboard/post-sale', label: 'Pós-venda', icon: HeartHandshake },
     ],
@@ -214,8 +217,7 @@ export function Sidebar({ userName, userEmail, userRole }: SidebarProps) {
         <nav aria-label="Menu principal" className="flex-1 overflow-y-auto px-2 py-3 scrollbar-none">
           {navSections.map((section, sectionIndex) => {
             const visibleItems = section.items.filter((item) => (
-              (!item.adminOnly || userRole === 'ADMIN')
-              && (!item.financeOnly || userRole === 'ADMIN' || userRole === 'MANAGER')
+              !item.allowedRoles || item.allowedRoles.some((role) => role === userRole)
             ))
             if (!visibleItems.length) return null
             const hasActiveItem = visibleItems.some((item) => item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href))
