@@ -44,6 +44,7 @@ model User {
   deliveryProofs             ProjectDeliveryProof[] @relation("DeliveryProofCreatedBy")
   commissions                SalesCommission[]
   purchaseOrders             PurchaseOrder[]        @relation("PurchaseOrderCreatedBy")
+  workshopStockReceipts      WorkshopStockReceipt[]
   privacyRequests            PrivacyRequest[]       @relation("PrivacyRequestCreatedBy")
   alertStates                UserAlertState[]
   quoteRequests              QuoteRequest[] @relation("RequestAssigned")
@@ -488,6 +489,31 @@ model QuotePriceRule {
 
   @@index([active, validFrom, validUntil])
   @@index([environment, furnitureType, furnitureModel])
+}
+
+model WorkshopStockItem {
+  id            String                 @id @default(cuid())
+  name          String
+  category      String?
+  unit          String
+  stockQuantity Decimal                @default(0) @db.Decimal(14, 3)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  receipts      WorkshopStockReceipt[]
+
+  @@unique([name, unit])
+}
+
+model WorkshopStockReceipt {
+  id          String            @id @db.Uuid
+  itemId      String
+  item        WorkshopStockItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity    Decimal           @db.Decimal(14, 3)
+  createdById String?
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+
+  @@index([itemId, createdAt])
 }
 
 model MaterialCatalogItem {

@@ -21,6 +21,8 @@ const tableOrder = [
   'CompanyProfile',
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
+  'WorkshopStockItem',
+  'WorkshopStockReceipt',
   'QuotePriceRule',
   'OperationalResource',
   'PurchaseOrder',

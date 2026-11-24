@@ -23,6 +23,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Warehouse,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -68,6 +69,7 @@ const navSections: Array<{ label: string; items: SidebarNavItem[] }> = [
     label: 'Gestão',
     items: [
       { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet, financeOnly: true },
+      { href: '/dashboard/stock', label: 'Estoque', icon: Warehouse, adminOnly: true },
       { href: '/dashboard/purchases', label: 'Compras', icon: ShoppingCart, adminOnly: true },
       { href: '/dashboard/contracts', label: 'Contratos', icon: FileSignature },
       { href: '/dashboard/post-sale', label: 'Pós-venda', icon: HeartHandshake },
