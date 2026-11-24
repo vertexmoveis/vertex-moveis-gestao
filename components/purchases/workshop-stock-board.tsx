@@ -20,6 +20,25 @@ const unitNames: Record<WorkshopStockUnit, string> = {
   m2: 'Metro quadrado (m²)',
 }
 const unitOptions = workshopStockUnits.map((unit) => ({ value: unit, label: unitNames[unit] }))
+const hardwareOptions = [
+  'Ferragem',
+  'Dobradiça reta',
+  'Dobradiça curva',
+  'Dobradiça supercurva',
+  'Amortecedor para porta',
+  'Corrediça invisível',
+  'Corrediça telescópica',
+  'Puxador',
+  'Parafuso para MDF',
+  'Cantoneira de fixação',
+  'Cavilha',
+  'Fecho magnético',
+  'Pistão a gás',
+  'Suporte de prateleira',
+  'Trilho para porta de correr',
+  'Pé nivelador',
+].map((name) => ({ value: name, label: name }))
+
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumSignificantDigits: 12 })
 const nameOrder = new Intl.Collator('pt-BR')
 
@@ -67,6 +86,7 @@ export function WorkshopStockBoard() {
   const [loading, setLoading] = useState(true)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadError, setLoadError] = useState('')
+  const [hardwareType, setHardwareType] = useState('')
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [unit, setUnit] = useState<WorkshopStockUnit>('unidade')
@@ -98,6 +118,16 @@ export function WorkshopStockBoard() {
     return () => controller.abort()
   }, [loadAttempt])
 
+  const chooseHardware = (value: string) => {
+    setHardwareType(value)
+    if (!value) return
+
+    setName(value)
+    setCategory('Ferragens')
+    setUnit('unidade')
+    setCreateError('')
+  }
+
   const createItem = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (inFlight.current) return
@@ -117,6 +147,7 @@ export function WorkshopStockBoard() {
         body: JSON.stringify({ action: 'CREATE_ITEM', name: name.trim(), category: category.trim() || undefined, unit }),
       })
       setItems((current) => [...current.filter((existing) => existing.id !== item.id), item])
+      setHardwareType('')
       setName('')
       setCategory('')
       setSearch('')
@@ -188,6 +219,16 @@ export function WorkshopStockBoard() {
         <CardHeader><h2 className="text-base font-semibold text-[#121212]">Cadastrar material</h2></CardHeader>
         <CardBody>
           <form onSubmit={createItem} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1.2fr_1fr_auto] lg:items-end">
+            <div className="sm:col-span-full">
+              <Select
+                label="Biblioteca de ferragens"
+                placeholder="Escolha um tipo de ferragem"
+                value={hardwareType}
+                onChange={(event) => chooseHardware(event.target.value)}
+                options={hardwareOptions}
+                disabled={formsDisabled}
+              />
+            </div>
             <Input label="Nome do material" value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="Ex.: Dobradiça curva" required disabled={formsDisabled} />
             <Input label="Categoria (opcional)" value={category} onChange={(event) => setCategory(event.target.value)} maxLength={80} placeholder="Ex.: Ferragens" disabled={formsDisabled} />
             <Select label="Unidade" value={unit} onChange={(event) => setUnit(event.target.value as WorkshopStockUnit)} options={unitOptions} disabled={formsDisabled} />
