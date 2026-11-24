@@ -6,6 +6,7 @@ import { rateLimit, RateLimitUnavailableError } from '@/lib/rate-limit'
 import { badRequest, getClientIp, requireRole, serverError, serviceUnavailable } from '@/lib/security'
 import {
   isCountedStockUnit,
+  workshopStockRoles,
   workshopStockUnits,
   type WorkshopStockItemView,
   type WorkshopStockUnit,
@@ -40,7 +41,7 @@ function serializeItem(item: WorkshopStockItem): WorkshopStockItemView {
 }
 
 export async function GET() {
-  const auth = await requireRole(['ADMIN'])
+  const auth = await requireRole([...workshopStockRoles])
   if (!auth.ok) return auth.response
 
   try {
@@ -53,7 +54,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['ADMIN'])
+  const auth = await requireRole([...workshopStockRoles])
   if (!auth.ok) return auth.response
 
   try {

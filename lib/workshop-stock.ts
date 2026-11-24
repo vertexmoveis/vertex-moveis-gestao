@@ -1,3 +1,7 @@
+import type { Role } from '@/types'
+
+export const workshopStockRoles: readonly Role[] = ['ADMIN', 'MANAGER']
+
 export const workshopStockUnits = ['unidade', 'chapa', 'metro', 'm2'] as const
 
 export type WorkshopStockUnit = (typeof workshopStockUnits)[number]
