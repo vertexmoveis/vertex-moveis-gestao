@@ -94,6 +94,10 @@ const unitLabels = {
 
 const quantityFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
 
+export function normalizeWorkshopStockSearch(value: string) {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim()
+}
+
 export function workshopStockUnitLabel(unit: WorkshopStockUnit, amount = 1) {
   return unitLabels[unit][Math.abs(amount) === 1 ? 0 : 1]
 }
