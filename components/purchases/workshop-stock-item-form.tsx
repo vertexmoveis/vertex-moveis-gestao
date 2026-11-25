@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import {
@@ -11,6 +11,7 @@ import {
   type WorkshopStockItemView,
   type WorkshopStockUnit,
 } from '@/lib/workshop-stock'
+import { workshopStockPresets, type WorkshopStockPreset } from '@/lib/workshop-stock-presets'
 import { parseWorkshopStockQuantity, workshopStockInputNumber } from './workshop-stock-form-quantity'
 
 type ItemType = WorkshopStockItemInput['itemType']
@@ -27,25 +28,21 @@ const unitOptions = workshopStockUnits.map((unit) => ({
   label: unit === 'm2' ? 'Metro quadrado (m²)' : workshopStockUnitLabel(unit),
 }))
 
-const hardwareOptions = [
-  'Ferragem', 'Dobradiça reta', 'Dobradiça curva', 'Dobradiça supercurva',
-  'Amortecedor para porta', 'Corrediça invisível', 'Corrediça telescópica',
-  'Puxador', 'Parafuso para MDF', 'Cantoneira de fixação', 'Cavilha',
-  'Fecho magnético', 'Pistão a gás', 'Suporte de prateleira',
-  'Trilho para porta de correr', 'Pé nivelador',
-].map((name) => ({ value: name, label: name }))
+const hardwarePresets = workshopStockPresets.filter((preset) => preset.itemType === 'HARDWARE')
+const hardwareOptions = hardwarePresets.map(({ name }) => ({ value: name, label: name }))
 
 function mdfUnit(itemType: ItemType): WorkshopStockUnit | undefined {
   if (itemType === 'MDF_SHEET') return 'chapa'
   if (itemType === 'MDF_OFFCUT') return 'unidade'
 }
 
-function initialDraft(item?: WorkshopStockItemView) {
+function initialDraft(item?: WorkshopStockItemView, preset?: WorkshopStockPreset) {
+  const material = item ?? preset
   return {
-    name: item?.name ?? '',
-    category: item?.category ?? '',
-    itemType: item?.itemType ?? 'OTHER' as ItemType,
-    unit: item?.unit ?? 'unidade' as WorkshopStockUnit,
+    name: material?.name ?? '',
+    category: material?.category ?? '',
+    itemType: material?.itemType ?? 'OTHER' as ItemType,
+    unit: material?.unit ?? 'unidade' as WorkshopStockUnit,
     code: item?.code ?? '',
     brand: item?.brand ?? '',
     location: item?.location ?? '',
@@ -62,23 +59,30 @@ type ItemDraft = ReturnType<typeof initialDraft>
 
 export function WorkshopStockItemForm({
   item,
+  preset,
   busy,
   onSubmit,
   onCancel,
 }: {
   item?: WorkshopStockItemView
+  preset?: WorkshopStockPreset
   busy: boolean
   onSubmit: (input: WorkshopStockItemInput) => void
   onCancel: () => void
 }) {
-  const [draft, setDraft] = useState(() => initialDraft(item))
-  const [hardwareType, setHardwareType] = useState('')
+  const [draft, setDraft] = useState(() => initialDraft(item, preset))
+  const [hardwareType, setHardwareType] = useState(preset?.itemType === 'HARDWARE' ? preset.name : '')
   const [error, setError] = useState('')
+  const nameInput = useRef<HTMLInputElement>(null)
   const isMdf = Boolean(mdfUnit(draft.itemType))
   const isOffcut = draft.itemType === 'MDF_OFFCUT'
   const availableTypes = itemTypeOptions.filter(({ value }) => (
     !item || value === item.itemType || !mdfUnit(value) || item.unit === mdfUnit(value)
   ))
+
+  useEffect(() => {
+    if (preset) nameInput.current?.focus()
+  }, [preset])
 
   function updateField<Key extends keyof ItemDraft>(key: Key, value: ItemDraft[Key]) {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -86,14 +90,9 @@ export function WorkshopStockItemForm({
 
   function chooseHardware(value: string) {
     setHardwareType(value)
-    if (!value) return
-    setDraft((current) => ({
-      ...current,
-      name: value,
-      category: 'Ferragens',
-      unit: 'unidade',
-      itemType: 'HARDWARE',
-    }))
+    const hardware = hardwarePresets.find(({ name }) => name === value)
+    if (!hardware) return
+    setDraft((current) => ({ ...current, ...hardware }))
     setError('')
   }
 
@@ -158,7 +157,7 @@ export function WorkshopStockItemForm({
         <Select label="Biblioteca de ferragens" placeholder="Escolha um tipo de ferragem" value={hardwareType} onChange={(event) => chooseHardware(event.target.value)} options={hardwareOptions} disabled={busy} />
       )}
       <fieldset disabled={busy} className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <Input label="Nome do material" value={draft.name} onChange={(event) => updateField('name', event.target.value)} maxLength={120} placeholder="Ex.: Corrediça invisível 450 mm" required />
+        <Input ref={nameInput} label="Nome do material" value={draft.name} onChange={(event) => updateField('name', event.target.value)} maxLength={120} placeholder="Ex.: Corrediça invisível 450 mm" required />
         <Select label="Tipo de material" value={draft.itemType} onChange={(event) => changeItemType(event.target.value as ItemType)} options={availableTypes} />
         <Input label="Categoria (opcional)" value={draft.category} onChange={(event) => updateField('category', event.target.value)} maxLength={80} placeholder="Ex.: Ferragens" />
         <Select label="Unidade" value={draft.unit} onChange={(event) => updateField('unit', event.target.value as WorkshopStockUnit)} options={unitOptions} disabled={Boolean(item) || isMdf} />

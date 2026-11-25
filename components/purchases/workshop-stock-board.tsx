@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
 import {
   formatWorkshopStockQuantity,
+  normalizeWorkshopStockSearch,
   workshopStockItemTypes,
   workshopStockItemTypeLabels,
   type WorkshopStockItemInput,
@@ -15,13 +16,15 @@ import {
   type WorkshopStockMovementInput,
   type WorkshopStockMovementKind,
 } from '@/lib/workshop-stock'
+import type { WorkshopStockPreset } from '@/lib/workshop-stock-presets'
 import { WorkshopStockHistory } from './workshop-stock-history'
 import { WorkshopStockItemForm } from './workshop-stock-item-form'
+import { WorkshopStockLibrary } from './workshop-stock-library'
 import { WorkshopStockMovementForm, WorkshopStockPurchaseForm } from './workshop-stock-movement-form'
 import { WorkshopStockRequestError, workshopStockRequest } from './workshop-stock-request'
 
 type StockPanel =
-  | { type: 'create' }
+  | { type: 'create'; preset?: WorkshopStockPreset }
   | { type: 'batch' }
   | { type: 'edit' | 'history'; itemId: string }
   | { type: 'movement'; itemId: string; initialKind: WorkshopStockMovementKind }
@@ -48,15 +51,11 @@ const itemTypeOptions = [
 ]
 const nameOrder = new Intl.Collator('pt-BR')
 
-function normalizeSearch(value: string) {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim()
-}
-
 function displayItemType(item: WorkshopStockItemView): WorkshopStockItemType {
   if (item.itemType !== 'OTHER') return item.itemType
-  const category = normalizeSearch(item.category || '')
+  const category = normalizeWorkshopStockSearch(item.category || '')
   if (category.includes('ferragem') || category.includes('ferragens')) return 'HARDWARE'
-  if (item.unit === 'chapa' && normalizeSearch(`${item.category || ''} ${item.name}`).includes('mdf')) return 'MDF_SHEET'
+  if (item.unit === 'chapa' && normalizeWorkshopStockSearch(`${item.category || ''} ${item.name}`).includes('mdf')) return 'MDF_SHEET'
   return 'OTHER'
 }
 
@@ -214,7 +213,7 @@ export function WorkshopStockBoard() {
     }
   }
 
-  const query = normalizeSearch(search)
+  const query = normalizeWorkshopStockSearch(search)
   const activeItems = items.filter((item) => item.active).sort((left, right) => nameOrder.compare(left.name, right.name))
   const visibleItems = items.filter((item) => {
     if (item.active === (availability === 'INACTIVE')) return false
@@ -223,7 +222,7 @@ export function WorkshopStockBoard() {
     const type = displayItemType(item)
     if (itemType && type !== itemType) return false
     const description = `${item.name} ${workshopStockItemTypeLabels[type]} ${itemDetails(item)} ${item.location || ''}`
-    return !query || normalizeSearch(description).includes(query)
+    return !query || normalizeWorkshopStockSearch(description).includes(query)
   }).sort((left, right) => nameOrder.compare(left.name, right.name))
   const actionsDisabled = busy || loading || Boolean(loadError)
 
@@ -244,19 +243,29 @@ export function WorkshopStockBoard() {
           </div>
           <div className="grid grid-cols-2 items-end gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr]">
             <div className="col-span-2 md:col-span-1">
-              <Input type="search" label="Buscar material" placeholder="Nome, código, marca ou localização" icon={<Search size={16} aria-hidden="true" />} value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input type="search" label="Buscar material" placeholder="Nome, código ou modelo da biblioteca" icon={<Search size={16} aria-hidden="true" />} value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
             <Select label="Tipo de material" value={itemType} onChange={(event) => setItemType(event.target.value)} options={itemTypeOptions} />
             <Select label="Mostrar" value={availability} onChange={(event) => setAvailability(event.target.value)} options={availabilityOptions} />
           </div>
         </CardHeader>
 
+        {panel?.type !== 'create' && panel?.type !== 'batch' ? (
+          <WorkshopStockLibrary
+            query={query}
+            itemType={itemType}
+            disabled={actionsDisabled}
+            onChoose={(preset) => openPanel({ type: 'create', preset })}
+          />
+        ) : null}
         {notice ? <p role="status" className="border-b border-emerald-100 bg-emerald-50 px-5 py-3 text-sm text-emerald-800">{notice}</p> : null}
         {panel?.type === 'create' || panel?.type === 'batch' ? (
           <CardBody className="space-y-3 border-b border-[#E8E8E8] bg-[#FAFAFA]">
             <h3 className="text-sm font-semibold text-[#121212]">{panel.type === 'create' ? 'Novo material' : 'Receber compra'}</h3>
             {panel.type === 'create' ? (
               <WorkshopStockItemForm
+                key={panel.preset?.name ?? 'new'}
+                preset={panel.preset}
                 busy={busy}
                 onCancel={() => openPanel(null)}
                 onSubmit={(input) => void updateStock({ action: 'CREATE_ITEM', ...input }, `${input.name} foi cadastrado.`)}
