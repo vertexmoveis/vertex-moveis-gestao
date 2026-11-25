@@ -296,10 +296,8 @@ async function createBackup() {
     )
     migrations = migrationResult.rows
     await source.query('COMMIT')
-  } catch (error) {
-    await source.query('ROLLBACK').catch(() => {})
-    throw error
   } finally {
+    // Closing the connection rolls back an unfinished snapshot.
     await source.end().catch(() => {})
   }
 
