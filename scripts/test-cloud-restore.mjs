@@ -22,6 +22,7 @@ const tableOrder = [
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'WorkshopStockItem',
+  'WorkshopStockOperation',
   'WorkshopStockReceipt',
   'QuotePriceRule',
   'OperationalResource',

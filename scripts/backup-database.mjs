@@ -24,6 +24,7 @@ const tableOrder = [
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'WorkshopStockItem',
+  'WorkshopStockOperation',
   'WorkshopStockReceipt',
   'QuotePriceRule',
   'OperationalResource',
@@ -274,21 +275,29 @@ async function createBackup() {
 
   try {
     await source.connect()
+    await source.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    const available = await source.query(
+      'SELECT name FROM unnest($1::text[]) AS backup_tables(name) WHERE to_regclass(quote_ident(name)) IS NOT NULL',
+      [tableOrder],
+    )
+    const existingTables = new Set(available.rows.map((row) => row.name))
+
     for (const table of tableOrder) {
-      try {
-        const result = await source.query(`SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`)
-        tables[table] = result.rows
-      } catch (error) {
-        if (error?.code !== '42P01') throw error
+      if (!existingTables.has(table)) {
         tables[table] = []
+        continue
       }
+      const result = await source.query(`SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`)
+      tables[table] = result.rows
     }
 
     const migrationResult = await source.query(
       'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE finished_at IS NOT NULL ORDER BY finished_at ASC',
     )
     migrations = migrationResult.rows
+    await source.query('COMMIT')
   } finally {
+    // Closing the connection rolls back an unfinished snapshot.
     await source.end().catch(() => {})
   }
 

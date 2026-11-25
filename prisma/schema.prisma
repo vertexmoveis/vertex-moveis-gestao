@@ -497,6 +497,17 @@ model WorkshopStockItem {
   category      String?
   unit          String
   stockQuantity Decimal                @default(0) @db.Decimal(14, 3)
+  itemType      String                 @default("OTHER")
+  code          String?                @unique
+  brand         String?
+  location      String?
+  finish        String?
+  minimumStock  Decimal?               @db.Decimal(14, 3)
+  unitsPerPackage Decimal?             @db.Decimal(14, 3)
+  thicknessMm   Decimal?               @db.Decimal(10, 3)
+  lengthMm      Int?
+  widthMm       Int?
+  active        Boolean                @default(true)
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   receipts      WorkshopStockReceipt[]
@@ -508,12 +519,28 @@ model WorkshopStockReceipt {
   id          String            @id @db.Uuid
   itemId      String
   item        WorkshopStockItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  kind        String            @default("PURCHASE")
   quantity    Decimal           @db.Decimal(14, 3)
+  balanceAfter Decimal?         @db.Decimal(14, 3)
+  reason      String?
+  reference   String?
+  supplier    String?
+  reversalOfId String?          @unique @db.Uuid
+  operationId String?           @db.Uuid
+  operation   WorkshopStockOperation? @relation(fields: [operationId], references: [id], onDelete: Restrict)
   createdById String?
   createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime          @default(now())
 
   @@index([itemId, createdAt])
+  @@index([operationId])
+}
+
+model WorkshopStockOperation {
+  id          String                 @id @db.Uuid
+  fingerprint String
+  createdAt   DateTime               @default(now())
+  receipts    WorkshopStockReceipt[]
 }
 
 model MaterialCatalogItem {

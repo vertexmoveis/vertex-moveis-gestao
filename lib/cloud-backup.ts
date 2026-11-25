@@ -13,6 +13,7 @@ const BACKUP_TABLES = [
   'MaterialCatalogItem',
   'MaterialSupplierPrice',
   'WorkshopStockItem',
+  'WorkshopStockOperation',
   'WorkshopStockReceipt',
   'QuotePriceRule',
   'OperationalResource',
@@ -118,17 +119,18 @@ export function verifyCloudBackup(envelope: BackupEnvelope, secretKey = getEncry
 }
 
 async function createSnapshot() {
-  const tables: Record<string, unknown[]> = {}
-
-  for (const table of BACKUP_TABLES) {
-    tables[table] = await prisma.$queryRawUnsafe<unknown[]>(
-      `SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`,
-    )
-  }
-
-  const migrations = await prisma.$queryRawUnsafe<unknown[]>(
-    'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE finished_at IS NOT NULL ORDER BY finished_at ASC',
+  const [migrations, ...tableRows] = await prisma.$transaction(
+    [
+      prisma.$queryRawUnsafe<unknown[]>(
+        'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE finished_at IS NOT NULL ORDER BY finished_at ASC',
+      ),
+      ...BACKUP_TABLES.map((table) => prisma.$queryRawUnsafe<unknown[]>(
+        `SELECT * FROM ${quoteIdentifier(table)} ORDER BY ${quoteIdentifier('id')}`,
+      )),
+    ],
+    { isolationLevel: 'RepeatableRead' },
   )
+  const tables = Object.fromEntries(BACKUP_TABLES.map((table, index) => [table, tableRows[index]]))
 
   return {
     format: 'vertex-postgresql-backup-v1',
