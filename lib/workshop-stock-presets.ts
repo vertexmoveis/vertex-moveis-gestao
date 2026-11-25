@@ -8,6 +8,7 @@ const hardwarePresets: WorkshopStockPreset[] = [
   'Corrediça invisível',
   'Dobradiça curva',
   'Puxador',
+  'Parafuso',
   'Parafuso para MDF',
   'Ferragem',
   'Dobradiça reta',
